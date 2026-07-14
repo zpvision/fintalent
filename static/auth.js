@@ -1,0 +1,2 @@
+(async()=>{const area=document.querySelector('#auth-area');if(!area)return;try{const response=await fetch('/api/me');if(!response.ok)return;const user=await response.json();area.classList.add('logged-in');area.innerHTML=`<span class="user-name"><i>${user.full_name.trim().charAt(0)}</i><b>${escapeHTML(user.full_name)}</b></span><a class="btn primary register-link" href="/profile">Перейти в профиль</a>`}catch{}})();
+function escapeHTML(value){const node=document.createElement('span');node.textContent=value;return node.innerHTML}

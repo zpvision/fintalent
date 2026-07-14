@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="FinTalent — вакансии и резюме для бухгалтеров">
+  <title>FinTalent — биржа вакансий для бухгалтеров</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="header container">
+    <a class="brand" href="#" aria-label="FinTalent">
+      <span class="brand-mark"><img src="/static/logo.png" alt=""></span>
+      <span><b>Fin <em>Talent</em></b><small>биржа вакансий для бухгалтеров</small></span>
+    </a>
+    <nav><a href="#jobs">Вакансии</a><a href="#candidates">Резюме</a><a href="#companies">Компании</a><a href="#tests">Тесты и навыки</a><a href="#">Блог</a><a href="#">Цены</a></nav>
+    <div class="auth" id="auth-area"><a class="btn ghost register-link" href="/login">Войти</a><a class="btn primary register-link" href="/register">Регистрация</a></div>
+    <button class="menu" aria-label="Открыть меню">☰</button>
+  </header>
+
+  <main>
+    <section class="hero container">
+      <div class="hero-copy">
+        <div class="eyebrow">♢&nbsp; Проверенные специалисты <i></i> Работа для бухгалтеров</div>
+        <h1>Биржа вакансий<br>для <span>бухгалтеров</span></h1>
+        <p>Быстрый подбор персонала и лучшие вакансии<br>в сфере бухгалтерии и финансов.</p>
+        <div class="hero-actions">
+          <a class="action blue resume-action" href="/resume/create"><strong>▣</strong><span><b>Разместить резюме</b><small>Найдите работу мечты</small></span></a>
+          <button class="action green"><strong>▢</strong><span><b>Разместить вакансию</b><small>Найдите специалиста</small></span></button>
+        </div>
+      </div>
+      <div class="hero-visual">
+        <img src="/static/design.png" alt="Специалисты по бухгалтерии">
+      </div>
+    </section>
+
+    <section class="search-panel container">
+      <div class="search-grid">
+        <label class="keyword">⌕ <input placeholder="Должность или ключевые навыки"></label>
+        <label><small>Специализация</small><select><option>Любая</option></select></label>
+        <label><small>Город</small><select><option>Любой город</option></select></label>
+        <label><small>Формат работы</small><select><option>Любой</option></select></label>
+        <label><small>Зарплата от</small><select><option>Любая</option></select></label>
+        <button class="btn primary find">Найти вакансии</button>
+      </div>
+      <div class="popular"><span>Популярные запросы:</span><a>Главный бухгалтер</a><a>Бухгалтер на участок</a><a>Бухгалтер по зарплате</a><a>Финансовый аналитик</a><a>Налоговый консультант</a><b>Расширенный поиск ⚙</b></div>
+    </section>
+
+    <section class="cards container">
+      <article class="panel" id="jobs">
+        <header><h2>Актуальные вакансии</h2><a>Смотреть все</a></header>
+        <div class="job"><div class="company c1">Ф</div><div><b>Главный бухгалтер</b><small>ООО «Финанс Групп»</small><span>⌖ Москва　 ◇ Полная занятость</span></div><strong>от 150 000 ₽</strong></div>
+        <div class="job"><div class="company c2">ТР</div><div><b>Бухгалтер на участок (ОС и ТМЦ)</b><small>АО «Технопром»</small><span>⌖ Санкт-Петербург　 ◇ Гибрид</span></div><strong>от 90 000 ₽</strong></div>
+        <div class="job"><div class="company c3">АА</div><div><b>Бухгалтер по расчету заработной платы</b><small>ООО «Альфа-Бизнес»</small><span>⌖ Казань　 ◇ Удаленно</span></div><strong>от 80 000 ₽</strong></div>
+        <a class="more">Смотреть все вакансии　→</a>
+      </article>
+
+      <article class="panel" id="candidates">
+        <header><h2>Проверенные кандидаты</h2><a>Смотреть всех</a></header>
+        <div class="candidate"><div class="avatar av1">ИС</div><div><b>Ирина Смирнова</b><small>Главный бухгалтер</small><span>⌖ Москва　 ◇ Опыт 9 лет</span><i>1С:БУ　 Налоговый учет　 МСФО</i></div><strong>150 000 ₽<em>✓ Проверен</em></strong></div>
+        <div class="candidate"><div class="avatar av2">АК</div><div><b>Алексей Кузнецов</b><small>Бухгалтер на участок</small><span>⌖ Санкт-Петербург　 ◇ Опыт 6 лет</span><i>1С:ЗУП　 Excel　 Отчетность</i></div><strong>95 000 ₽<em>✓ Проверен</em></strong></div>
+        <div class="candidate"><div class="avatar av3">МЛ</div><div><b>Мария Лебедева</b><small>Бухгалтер</small><span>⌖ Новосибирск　 ◇ Опыт 4 года</span><i>1С:БУ　 Учет ТМЦ　 Excel</i></div><strong>75 000 ₽<em>✓ Проверен</em></strong></div>
+        <a class="more">Смотреть всех кандидатов　→</a>
+      </article>
+
+      <article class="panel benefits">
+        <header><h2>Преимущества Fin Talent</h2></header>
+        <div><i>♙</i><span><b>Целевые специалисты</b><small>Только бухгалтеры и финансисты</small></span></div>
+        <div><i>♢</i><span><b>Проверенные навыки</b><small>Тестирование и верификация</small></span></div>
+        <div><i>ϟ</i><span><b>Быстрый подбор</b><small>Среднее время закрытия вакансии — 3 дня</small></span></div>
+        <div><i>◉</i><span><b>Прозрачные условия</b><small>Реальные зарплаты и честные компании</small></span></div>
+        <div><i>♧</i><span><b>Безопасность данных</b><small>Конфиденциальность и защита информации</small></span></div>
+      </article>
+    </section>
+
+    <section class="bottom container">
+      <article class="panel tests" id="tests"><h2>Проверка навыков и тесты</h2><p>Подтвердите свои знания и выделитесь среди других кандидатов</p><div class="test-list"><div><i>1C</i><b>1С:Бухгалтерия</b><small>Тест</small></div><div><i>%</i><b>Налоговый учет</b><small>Тест</small></div><div><i>▥</i><b>МСФО</b><small>Тест</small></div><div><i>X</i><b>Excel</b><small>Тест</small></div></div><a class="more">Пройти тесты　→</a></article>
+      <article class="panel stats"><div><i>▣</i><b>2 847</b><span>Активных вакансий</span><small>+18% за неделю</small></div><div><i>♙</i><b>18 632</b><span>Проверенных кандидатов</span><small>+26% за неделю</small></div><div><i>♢</i><b>3 дня</b><span>Среднее время закрытия</span><small>−1 день за месяц</small></div><div><i>▥</i><b>1 245</b><span>Компаний на платформе</span><small>+15% за месяц</small></div></article>
+    </section>
+    <section class="trusted container" id="companies"><span>Нам доверяют ведущие компании</span><b>◉ СБЕР</b><b>Тинькофф</b><b>▣ X5 Group</b><b>♨ ГАЗПРОМ</b><b>◉ открытие</b><b>▥ МАГНИТ</b><small>+ еще более 500 компаний</small></section>
+  </main>
+  <script src="/static/auth.js"></script>
+</body>
+</html>
