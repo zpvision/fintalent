@@ -471,7 +471,37 @@ func (p *Postgres) GetAttempt(ctx context.Context, id int64) (*domain.Attempt, e
 		}
 		a.Answers = append(a.Answers, x)
 	}
-	return &a, rows.Err()
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	qRows, err := p.db.QueryContext(ctx, `SELECT id,test_version_id,sort_order,question,question_type,explanation,points,settings FROM test_questions WHERE test_version_id=$1 ORDER BY sort_order,id`, a.TestVersionID)
+	if err != nil {
+		return nil, err
+	}
+	defer qRows.Close()
+	for qRows.Next() {
+		var q domain.Question
+		var settings []byte
+		if err = qRows.Scan(&q.ID, &q.TestVersionID, &q.SortOrder, &q.Question, &q.Type, &q.Explanation, &q.Points, &settings); err != nil {
+			return nil, err
+		}
+		_ = json.Unmarshal(settings, &q.Settings)
+		aRows, queryErr := p.db.QueryContext(ctx, `SELECT id,question_id,answer,is_correct,sort_order FROM test_answers WHERE question_id=$1 ORDER BY sort_order,id`, q.ID)
+		if queryErr != nil {
+			return nil, queryErr
+		}
+		for aRows.Next() {
+			var answer domain.Answer
+			if err = aRows.Scan(&answer.ID, &answer.QuestionID, &answer.Answer, &answer.IsCorrect, &answer.SortOrder); err != nil {
+				aRows.Close()
+				return nil, err
+			}
+			q.Answers = append(q.Answers, answer)
+		}
+		aRows.Close()
+		a.Questions = append(a.Questions, q)
+	}
+	return &a, qRows.Err()
 }
 func (p *Postgres) SaveAttemptAnswer(ctx context.Context, attempt int64, in dto.SubmitAnswer) error {
 	tx, err := p.db.BeginTx(ctx, nil)

@@ -90,6 +90,7 @@ type Attempt struct {
 	CorrectAnswers  int             `json:"correct_answers"`
 	TotalQuestions  int             `json:"total_questions"`
 	Answers         []AttemptAnswer `json:"answers,omitempty"`
+	Questions       []Question      `json:"questions,omitempty"`
 }
 
 type AttemptAnswer struct {

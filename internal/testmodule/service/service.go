@@ -115,6 +115,11 @@ func (s *Service) Attempt(ctx context.Context, id, user int64, admin bool) (*dom
 			a.Answers[i].IsCorrect = nil
 			a.Answers[i].EarnedPoints = 0
 		}
+		for i := range a.Questions {
+			for j := range a.Questions[i].Answers {
+				a.Questions[i].Answers[j].IsCorrect = false
+			}
+		}
 	}
 	return a, nil
 }
