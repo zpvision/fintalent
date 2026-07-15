@@ -14,6 +14,10 @@ import (
 	"strings"
 	"time"
 
+	testhandler "FinTalent/internal/testmodule/handler"
+	testrepository "FinTalent/internal/testmodule/repository"
+	testservice "FinTalent/internal/testmodule/service"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -49,12 +53,27 @@ func main() {
 	http.HandleFunc("/register", servePage("static/register.html"))
 	http.HandleFunc("/login", servePage("static/login.html"))
 	http.HandleFunc("/profile", servePage("static/profile.html"))
+	http.HandleFunc("/tests", servePage("static/tests.html"))
+	http.HandleFunc("/tests/create", servePage("static/test-create.html"))
+	http.HandleFunc("/tests/take", servePage("static/test-take.html"))
+	http.HandleFunc("/docs/openapi.yaml", servePage("docs/openapi.yaml"))
 	http.HandleFunc("/api/register", registerUser)
 	http.HandleFunc("/api/login", loginUser)
 	http.HandleFunc("/api/logout", logoutUser)
 	http.HandleFunc("/api/me", currentUser)
 	registerAdminRoutes()
 	registerResumeRoutes()
+	registerGeographyRoutes()
+	testRepo := testrepository.New(db)
+	testService := testservice.New(testRepo)
+	testHandler := testhandler.New(testService, func(r *http.Request) (int64, error) {
+		u, err := userFromRequest(r)
+		if err != nil {
+			return 0, err
+		}
+		return u.ID, nil
+	}, isAdmin)
+	testHandler.Register(http.DefaultServeMux)
 
 	log.Println("FinTalent запущен: http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
@@ -80,7 +99,13 @@ func prepareDatabase() error {
 	if err != nil {
 		return err
 	}
-	return prepareAdminDatabase(ctx)
+	if err := prepareAdminDatabase(ctx); err != nil {
+		return err
+	}
+	if err := prepareTestingDatabase(ctx); err != nil {
+		return err
+	}
+	return prepareGeographyDatabase(ctx)
 }
 
 func contextWithTimeout() (context.Context, context.CancelFunc) {

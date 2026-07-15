@@ -40,8 +40,8 @@
     <section class="search-panel container">
       <div class="search-grid">
         <label class="keyword">⌕ <input placeholder="Должность или ключевые навыки"></label>
-        <label><small>Специализация</small><select><option>Любая</option></select></label>
-        <label><small>Город</small><select><option>Любой город</option></select></label>
+        <label><small>Специализация</small><select id="specialization-select" name="position"><option value="">Любая</option></select></label>
+        <label class="city-picker"><small>Город</small><input id="city-search" autocomplete="off" placeholder="Любой город"><input id="city-id" name="city" type="hidden"><span id="city-suggestions" class="city-suggestions"></span></label>
         <label><small>Формат работы</small><select><option>Любой</option></select></label>
         <label><small>Зарплата от</small><select><option>Любая</option></select></label>
         <button class="btn primary find">Найти вакансии</button>
@@ -83,5 +83,8 @@
     <section class="trusted container" id="companies"><span>Нам доверяют ведущие компании</span><b>◉ СБЕР</b><b>Тинькофф</b><b>▣ X5 Group</b><b>♨ ГАЗПРОМ</b><b>◉ открытие</b><b>▥ МАГНИТ</b><small>+ еще более 500 компаний</small></section>
   </main>
   <script src="/static/auth.js"></script>
+  <script src="/static/geography.js"></script>
+  <script src="/static/dictionaries.js"></script>
+  <script src="/static/searchable-select.js"></script>
 </body>
 </html>

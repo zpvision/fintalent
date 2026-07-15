@@ -1,0 +1,293 @@
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FinTalent — Панель пользователя</title>
+    <style>
+        :root {
+            --ink: #101f45;
+            --muted: #6f7fa4;
+            --line: #dce7f7;
+            --panel: rgba(255,255,255,.9);
+            --blue: #1458f5;
+            --blue2: #09a0ff;
+            --mint: #14d6b2;
+            --soft: #f4f8ff;
+            --shadow: 0 18px 60px rgba(30,79,157,.10);
+            --radius: 24px;
+        }
+
+        * { box-sizing: border-box; }
+        html, body { margin: 0; min-height: 100%; }
+        body {
+            font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            color: var(--ink);
+            background:
+                    radial-gradient(circle at 12% 10%, rgba(47,182,255,.10), transparent 20%),
+                    radial-gradient(circle at 90% 15%, rgba(20,214,178,.10), transparent 18%),
+                    linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+        }
+
+        button, a { font: inherit; }
+        a { color: inherit; text-decoration: none; }
+
+        .app {
+            min-height: 100vh;
+            padding: 28px 32px 34px;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+
+        .brand { display: flex; align-items: center; gap: 12px; }
+        .brand-mark {
+            width: 36px; height: 44px; position: relative; transform: skewY(-8deg);
+        }
+        .brand-mark span {
+            position: absolute; left: 0; border-radius: 12px 12px 12px 4px;
+            background: linear-gradient(135deg, var(--blue), var(--blue2));
+            box-shadow: 0 8px 18px rgba(20,88,245,.22);
+        }
+        .brand-mark span:nth-child(1){ width: 34px; height: 12px; top: 0; background: linear-gradient(90deg, #39e27e, #18c8bc); }
+        .brand-mark span:nth-child(2){ width: 28px; height: 12px; top: 13px; }
+        .brand-mark span:nth-child(3){ width: 12px; height: 28px; top: 13px; }
+
+        .brand-title { font-size: 23px; font-weight: 800; letter-spacing: -.4px; }
+        .brand-title span { color: #1a63ff; }
+        .brand-sub { margin-top: 2px; color: #8290ad; font-size: 12px; }
+
+        .top-actions { display: flex; align-items: center; gap: 22px; }
+        .icon-button {
+            width: 42px; height: 42px; border: 0; background: transparent; color: #5f7095;
+            display: grid; place-items: center; border-radius: 50%; cursor: pointer;
+        }
+        .icon-button:hover { background: #eef5ff; }
+        .profile { display: flex; align-items: center; gap: 12px; font-weight: 700; }
+        .avatar {
+            width: 44px; height: 44px; border-radius: 50%;
+            background: linear-gradient(180deg, #e8eef9, #c4d0e5);
+            position: relative; overflow: hidden;
+        }
+        .avatar:before { content: ""; position: absolute; width: 14px; height: 14px; border-radius: 50%; background: #8fa1c4; top: 8px; left: 15px; }
+        .avatar:after { content: ""; position: absolute; width: 28px; height: 17px; border-radius: 50% 50% 10px 10px; background: #8fa1c4; bottom: 5px; left: 8px; }
+
+        .layout {
+            display: grid;
+            grid-template-columns: 292px minmax(0, 1fr);
+            gap: 24px;
+            min-height: calc(100vh - 118px);
+        }
+
+        .sidebar, .main {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(14px);
+        }
+
+        .sidebar { padding: 20px 18px; display: flex; flex-direction: column; }
+
+        .primary, .secondary {
+            width: 100%; min-height: 54px; border-radius: 13px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; gap: 12px;
+            font-weight: 800; transition: .2s ease;
+        }
+        .primary {
+            border: 0; color: white;
+            background: linear-gradient(90deg, #1458f5, #0f6bff);
+            box-shadow: 0 12px 24px rgba(20,88,245,.22);
+            margin-bottom: 16px;
+        }
+        .primary:hover { transform: translateY(-1px); box-shadow: 0 16px 28px rgba(20,88,245,.28); }
+        .secondary {
+            border: 1.5px solid #22cdbf;
+            background: white;
+            color: var(--ink);
+            margin-bottom: 28px;
+        }
+        .secondary:hover { background: #f3fffc; }
+
+        .menu { display: grid; gap: 6px; }
+        .menu-section + .menu-section { margin-top: 14px; padding-top: 14px; border-top: 1px solid #dfe8f6; }
+        .menu-item {
+            display: flex; align-items: center; gap: 14px;
+            min-height: 44px; padding: 0 14px; border-radius: 12px;
+            color: #22355e; font-size: 15px;
+        }
+        .menu-item svg { width: 21px; height: 21px; color: #6b7da6; flex: 0 0 auto; }
+        .menu-item:hover, .menu-item.active { background: linear-gradient(90deg, #eef4ff, #f5f9ff); color: #0f5bf4; }
+        .menu-item.active svg { color: #0f5bf4; }
+
+        .assistant-card {
+            margin-top: auto;
+            border-radius: 18px;
+            padding: 18px;
+            background: linear-gradient(135deg, #f0fbff 0%, #dffff5 100%);
+            border: 1px solid #bfeee5;
+        }
+        .assistant-head { display: flex; gap: 12px; align-items: center; font-weight: 800; margin-bottom: 8px; }
+        .bot {
+            width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center;
+            background: rgba(255,255,255,.85); color: #16c8b1;
+        }
+        .assistant-card p { margin: 0 0 14px 48px; color: #6b7a98; font-size: 13px; line-height: 1.5; }
+        .assistant-card button {
+            width: 100%; height: 44px; border: 0; border-radius: 10px; background: white;
+            color: #155af1; font-weight: 800; cursor: pointer;
+        }
+
+        .main {
+            position: relative;
+            overflow: hidden;
+            display: grid;
+            place-items: center;
+            padding: 56px;
+            min-height: 760px;
+        }
+        .main:before, .main:after {
+            content: ""; position: absolute; border-radius: 50%; filter: blur(20px); pointer-events: none;
+        }
+        .main:before { width: 360px; height: 360px; background: rgba(54,153,255,.08); left: 25%; top: 13%; }
+        .main:after { width: 280px; height: 280px; background: rgba(23,218,181,.08); right: 15%; bottom: 13%; }
+
+        .empty-state { width: min(690px, 100%); text-align: center; position: relative; z-index: 1; }
+        .illustration {
+            width: 430px; max-width: 85%; height: 320px; margin: 0 auto 20px; position: relative;
+        }
+        .doc {
+            position: absolute; width: 260px; height: 205px; left: 86px; top: 40px;
+            border-radius: 24px; transform: rotate(6deg);
+            background: linear-gradient(160deg, rgba(255,255,255,.98), rgba(237,247,255,.88));
+            border: 1px solid #d7e7fa;
+            box-shadow: 0 28px 55px rgba(53,106,180,.20);
+        }
+        .doc:after {
+            content: ""; position: absolute; width: 18px; height: 155px; right: -18px; top: 26px;
+            background: linear-gradient(180deg,#4ea9ff,#14d6b2); border-radius: 0 16px 16px 0; opacity: .8;
+        }
+        .doc-profile { position: absolute; left: 26px; top: 28px; width: 52px; height: 52px; border-radius: 50%; background: #d7e2f4; }
+        .doc-profile:before { content:""; position:absolute; width:16px; height:16px; border-radius:50%; background:#9eafd0; left:18px; top:10px; }
+        .doc-profile:after { content:""; position:absolute; width:30px; height:18px; border-radius:50% 50% 8px 8px; background:#9eafd0; left:11px; bottom:6px; }
+        .line { position:absolute; height:10px; border-radius:999px; background:#dce6f5; }
+        .l1{ left:95px; top:35px; width:92px; } .l2{ left:95px; top:57px; width:58px; }
+        .l3{ left:28px; top:100px; width:170px; } .l4{ left:28px; top:124px; width:120px; }
+        .bars { position:absolute; left:100px; bottom:28px; display:flex; align-items:flex-end; gap:12px; }
+        .bars i { display:block; width:20px; border-radius:7px 7px 3px 3px; background:linear-gradient(180deg,#6cb8ff,#18d3bc); }
+        .bars i:nth-child(1){height:35px}.bars i:nth-child(2){height:58px}.bars i:nth-child(3){height:82px}.bars i:nth-child(4){height:108px}
+        .check { position:absolute; width:38px; height:38px; border-radius:50%; background:linear-gradient(135deg,#13d1b2,#2ee3c8); color:white; display:grid; place-items:center; right:-8px; top:18px; box-shadow:0 12px 20px rgba(20,214,178,.26); font-size:23px; font-weight:900; }
+        .briefcase { position:absolute; width:90px; height:76px; border-radius:18px; left:24px; top:122px; background:linear-gradient(145deg,#6eb7ff,#1b69f5); box-shadow:0 18px 28px rgba(20,88,245,.25); }
+        .briefcase:before { content:""; position:absolute; width:34px; height:15px; border:5px solid #6fa7ef; border-bottom:0; border-radius:8px 8px 0 0; left:23px; top:-15px; }
+        .briefcase:after { content:""; position:absolute; width:12px; height:12px; background:#d7f4ff; border-radius:3px; left:39px; top:31px; }
+        .search-orb { position:absolute; width:80px; height:80px; border-radius:50%; border:13px solid #2c82ff; left:60px; bottom:20px; box-shadow:inset 0 0 0 8px rgba(255,255,255,.55), 0 15px 30px rgba(20,88,245,.25); background:rgba(255,255,255,.7); }
+        .search-orb:after { content:""; position:absolute; width:58px; height:16px; border-radius:10px; background:#2c82ff; transform:rotate(45deg); right:-47px; bottom:-28px; }
+        .donut { position:absolute; width:80px; height:80px; border-radius:50%; right:18px; top:120px; background:conic-gradient(#256df5 0 28%, #14d6b2 28% 58%, #77c8ff 58% 80%, #d8e8f6 80%); box-shadow:0 12px 28px rgba(45,103,196,.18); }
+        .donut:after { content:""; position:absolute; inset:19px; border-radius:50%; background:white; }
+        .spark { position:absolute; color:#72b7ff; font-size:34px; }
+        .s1{ left:25px; top:60px }.s2{ right:58px; top:62px }.s3{ right:42px; bottom:26px }
+
+        h1 { font-size: 29px; margin: 0 0 12px; letter-spacing: -.45px; }
+        .lead { color: var(--muted); line-height: 1.65; font-size: 16px; margin: 0 auto 8px; max-width: 640px; }
+        .hint { color: #7a8bab; margin: 0 0 26px; }
+        .cta-row { display: flex; justify-content: center; gap: 20px; flex-wrap: wrap; }
+        .cta-row button { width: 250px; min-height: 54px; }
+
+        @media (max-width: 980px) {
+            .layout { grid-template-columns: 1fr; }
+            .sidebar { order: 2; }
+            .main { min-height: 620px; }
+            .assistant-card { margin-top: 20px; }
+        }
+        @media (max-width: 640px) {
+            .app { padding: 18px 14px 24px; }
+            .brand-sub, .profile span, .top-actions .icon-button:first-child { display:none; }
+            .layout { gap: 16px; }
+            .main { padding: 32px 18px; min-height: 560px; }
+            .illustration { height: 270px; transform: scale(.86); transform-origin: center; }
+            h1 { font-size: 25px; }
+            .cta-row button { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+<div class="app">
+    <header class="topbar">
+        <div class="brand">
+            <div class="brand-mark"><span></span><span></span><span></span></div>
+            <div>
+                <div class="brand-title">Fin <span>Talent</span></div>
+                <div class="brand-sub">биржа вакансий для бухгалтеров</div>
+            </div>
+        </div>
+        <div class="top-actions">
+            <button class="icon-button" aria-label="Помощь">?</button>
+            <button class="icon-button" aria-label="Уведомления">♧</button>
+            <a href="#" class="profile"><div class="avatar"></div><span>Профиль</span>⌄</a>
+        </div>
+    </header>
+
+    <div class="layout">
+        <aside class="sidebar">
+            <button class="primary"><span style="font-size:26px;font-weight:400">＋</span>Создать вакансию</button>
+            <button class="secondary">♙ <span>Создать резюме</span></button>
+
+            <nav class="menu">
+                <div class="menu-section">
+                    <a href="#" class="menu-item active"><span>☆</span>Избранное</a>
+                    <a href="#" class="menu-item"><span>➤</span>Отклики</a>
+                    <a href="#" class="menu-item"><span>⌕</span>Поиски и фильтры</a>
+                    <a href="#" class="menu-item"><span>▢</span>Сообщения</a>
+                    <a href="#" class="menu-item"><span>◇</span>Тесты и навыки</a>
+                </div>
+                <div class="menu-section">
+                    <a href="#" class="menu-item"><span>▣</span>Мои вакансии</a>
+                    <a href="#" class="menu-item"><span>▥</span>Компания</a>
+                    <a href="#" class="menu-item"><span>▥</span>Аналитика</a>
+                </div>
+                <div class="menu-section">
+                    <a href="#" class="menu-item"><span>⚙</span>Настройки</a>
+                    <a href="#" class="menu-item"><span>?</span>Помощь</a>
+                </div>
+            </nav>
+
+            <div class="assistant-card">
+                <div class="assistant-head"><div class="bot">◉</div>ИИ-помощник</div>
+                <p>Подберёт кандидатов под ваши задачи и сэкономит время</p>
+                <button>Попробовать</button>
+            </div>
+        </aside>
+
+        <main class="main">
+            <section class="empty-state">
+                <div class="illustration" aria-hidden="true">
+                    <div class="spark s1">✦</div><div class="spark s2">✧</div><div class="spark s3">✦</div>
+                    <div class="briefcase"></div>
+                    <div class="doc">
+                        <div class="doc-profile"></div>
+                        <div class="line l1"></div><div class="line l2"></div><div class="line l3"></div><div class="line l4"></div>
+                        <div class="bars"><i></i><i></i><i></i><i></i></div>
+                        <div class="check">✓</div>
+                    </div>
+                    <div class="search-orb"></div>
+                    <div class="donut"></div>
+                </div>
+
+                <h1>Добро пожаловать в FinTalent!</h1>
+                <p class="lead">Здесь вы можете создавать резюме, находить вакансии,<br>подбирать сотрудников и прокачивать свои профессиональные навыки.</p>
+                <p class="hint">Давайте начнём с первого шага.</p>
+                <div class="cta-row">
+                    <button class="primary" style="margin:0">Создать резюме&nbsp;&nbsp;♙</button>
+                    <button class="secondary" style="margin:0">Создать вакансию&nbsp;&nbsp;▣</button>
+                </div>
+            </section>
+        </main>
+    </div>
+</div>
+</body>
+</html>

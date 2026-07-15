@@ -79,8 +79,11 @@ func prepareAdminDatabase(ctx context.Context) error {
 	}
 	for _, seed := range initialDictionaries {
 		var id int64
-		err = db.QueryRowContext(ctx, `INSERT INTO dictionaries(name,alias) VALUES($1,$2)
-			ON CONFLICT(name) DO UPDATE SET alias=EXCLUDED.alias RETURNING id`, seed.name, seed.alias).Scan(&id)
+		err = db.QueryRowContext(ctx, `SELECT id FROM dictionaries WHERE alias=$1`, seed.alias).Scan(&id)
+		if err == sql.ErrNoRows {
+			err = db.QueryRowContext(ctx, `INSERT INTO dictionaries(name,alias) VALUES($1,$2)
+				ON CONFLICT(name) DO UPDATE SET alias=EXCLUDED.alias RETURNING id`, seed.name, seed.alias).Scan(&id)
+		}
 		if err != nil {
 			return err
 		}

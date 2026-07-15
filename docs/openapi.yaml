@@ -1,0 +1,166 @@
+openapi: 3.0.3
+info:
+  title: FinTalent Testing API
+  version: 1.0.0
+  description: API создания, публикации, прохождения и модерации профессиональных тестов.
+servers:
+  - url: http://localhost:8080
+tags:
+  - name: Tests
+  - name: Questions
+  - name: Attempts
+  - name: Admin
+paths:
+  /api/tests:
+    get:
+      tags: [Tests]
+      summary: Список доступных или авторских тестов
+      parameters:
+        - {in: query, name: scope, schema: {type: string, enum: [available, mine]}}
+        - {in: query, name: status, schema: {type: string}}
+        - {in: query, name: category, schema: {type: string}}
+        - {in: query, name: q, schema: {type: string}}
+      responses: {'200': {description: Список тестов}}
+    post:
+      tags: [Tests]
+      summary: Создать тест-черновик
+      requestBody: {$ref: '#/components/requestBodies/Test'}
+      responses: {'201': {description: Тест создан}}
+  /api/tests/{testId}:
+    parameters: [{$ref: '#/components/parameters/TestId'}]
+    get:
+      tags: [Tests]
+      summary: Получить тест с вопросами
+      responses: {'200': {description: Тест}}
+    put:
+      tags: [Tests]
+      summary: Изменить информацию теста
+      requestBody: {$ref: '#/components/requestBodies/Test'}
+      responses: {'200': {description: Сохранено}}
+    delete:
+      tags: [Tests]
+      summary: Мягко удалить тест
+      responses: {'200': {description: Удалено}}
+  /api/tests/{testId}/questions:
+    post:
+      tags: [Questions]
+      summary: Добавить вопрос в текущую версию
+      parameters: [{$ref: '#/components/parameters/TestId'}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/QuestionInput'}}}
+      responses: {'201': {description: Вопрос создан}}
+  /api/questions/{questionId}:
+    parameters:
+      - {in: path, name: questionId, required: true, schema: {type: integer, format: int64}}
+    put:
+      tags: [Questions]
+      summary: Изменить вопрос и варианты
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/QuestionInput'}}}}
+      responses: {'200': {description: Сохранено}}
+    delete:
+      tags: [Questions]
+      summary: Удалить вопрос
+      responses: {'200': {description: Удалено}}
+  /api/tests/{testId}/publish:
+    post:
+      tags: [Tests]
+      summary: Опубликовать тест
+      parameters: [{$ref: '#/components/parameters/TestId'}]
+      responses: {'200': {description: Опубликовано}}
+  /api/tests/{testId}/attempts:
+    post:
+      tags: [Attempts]
+      summary: Начать попытку
+      parameters: [{$ref: '#/components/parameters/TestId'}]
+      responses: {'201': {description: Попытка начата}}
+    get:
+      tags: [Attempts]
+      summary: Прохождения авторского теста
+      parameters: [{$ref: '#/components/parameters/TestId'}]
+      responses: {'200': {description: Список попыток}}
+  /api/attempts/{attemptId}/answers:
+    post:
+      tags: [Attempts]
+      summary: Сохранить ответ
+      parameters: [{$ref: '#/components/parameters/AttemptId'}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: '#/components/schemas/SubmitAnswer'}}}}
+      responses: {'200': {description: Ответ сохранён}}
+  /api/attempts/{attemptId}/finish:
+    post:
+      tags: [Attempts]
+      summary: Завершить и оценить попытку
+      parameters: [{$ref: '#/components/parameters/AttemptId'}]
+      responses: {'200': {description: Результат}}
+  /api/attempts/{attemptId}:
+    get:
+      tags: [Attempts]
+      summary: Детальный результат
+      parameters: [{$ref: '#/components/parameters/AttemptId'}]
+      responses: {'200': {description: Попытка и ответы}}
+  /api/me/test-results:
+    get:
+      tags: [Attempts]
+      summary: Результаты текущего пользователя
+      responses: {'200': {description: Список результатов}}
+  /api/tests/{testId}/statistics:
+    get:
+      tags: [Tests]
+      summary: Статистика теста
+      parameters: [{$ref: '#/components/parameters/TestId'}]
+      responses: {'200': {description: Агрегированная статистика}}
+  /api/admin/tests:
+    get:
+      tags: [Admin]
+      summary: Все тесты с фильтрами
+      responses: {'200': {description: Список тестов}}
+  /api/admin/tests/{testId}/moderate:
+    post:
+      tags: [Admin]
+      summary: Опубликовать, заблокировать или архивировать
+      parameters: [{$ref: '#/components/parameters/TestId'}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, properties: {action: {type: string, enum: [publish, block, archive]}, reason: {type: string}}}}}}
+      responses: {'200': {description: Статус изменён}}
+components:
+  parameters:
+    TestId: {in: path, name: testId, required: true, schema: {type: integer, format: int64}}
+    AttemptId: {in: path, name: attemptId, required: true, schema: {type: integer, format: int64}}
+  requestBodies:
+    Test:
+      required: true
+      content: {application/json: {schema: {$ref: '#/components/schemas/TestInput'}}}
+  schemas:
+    TestInput:
+      type: object
+      required: [title]
+      properties:
+        title: {type: string}
+        description: {type: string}
+        category: {type: string}
+        difficulty: {type: string, enum: [easy, medium, hard]}
+        visibility: {type: string, enum: [private, public, marketplace]}
+        is_free: {type: boolean}
+        price: {type: number}
+        passing_percent: {type: number, minimum: 0, maximum: 100}
+        time_limit_seconds: {type: integer, nullable: true}
+    QuestionInput:
+      type: object
+      required: [question, question_type, points]
+      properties:
+        question: {type: string}
+        question_type: {type: string, enum: [single_choice, multiple_choice, boolean, text]}
+        explanation: {type: string}
+        points: {type: number}
+        sort_order: {type: integer}
+        settings: {type: object, additionalProperties: true}
+        answers: {type: array, items: {$ref: '#/components/schemas/AnswerInput'}}
+    AnswerInput:
+      type: object
+      properties: {answer: {type: string}, is_correct: {type: boolean}, sort_order: {type: integer}}
+    SubmitAnswer:
+      type: object
+      required: [question_id]
+      properties:
+        question_id: {type: integer, format: int64}
+        selected_answer_ids: {type: array, items: {type: integer, format: int64}}
+        text_answer: {type: string}
