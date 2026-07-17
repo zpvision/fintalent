@@ -48,7 +48,10 @@ func main() {
 	}
 
 	fs := http.FileServer(http.Dir("static"))
-	http.Handle("/static/", http.StripPrefix("/static/", fs))
+	http.Handle("/static/", http.StripPrefix("/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		fs.ServeHTTP(w, r)
+	})))
 	http.HandleFunc("/", servePage("static/index.html"))
 	http.HandleFunc("/register", servePage("static/register.html"))
 	http.HandleFunc("/login", servePage("static/login.html"))
