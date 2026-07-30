@@ -93,6 +93,7 @@ func main() {
 	registerResumeRoutes()
 	registerVacancyModuleRoutes()
 	registerPublicVacancyRoutes()
+	registerDemoContentRoutes()
 	registerGeographyRoutes()
 	registerMarketplaceRoutes()
 	testRepo := testrepository.New(db)
@@ -145,7 +146,10 @@ func prepareDatabase() error {
 	if err := prepareMarketplaceDatabase(ctx); err != nil {
 		return err
 	}
-	return prepareGeographyDatabase(ctx)
+	if err := prepareGeographyDatabase(ctx); err != nil {
+		return err
+	}
+	return prepareDemoContent(ctx)
 }
 
 func contextWithTimeout() (context.Context, context.CancelFunc) {
