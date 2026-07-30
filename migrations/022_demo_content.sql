@@ -32,16 +32,6 @@ BEGIN
     END IF;
     DELETE FROM vacancy_categories WHERE vacancy_id=entity_id;
     INSERT INTO vacancy_categories(vacancy_id,category_id,block_id,importance,base_weight_snapshot,importance_coefficient_snapshot,effective_weight,sort_order,category_name_snapshot)
-    SELECT entity_id,i.id,bd.block_id,CASE WHEN row_number() over() %3=0 THEN 'bonus' WHEN row_number() over()%2=0 THEN 'preferred' ELSE 'required' END,
-      COALESCE(i.default_weight,5),100,COALESCE(i.default_weight,5),row_number() over(),i.value
-    FROM dictionary_items i
-    JOIN vacancy_survey_block_dictionaries bd ON bd.dictionary_id=i.dictionary_id
-    WHERE i.active=TRUE AND i.deleted_at IS NULL
-    ORDER BY i.dictionary_id,i.sort_order,i.id LIMIT 16
-    ON CONFLICT(vacancy_id,category_id) DO NOTHING;
-    DELETE FROM vacancy_categories vc USING dictionary_items i,dictionaries d
-    WHERE vc.vacancy_id=entity_id AND vc.category_id=i.id AND i.dictionary_id=d.id AND d.alias='position';
-    INSERT INTO vacancy_categories(vacancy_id,category_id,block_id,importance,base_weight_snapshot,importance_coefficient_snapshot,effective_weight,sort_order,category_name_snapshot)
     SELECT entity_id,i.id,bd.block_id,'required',COALESCE(i.default_weight,5),100,COALESCE(i.default_weight,5),0,i.value
     FROM dictionary_items i JOIN dictionaries d ON d.id=i.dictionary_id
     JOIN vacancy_survey_block_dictionaries bd ON bd.dictionary_id=d.id
@@ -72,22 +62,17 @@ BEGIN
 
   FOR n IN 28..51 LOOP
     SELECT id INTO uid FROM users WHERE email=n||'@'||n||'.ru';
-    SELECT id INTO city_id FROM cities ORDER BY id OFFSET ((n-28)%20) LIMIT 1;
+    SELECT id INTO city_id FROM cities
+    WHERE name=(ARRAY['Москва','Санкт-Петербург','Казань','Екатеринбург','Новосибирск','Самара','Нижний Новгород','Краснодар','Ростов-на-Дону','Уфа','Пермь','Воронеж'])[1+((n-28)%12)]
+    ORDER BY id LIMIT 1;
     INSERT INTO resumes(user_id,status,visibility,current_step,desired_salary,available_immediately,search_status_code,preferred_city_id,published_at,work_preferences,created_at,updated_at)
     VALUES(uid,'published','public',10,65000+(n-28)*5500,n%3<>0,CASE WHEN n%4=0 THEN 'considering' ELSE 'open' END,city_id,
       NOW()-(n||' hours')::interval,
       (ARRAY['Ищу команду с понятными процессами и возможностью профессионального роста.','Ценю самостоятельность, доверие и интересные задачи.','Готов(а) развивать учёт и автоматизировать регулярные операции.'])[1+((n-28)%3)],
       NOW()-(n||' days')::interval,NOW())
-    ON CONFLICT(user_id) DO UPDATE SET status='published',visibility='public',published_at=EXCLUDED.published_at
+    ON CONFLICT(user_id) DO UPDATE SET status='published',visibility='public',preferred_city_id=EXCLUDED.preferred_city_id,published_at=EXCLUDED.published_at
     RETURNING id INTO entity_id;
     DELETE FROM resume_categories WHERE resume_id=entity_id;
-    INSERT INTO resume_categories(resume_id,category_id,block_id,sort_order)
-    SELECT entity_id,i.id,bd.block_id,row_number() over()
-    FROM dictionary_items i JOIN applicant_survey_block_dictionaries bd ON bd.dictionary_id=i.dictionary_id
-    WHERE i.active=TRUE AND i.deleted_at IS NULL ORDER BY i.dictionary_id,i.sort_order,i.id LIMIT 18
-    ON CONFLICT DO NOTHING;
-    DELETE FROM resume_categories rc USING dictionary_items i,dictionaries d
-    WHERE rc.resume_id=entity_id AND rc.category_id=i.id AND i.dictionary_id=d.id AND d.alias='position';
     INSERT INTO resume_categories(resume_id,category_id,block_id,sort_order)
     SELECT entity_id,i.id,bd.block_id,0 FROM dictionary_items i JOIN dictionaries d ON d.id=i.dictionary_id
     JOIN applicant_survey_block_dictionaries bd ON bd.dictionary_id=d.id
@@ -118,6 +103,7 @@ BEGIN
     WHERE NOT EXISTS(SELECT 1 FROM resume_educations WHERE resume_id=entity_id);
     INSERT INTO resume_languages(resume_id,language_id,sort_order)
     SELECT entity_id,id,row_number() over() FROM languages WHERE code IN ('ru',CASE WHEN n%2=0 THEN 'en' ELSE 'de' END) ON CONFLICT DO NOTHING;
+    DELETE FROM resume_preferred_cities WHERE resume_id=entity_id;
     INSERT INTO resume_preferred_cities(resume_id,city_id,sort_order) VALUES(entity_id,city_id,0) ON CONFLICT DO NOTHING;
     INSERT INTO resume_work_formats(resume_id,dictionary_item_id,sort_order)
     SELECT entity_id,i.id,row_number() over() FROM dictionary_items i JOIN dictionaries d ON d.id=i.dictionary_id

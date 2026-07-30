@@ -33,13 +33,14 @@ func registerDemoContentRoutes() {
 			return
 		}
 		type card struct {
-			ID       int64   `json:"id"`
-			Title    string  `json:"title"`
-			Name     string  `json:"name"`
-			City     string  `json:"city"`
-			Salary   float64 `json:"salary"`
-			Avatar   string  `json:"avatar,omitempty"`
-			Subtitle string  `json:"subtitle,omitempty"`
+			ID       int64    `json:"id"`
+			Title    string   `json:"title"`
+			Name     string   `json:"name"`
+			City     string   `json:"city"`
+			Salary   float64  `json:"salary"`
+			Avatar   string   `json:"avatar,omitempty"`
+			Subtitle string   `json:"subtitle,omitempty"`
+			Tags     []string `json:"tags,omitempty"`
 		}
 		result := struct {
 			Vacancies []card `json:"vacancies"`
@@ -54,12 +55,16 @@ func registerDemoContentRoutes() {
 				result.Vacancies = append(result.Vacancies, c)
 			}
 		}
-		rows, _ = db.QueryContext(r.Context(), `SELECT r.id,u.full_name,COALESCE((SELECT i.value FROM resume_categories rc JOIN dictionary_items i ON i.id=rc.category_id JOIN dictionaries d ON d.id=i.dictionary_id WHERE rc.resume_id=r.id AND d.alias='position' ORDER BY rc.sort_order LIMIT 1),'Финансовый специалист'),COALESCE(c.name,''),COALESCE(r.desired_salary,0),COALESCE(u.avatar_url,'') FROM resumes r JOIN users u ON u.id=r.user_id LEFT JOIN cities c ON c.id=r.preferred_city_id WHERE r.status='published' AND r.visibility='public' AND r.deleted_at IS NULL ORDER BY random() LIMIT 4`)
+		rows, _ = db.QueryContext(r.Context(), `SELECT r.id,u.full_name,COALESCE((SELECT i.value FROM resume_categories rc JOIN dictionary_items i ON i.id=rc.category_id JOIN dictionaries d ON d.id=i.dictionary_id WHERE rc.resume_id=r.id AND d.alias='position' ORDER BY rc.sort_order LIMIT 1),'Финансовый специалист'),COALESCE(c.name,''),COALESCE(r.desired_salary,0),COALESCE(u.avatar_url,''),COALESCE((SELECT string_agg(value,'|||') FROM (SELECT i.value FROM resume_categories rc JOIN dictionary_items i ON i.id=rc.category_id JOIN dictionaries d ON d.id=i.dictionary_id WHERE rc.resume_id=r.id AND d.alias='accounting_areas' ORDER BY rc.sort_order LIMIT 4) areas),'') FROM resumes r JOIN users u ON u.id=r.user_id LEFT JOIN cities c ON c.id=r.preferred_city_id WHERE r.status='published' AND r.visibility='public' AND r.deleted_at IS NULL ORDER BY random() LIMIT 4`)
 		if rows != nil {
 			defer rows.Close()
 			for rows.Next() {
 				var c card
-				_ = rows.Scan(&c.ID, &c.Name, &c.Title, &c.City, &c.Salary, &c.Avatar)
+				var tags string
+				_ = rows.Scan(&c.ID, &c.Name, &c.Title, &c.City, &c.Salary, &c.Avatar, &tags)
+				if tags != "" {
+					c.Tags = strings.Split(tags, "|||")
+				}
 				result.Resumes = append(result.Resumes, c)
 			}
 		}
