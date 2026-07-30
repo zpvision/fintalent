@@ -84,6 +84,8 @@ func main() {
 	http.HandleFunc("/tests/take", servePage("static/test-take.html"))
 	http.HandleFunc("/vacancies/create", servePage("static/vacancy-create.html"))
 	http.HandleFunc("/vacancies/view", servePage("static/vacancy-view.html"))
+	http.HandleFunc("/vacancies", servePage("static/vacancies.html"))
+	http.HandleFunc("/resumes", servePage("static/resumes.html"))
 	http.HandleFunc("/docs/openapi.yaml", servePage("docs/openapi.yaml"))
 	http.HandleFunc("/api/register", registerUser)
 	http.HandleFunc("/api/login", loginUser)
