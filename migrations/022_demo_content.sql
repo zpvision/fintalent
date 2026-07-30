@@ -30,6 +30,7 @@ BEGIN
       'Современный офис рядом с метро',10,NOW()-(n||' hours')::interval,NOW()-(n||' days')::interval,NOW())
       RETURNING id INTO entity_id;
     END IF;
+    DELETE FROM vacancy_categories WHERE vacancy_id=entity_id;
     INSERT INTO vacancy_categories(vacancy_id,category_id,block_id,importance,base_weight_snapshot,importance_coefficient_snapshot,effective_weight,sort_order,category_name_snapshot)
     SELECT entity_id,i.id,bd.block_id,CASE WHEN row_number() over() %3=0 THEN 'bonus' WHEN row_number() over()%2=0 THEN 'preferred' ELSE 'required' END,
       COALESCE(i.default_weight,5),100,COALESCE(i.default_weight,5),row_number() over(),i.value
@@ -46,6 +47,20 @@ BEGIN
     JOIN vacancy_survey_block_dictionaries bd ON bd.dictionary_id=d.id
     WHERE d.alias='position' AND i.active=TRUE AND i.deleted_at IS NULL
     ORDER BY i.id OFFSET ((n-4)%12) LIMIT 1;
+    INSERT INTO vacancy_categories(vacancy_id,category_id,block_id,importance,base_weight_snapshot,importance_coefficient_snapshot,effective_weight,sort_order,category_name_snapshot)
+    SELECT entity_id,x.item_id,x.block_id,
+      CASE WHEN (n+x.dictionary_id+x.rn)%3=0 THEN 'bonus' WHEN (n+x.dictionary_id+x.rn)%2=0 THEN 'preferred' ELSE 'required' END,
+      x.weight,100,x.weight,100+x.dictionary_id*10+x.rn,x.value
+    FROM (
+      SELECT i.id item_id,i.value,COALESCE(i.default_weight,5) weight,d.id dictionary_id,d.single_choice,bd.block_id,
+        row_number() OVER(PARTITION BY d.id ORDER BY md5(i.id::text||n::text)) rn
+      FROM vacancy_survey_block_dictionaries bd
+      JOIN dictionaries d ON d.id=bd.dictionary_id
+      JOIN dictionary_items i ON i.dictionary_id=d.id
+      WHERE d.alias<>'position' AND i.active=TRUE AND i.deleted_at IS NULL
+    ) x
+    WHERE x.rn<=CASE WHEN x.single_choice THEN 1 ELSE 1+((n+x.dictionary_id)%3) END
+    ON CONFLICT(vacancy_id,category_id) DO NOTHING;
     INSERT INTO vacancy_duties(vacancy_id,duty_id)
     SELECT entity_id,id FROM duties WHERE is_active=TRUE ORDER BY id OFFSET ((n-4)%5) LIMIT 6
     ON CONFLICT DO NOTHING;
@@ -65,6 +80,7 @@ BEGIN
       NOW()-(n||' days')::interval,NOW())
     ON CONFLICT(user_id) DO UPDATE SET status='published',visibility='public',published_at=EXCLUDED.published_at
     RETURNING id INTO entity_id;
+    DELETE FROM resume_categories WHERE resume_id=entity_id;
     INSERT INTO resume_categories(resume_id,category_id,block_id,sort_order)
     SELECT entity_id,i.id,bd.block_id,row_number() over()
     FROM dictionary_items i JOIN applicant_survey_block_dictionaries bd ON bd.dictionary_id=i.dictionary_id
@@ -76,6 +92,18 @@ BEGIN
     SELECT entity_id,i.id,bd.block_id,0 FROM dictionary_items i JOIN dictionaries d ON d.id=i.dictionary_id
     JOIN applicant_survey_block_dictionaries bd ON bd.dictionary_id=d.id
     WHERE d.alias='position' AND i.active=TRUE ORDER BY i.id OFFSET ((n-28)%12) LIMIT 1;
+    INSERT INTO resume_categories(resume_id,category_id,block_id,sort_order)
+    SELECT entity_id,x.item_id,x.block_id,100+x.dictionary_id*10+x.rn
+    FROM (
+      SELECT i.id item_id,d.id dictionary_id,d.single_choice,bd.block_id,
+        row_number() OVER(PARTITION BY d.id ORDER BY md5(i.id::text||n::text)) rn
+      FROM applicant_survey_block_dictionaries bd
+      JOIN dictionaries d ON d.id=bd.dictionary_id
+      JOIN dictionary_items i ON i.dictionary_id=d.id
+      WHERE d.alias<>'position' AND i.active=TRUE AND i.deleted_at IS NULL
+    ) x
+    WHERE x.rn<=CASE WHEN x.single_choice THEN 1 ELSE 1+((n+x.dictionary_id)%3) END
+    ON CONFLICT(resume_id,category_id) DO NOTHING;
     INSERT INTO resume_duties(resume_id,duty_id)
     SELECT entity_id,id FROM duties WHERE is_active=TRUE ORDER BY id OFFSET ((n-28)%5) LIMIT 6 ON CONFLICT DO NOTHING;
     INSERT INTO resume_work_experiences(resume_id,company_name,position,city,start_month,start_year,end_month,end_year,is_current,responsibilities,achievements,sort_order)
