@@ -38,6 +38,14 @@ BEGIN
     WHERE i.active=TRUE AND i.deleted_at IS NULL
     ORDER BY i.dictionary_id,i.sort_order,i.id LIMIT 16
     ON CONFLICT(vacancy_id,category_id) DO NOTHING;
+    DELETE FROM vacancy_categories vc USING dictionary_items i,dictionaries d
+    WHERE vc.vacancy_id=entity_id AND vc.category_id=i.id AND i.dictionary_id=d.id AND d.alias='position';
+    INSERT INTO vacancy_categories(vacancy_id,category_id,block_id,importance,base_weight_snapshot,importance_coefficient_snapshot,effective_weight,sort_order,category_name_snapshot)
+    SELECT entity_id,i.id,bd.block_id,'required',COALESCE(i.default_weight,5),100,COALESCE(i.default_weight,5),0,i.value
+    FROM dictionary_items i JOIN dictionaries d ON d.id=i.dictionary_id
+    JOIN vacancy_survey_block_dictionaries bd ON bd.dictionary_id=d.id
+    WHERE d.alias='position' AND i.active=TRUE AND i.deleted_at IS NULL
+    ORDER BY i.id OFFSET ((n-4)%12) LIMIT 1;
     INSERT INTO vacancy_duties(vacancy_id,duty_id)
     SELECT entity_id,id FROM duties WHERE is_active=TRUE ORDER BY id OFFSET ((n-4)%5) LIMIT 6
     ON CONFLICT DO NOTHING;
