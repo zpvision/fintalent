@@ -3,12 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="FinTalent — вакансии и резюме для бухгалтеров">
+  <meta name="description" content="FinTalent — вакансии и резюме для бухгалтеров, финансистов и руководителей">
   <title>FinTalent — биржа вакансий для бухгалтеров</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/styles.css">
+  <link rel="stylesheet" href="/static/hero-typing.css?v=1">
 </head>
 <body>
   <header class="header container">
@@ -16,7 +17,7 @@
       <span class="brand-mark"><img src="/static/logo.png" alt=""></span>
       <span><b>Fin <em>Talent</em></b><small>биржа вакансий для бухгалтеров</small></span>
     </a>
-    <nav><a href="#jobs">Вакансии</a><a href="#candidates">Резюме</a><a href="#companies">Компании</a><a href="#tests">Тесты и навыки</a><a href="#">Блог</a><a href="#">Цены</a></nav>
+    <nav><a href="#jobs">Вакансии</a><a href="#candidates">Резюме</a><a href="#companies">Компании</a><a href="/marketplace">Тесты и навыки</a><a href="#">Блог</a><a href="#">Цены</a></nav>
     <div class="auth" id="auth-area"><a class="btn ghost register-link" href="/login">Войти</a><a class="btn primary register-link" href="/register">Регистрация</a></div>
     <button class="menu" aria-label="Открыть меню">☰</button>
   </header>
@@ -24,16 +25,16 @@
   <main>
     <section class="hero container">
       <div class="hero-copy">
-        <div class="eyebrow">♢&nbsp; Проверенные специалисты <i></i> Работа для бухгалтеров</div>
-        <h1>Биржа вакансий<br>для <span>бухгалтеров</span></h1>
-        <p>Быстрый подбор персонала и лучшие вакансии<br>в сфере бухгалтерии и финансов.</p>
+        <div class="eyebrow">♢&nbsp; Проверенные специалисты <i></i> Работа в финансах и управлении</div>
+        <h1 aria-label="Биржа вакансий для бухгалтеров, финансистов и руководителей">Биржа вакансий<br>для <span class="typing-role" id="typing-role">бухгалтеров</span></h1>
+        <p>Быстрый подбор персонала и лучшие вакансии<br>в сфере финансов, учёта и управления.</p>
         <div class="hero-actions">
           <a class="action blue resume-action" href="/resume/create"><strong>▣</strong><span><b>Разместить резюме</b><small>Найдите работу мечты</small></span></a>
-          <button class="action green"><strong>▢</strong><span><b>Разместить вакансию</b><small>Найдите специалиста</small></span></button>
+          <a class="action green resume-action" href="/vacancies/create"><strong>▢</strong><span><b>Разместить вакансию</b><small>Найдите специалиста</small></span></a>
         </div>
       </div>
       <div class="hero-visual">
-        <img src="/static/design.png" alt="Специалисты по бухгалтерии">
+        <img src="/static/design.png" alt="Специалисты в финансах и управлении">
       </div>
     </section>
 
@@ -68,7 +69,7 @@
 
       <article class="panel benefits">
         <header><h2>Преимущества Fin Talent</h2></header>
-        <div><i>♙</i><span><b>Целевые специалисты</b><small>Только бухгалтеры и финансисты</small></span></div>
+        <div><i>♙</i><span><b>Целевые специалисты</b><small>Бухгалтеры, финансисты и руководители</small></span></div>
         <div><i>♢</i><span><b>Проверенные навыки</b><small>Тестирование и верификация</small></span></div>
         <div><i>ϟ</i><span><b>Быстрый подбор</b><small>Среднее время закрытия вакансии — 3 дня</small></span></div>
         <div><i>◉</i><span><b>Прозрачные условия</b><small>Реальные зарплаты и честные компании</small></span></div>
@@ -86,5 +87,6 @@
   <script src="/static/geography.js"></script>
   <script src="/static/dictionaries.js"></script>
   <script src="/static/searchable-select.js"></script>
+  <script src="/static/hero-typing.js?v=1"></script>
 </body>
 </html>

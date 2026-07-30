@@ -1,0 +1,10 @@
+.typing-role {
+  display: inline-block;
+  min-width: 12.3ch;
+  color: #1859ed;
+  white-space: nowrap;
+}
+
+@media (max-width: 650px) {
+  .typing-role { min-width: 0; }
+}

@@ -1,0 +1,60 @@
+.creator-back { font-size: 11px; }
+.creator-label { font-size: 9px; }
+.creator-hero h1 { font-size: 27px; }
+.creator-hero p { font-size: 11px; }
+
+.creator-benefits article > i { font-size: 10px; }
+.creator-benefits h2 { font-size: 14px; }
+.creator-benefits p { font-size: 10px; }
+
+.income-benefit div > span { font-size: 9px; }
+.creator-benefits .income-benefit h2 { font-size: 21px; }
+.creator-benefits .income-benefit p { font-size: 11px; }
+.creator-benefits .commission-benefit h2 { font-size: 15px; }
+.creator-benefits .commission-benefit p { font-size: 10px; }
+
+.income-example-head small { font-size: 8px; }
+.income-example-head h2 { font-size: 16px; }
+.income-example > p { font-size: 10px; }
+.income-math small { font-size: 9px; }
+.income-math strong { font-size: 13px; }
+.income-example .income-smile { font-size: 13px; }
+
+.creator-start {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  width: 100%;
+  text-align: center;
+}
+
+.creator-start p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.creator-start a {
+  width: 290px;
+  height: 60px;
+  margin: 0 auto;
+  gap: 72px;
+  border-radius: 14px;
+  font-size: 15px;
+}
+
+.creator-start a span { font-size: 23px; }
+
+@media (max-width: 700px) {
+  .creator-start a {
+    width: min(290px, 100%);
+  }
+}
+
+@media (min-width: 901px) and (min-height: 951px) {
+  .creator-hero h1 { font-size: 39px; }
+  .creator-hero p { font-size: 15px; }
+}

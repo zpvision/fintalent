@@ -1,0 +1,20 @@
+/* Persistent right-hand tools in the test editor. */
+@media(min-width:1051px){
+  body:has(.test-create-main),html:has(.test-create-main){overflow-x:clip;overflow-y:visible}
+  .dashboard-layout:has(.test-create-main),.test-create-main,.create-workspace,.editor-layout{overflow:visible!important}
+  .test-create-main .test-settings{
+    position:sticky;
+    top:18px;
+    align-self:start;
+    max-height:calc(100vh - 36px);
+    overflow-y:auto;
+    overflow-x:hidden;
+    padding-right:4px!important;
+    scrollbar-gutter:stable;
+  }
+}
+.test-create-main .test-stat-card{order:1}
+.test-create-main .question-navigation{order:2}
+.test-create-main .editor-help{order:3}
+.test-create-main .question-navigation h3{margin-bottom:10px}
+.test-create-main #question-navigation-list:empty:after{content:"Вопросы появятся после добавления";display:block;padding:12px;border:1px dashed #ccd8eb;border-radius:8px;color:#8290aa;font-size:9px;text-align:center}

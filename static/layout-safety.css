@@ -1,0 +1,30 @@
+/* Shared protection against page-level horizontal overflow. */
+html,body{width:100%;max-width:100%;overflow-x:hidden}
+@supports(overflow:clip){html,body{overflow-x:clip}}
+img,svg,video,canvas{max-width:100%;height:auto}
+input,textarea,select,button{max-width:100%}
+p,h1,h2,h3,a,b,small,span,code{overflow-wrap:anywhere}
+
+/* Grid and flex children default to min-width:auto and can widen the viewport. */
+.dashboard-layout,.dashboard-main,.tests-main,.tests-workspace,.test-create-main,
+.create-workspace,.editor-layout,.editor-stage,.test-settings,.workspace,
+.resume-layout,.quiz,.question,.position-options,.survey-question,
+.editor-title>*,.question-head>*,.answer-caption>*{min-width:0;max-width:100%}
+
+/* The editor must fit its grid column; wide controls wrap inside it. */
+.test-create-main,.create-workspace{width:100%}
+.test-create-main .editor-title,.test-create-main .section-head,
+.test-create-main .question-head,.test-create-main .answer-caption,
+.test-create-main .editor-footer{flex-wrap:wrap}
+.test-create-main .answer-row>*{min-width:0}
+.test-create-main .question-head select{max-width:100%}
+
+/* Wide tabular data keeps a local scrollbar instead of widening the page. */
+.table-wrap,.test-box,.pane{max-width:100%;overflow-x:auto}
+
+@media(max-width:700px){
+  .test-create-main .editor-title{gap:12px}
+  .test-create-main .draft-state{max-width:100%;flex-wrap:wrap}
+  .test-create-main .draft-state a{margin-left:0}
+  .test-create-main .grid,.test-create-main .information-fields .price{grid-template-columns:minmax(0,1fr)}
+}

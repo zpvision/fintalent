@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Маркетплейс тестов — FinTalent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/marketplace.css?v=2">
+  <link rel="stylesheet" href="/static/marketplace-filters.css?v=1">
+  <link rel="stylesheet" href="/static/marketplace-home-background.css?v=1">
+  <link rel="stylesheet" href="/static/marketplace-create-promo.css?v=1">
+</head>
+<body>
+  <header class="site-header">
+    <a href="/" class="brand"><span class="brand-mark">F</span><span><b>FinTalent</b><small>Биржа вакансий для бухгалтеров</small></span></a>
+    <nav><a href="/vacancies">Вакансии</a><a href="/resume/create">Резюме</a><a href="#">Компании</a><a class="active" href="/marketplace">Тесты и навыки</a><a href="#">Блог</a><a href="#">Цены</a></nav>
+    <div id="header-auth" class="header-auth"><a class="login-link" href="/login">Войти</a><a class="register-button" href="/register">Регистрация</a></div>
+  </header>
+
+  <main class="marketplace-page">
+    <aside class="left-sidebar">
+      <section class="side-card filters-card">
+        <h2>Подбор тестов</h2>
+        <div class="filter-tabs" role="group" aria-label="Стоимость теста">
+          <button class="active" type="button" data-price="all">Все тесты</button>
+          <button type="button" data-price="free">Бесплатные</button>
+          <button type="button" data-price="paid">Платные</button>
+        </div>
+        <div class="filter-group"><h3>Категории <span>⌃</span></h3><div id="category-filters"><small>Загрузка…</small></div></div>
+        <div class="filter-group"><h3>Уровень сложности</h3>
+          <label><input type="radio" name="difficulty" value="all" checked><i></i>Любой</label>
+          <label><input type="radio" name="difficulty" value="easy"><i></i>Начальный</label>
+          <label><input type="radio" name="difficulty" value="medium"><i></i>Средний</label>
+          <label><input type="radio" name="difficulty" value="hard"><i></i>Продвинутый</label>
+          <label><input type="radio" name="difficulty" value="expert"><i></i>Эксперт</label>
+        </div>
+        <div class="filter-group"><h3>Формат</h3><label><input type="checkbox" disabled><i></i>Тест с выбором ответа</label><label><input type="checkbox" disabled><i></i>Ситуационные задачи</label><label><input type="checkbox" disabled><i></i>Кейс-тесты</label></div>
+        <div class="filter-group"><h3>Длительность</h3><label><input type="radio" name="duration" checked disabled><i></i>Любая</label><label><input type="radio" name="duration" disabled><i></i>До 15 минут</label></div>
+      </section>
+    </aside>
+
+    <section class="catalog-column">
+      <div class="page-heading"><h1>Маркетплейс тестов</h1><p>Выбирайте и проходите профессиональные тесты, подтверждайте свои знания<br>и повышайте конкурентоспособность.</p></div>
+      <div class="catalog-tools"><label class="search-box"><span>⌕</span><input id="search" type="search" placeholder="Поиск тестов по названию, навыкам или ключевым словам"></label><select id="sort" aria-label="Сортировка"><option value="popular">Сначала популярные</option><option value="rating">По рейтингу</option><option value="name">По названию</option></select></div>
+      <div class="catalog-title"><div><h2>Все тесты</h2><p id="count">Загрузка…</p></div></div>
+      <section id="catalog" class="catalog"><div class="loading">Загружаем тесты…</div></section>
+    </section>
+
+    <aside class="right-sidebar">
+      <section class="right-card create-promo"><div><small class="promo-eyebrow">ДЕЛИТЕСЬ ЭКСПЕРТИЗОЙ</small><h3>Создавайте свои тесты</h3><p>Публикуйте профессиональные тесты, развивайте личный бренд и зарабатывайте на своих знаниях.</p><a href="/marketplace/create-test">Создать тест <b>→</b></a></div><span>▣</span></section>
+      <section class="right-card categories-card">
+        <h3>Популярные категории</h3>
+        <ul>
+          <li><span class="category-icon blue">▤</span><b>Бухгалтерский учёт</b><small>45 тестов</small></li>
+          <li><span class="category-icon orange">▥</span><b>Налоговый учёт</b><small>32 теста</small></li>
+          <li><span class="category-icon violet">♟</span><b>ТМЦ и зарплата</b><small>18 тестов</small></li>
+          <li><span class="category-icon coral">⌘</span><b>1С и программы</b><small>16 тестов</small></li>
+          <li><span class="category-icon purple">◕</span><b>Финансовый анализ</b><small>12 тестов</small></li>
+        </ul>
+        <a class="more-link" href="#catalog">Смотреть все категории <span>→</span></a>
+      </section>
+      <section class="right-card premium-promo"><div><h3>Премиум доступ</h3><p>Неограниченный доступ ко всем тестам и подробная аналитика результатов.</p><a href="#">Подробнее</a></div><span>◆</span></section>
+      <section class="right-card authors-card"><h3>Топ авторов</h3><ol><li><span>1</span><i>ФЭ</i><b>ФинЭксперт</b><small>24 теста　⭐ 4.9</small></li><li><span>2</span><i>БП</i><b>Бухгалтер-практик</b><small>18 тестов　⭐ 4.8</small></li><li><span>3</span><i>1С</i><b>1С:Профи</b><small>12 тестов　⭐ 4.7</small></li></ol><a class="more-link" href="#">Смотреть всех авторов <span>→</span></a></section>
+    </aside>
+  </main>
+  <script src="/static/marketplace.js?v=4"></script>
+</body>
+</html>

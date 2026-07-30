@@ -1,0 +1,100 @@
+.right-sidebar .create-promo {
+  position: relative;
+  min-height: 190px;
+  padding: 22px 20px;
+  overflow: hidden;
+  border: 1px solid rgba(4, 151, 116, .35);
+  background:
+    radial-gradient(circle at 105% -10%, rgba(255, 255, 255, .28) 0 28%, transparent 29%),
+    radial-gradient(circle at -10% 120%, rgba(15, 89, 239, .20) 0 32%, transparent 33%),
+    linear-gradient(140deg, #04946f 0%, #08b98a 55%, #15d49b 100%);
+  box-shadow: 0 15px 34px rgba(4, 151, 116, .24);
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+
+.right-sidebar .create-promo:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 20px 42px rgba(4, 151, 116, .30);
+}
+
+.right-sidebar .create-promo::after {
+  content: '';
+  position: absolute;
+  right: -24px;
+  bottom: -32px;
+  width: 105px;
+  height: 105px;
+  border: 18px solid rgba(255, 255, 255, .10);
+  border-radius: 50%;
+}
+
+.right-sidebar .create-promo > div {
+  position: relative;
+  z-index: 2;
+}
+
+.right-sidebar .create-promo .promo-eyebrow {
+  display: block;
+  margin-bottom: 9px;
+  color: #caffee;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .09em;
+}
+
+.right-sidebar .create-promo h3 {
+  margin-bottom: 8px;
+  color: #fff;
+  font-size: 17px;
+  line-height: 1.25;
+}
+
+.right-sidebar .create-promo p {
+  max-width: 190px;
+  margin: 0 0 16px;
+  color: rgba(255, 255, 255, .86);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.right-sidebar .create-promo a {
+  width: 155px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 13px;
+  color: #058461;
+  background: #fff;
+  box-shadow: 0 7px 17px rgba(0, 74, 56, .18);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+
+.right-sidebar .create-promo a:hover {
+  transform: translateX(3px);
+  box-shadow: 0 9px 20px rgba(0, 74, 56, .24);
+}
+
+.right-sidebar .create-promo a b {
+  font-size: 15px;
+}
+
+.right-sidebar .create-promo > span {
+  position: absolute;
+  z-index: 1;
+  right: 19px;
+  top: 51px;
+  width: 50px;
+  height: 50px;
+  margin: 0;
+  background: rgba(255, 255, 255, .18);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .22);
+  backdrop-filter: blur(5px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .right-sidebar .create-promo,
+  .right-sidebar .create-promo a {
+    transition: none;
+  }
+}

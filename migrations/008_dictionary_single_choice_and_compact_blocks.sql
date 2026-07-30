@@ -1,0 +1,2 @@
+ALTER TABLE dictionaries ADD COLUMN IF NOT EXISTS single_choice BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE vacancy_survey_blocks ADD COLUMN IF NOT EXISTS show_dictionaries_together BOOLEAN NOT NULL DEFAULT FALSE;

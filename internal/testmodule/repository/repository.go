@@ -178,7 +178,7 @@ func (p *Postgres) Create(ctx context.Context, author int64, in dto.CreateTest, 
 	}
 	defer tx.Rollback()
 	var id int64
-	err = tx.QueryRowContext(ctx, `INSERT INTO tests(author_id,slug,category,difficulty,visibility,price,is_free,passing_percent,time_limit_seconds) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`, author, slug, in.Category, in.Difficulty, in.Visibility, in.Price, in.IsFree, in.PassingPercent, in.TimeLimitSeconds).Scan(&id)
+	err = tx.QueryRowContext(ctx, `INSERT INTO tests(author_id,slug,category,category_id,difficulty,visibility,price,is_free,passing_percent,time_limit_seconds) VALUES($1,$2,$3::varchar,(SELECT id FROM test_categories WHERE name=$3::text AND active=TRUE),$4,$5,$6,$7,$8,$9) RETURNING id`, author, slug, in.Category, in.Difficulty, in.Visibility, in.Price, in.IsFree, in.PassingPercent, in.TimeLimitSeconds).Scan(&id)
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +196,7 @@ func (p *Postgres) Create(ctx context.Context, author int64, in dto.CreateTest, 
 }
 
 func (p *Postgres) Update(ctx context.Context, id, user int64, in dto.UpdateTest) error {
-	res, err := p.db.ExecContext(ctx, `UPDATE tests t SET category=$1,difficulty=$2,visibility=$3,price=$4,is_free=$5,passing_percent=$6,time_limit_seconds=$7,updated_at=NOW() FROM test_versions v WHERE t.id=$8 AND t.author_id=$9 AND t.status='draft' AND v.test_id=t.id AND v.version=t.current_version`, in.Category, in.Difficulty, in.Visibility, in.Price, in.IsFree, in.PassingPercent, in.TimeLimitSeconds, id, user)
+	res, err := p.db.ExecContext(ctx, `UPDATE tests t SET category=$1::varchar,category_id=(SELECT id FROM test_categories WHERE name=$1::text AND active=TRUE),difficulty=$2,visibility=$3,price=$4,is_free=$5,passing_percent=$6,time_limit_seconds=$7,updated_at=NOW() FROM test_versions v WHERE t.id=$8 AND t.author_id=$9 AND t.status='draft' AND v.test_id=t.id AND v.version=t.current_version`, in.Category, in.Difficulty, in.Visibility, in.Price, in.IsFree, in.PassingPercent, in.TimeLimitSeconds, id, user)
 	if err != nil {
 		return err
 	}

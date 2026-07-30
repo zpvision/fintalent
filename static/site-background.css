@@ -1,0 +1,35 @@
+:root {
+  --ft-page-background: linear-gradient(180deg, #fff 0%, #f4f8ff 55%, #e8f2ff 100%);
+}
+
+body:has(.hero),
+body:has(.marketplace-page),
+body:has(.dashboard-layout),
+body:has(.vacancy-layout),
+body:has(.resume-layout),
+body.register-page {
+  min-height: 100vh;
+  background: var(--ft-page-background) fixed !important;
+}
+
+.marketplace-page,
+.vacancy-layout,
+.resume-layout,
+.dashboard-main,
+.tests-main,
+.test-start-screen {
+  background-color: transparent !important;
+  background-image: var(--ft-page-background) !important;
+  background-attachment: fixed !important;
+}
+
+@media (max-width: 700px) {
+  body:has(.hero),
+  body:has(.marketplace-page),
+  body:has(.dashboard-layout),
+  body:has(.vacancy-layout),
+  body:has(.resume-layout),
+  body.register-page {
+    background-attachment: scroll !important;
+  }
+}

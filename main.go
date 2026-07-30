@@ -32,7 +32,30 @@ type user struct {
 	Email    string `json:"email"`
 }
 
+func loadLocalEnv(path string) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		name, value, found := strings.Cut(line, "=")
+		if !found {
+			continue
+		}
+		name = strings.TrimSpace(name)
+		value = strings.Trim(strings.TrimSpace(value), "\"'")
+		if name != "" && os.Getenv(name) == "" {
+			_ = os.Setenv(name, value)
+		}
+	}
+}
+
 func main() {
+	loadLocalEnv(".env")
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
 		databaseURL = "postgres://postgres:postgres@localhost:5432/fintalent?sslmode=disable"
@@ -59,6 +82,8 @@ func main() {
 	http.HandleFunc("/tests", servePage("static/tests.html"))
 	http.HandleFunc("/tests/create", servePage("static/test-create.html"))
 	http.HandleFunc("/tests/take", servePage("static/test-take.html"))
+	http.HandleFunc("/vacancies/create", servePage("static/vacancy-create.html"))
+	http.HandleFunc("/vacancies/view", servePage("static/vacancy-view.html"))
 	http.HandleFunc("/docs/openapi.yaml", servePage("docs/openapi.yaml"))
 	http.HandleFunc("/api/register", registerUser)
 	http.HandleFunc("/api/login", loginUser)
@@ -66,7 +91,10 @@ func main() {
 	http.HandleFunc("/api/me", currentUser)
 	registerAdminRoutes()
 	registerResumeRoutes()
+	registerVacancyModuleRoutes()
+	registerPublicVacancyRoutes()
 	registerGeographyRoutes()
+	registerMarketplaceRoutes()
 	testRepo := testrepository.New(db)
 	testService := testservice.New(testRepo)
 	testHandler := testhandler.New(testService, func(r *http.Request) (int64, error) {
@@ -83,7 +111,7 @@ func main() {
 }
 
 func prepareDatabase() error {
-	ctx, cancel := contextWithTimeout()
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	if err := db.PingContext(ctx); err != nil {
 		return err
@@ -105,7 +133,16 @@ func prepareDatabase() error {
 	if err := prepareAdminDatabase(ctx); err != nil {
 		return err
 	}
+	if err := prepareVacancyModuleDatabase(ctx); err != nil {
+		return err
+	}
 	if err := prepareTestingDatabase(ctx); err != nil {
+		return err
+	}
+	if err := prepareTestCategories(ctx); err != nil {
+		return err
+	}
+	if err := prepareMarketplaceDatabase(ctx); err != nil {
 		return err
 	}
 	return prepareGeographyDatabase(ctx)
@@ -122,6 +159,18 @@ func servePage(filename string) http.HandlerFunc {
 			return
 		}
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		if strings.HasSuffix(strings.ToLower(filename), ".html") {
+			content, err := os.ReadFile(filename)
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
+			content = []byte(strings.Replace(string(content), "</head>", `<link rel="stylesheet" href="/static/layout-safety.css"><link rel="stylesheet" href="/static/site-header.css?v=1"><link rel="stylesheet" href="/static/site-background.css?v=1"><script src="/static/site-errors.js?v=1"></script></head>`, 1))
+			content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/site-header.js?v=1"></script></body>`, 1))
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			_, _ = w.Write(content)
+			return
+		}
 		http.ServeFile(w, r, filename)
 	}
 }

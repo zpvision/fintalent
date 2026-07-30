@@ -1,0 +1,10 @@
+html,
+body {
+  min-height: 100%;
+  background: linear-gradient(180deg, #fff 0, #fbfdff 65%, #f5f9ff 100%);
+  background-attachment: fixed;
+}
+
+.marketplace-page {
+  background: transparent;
+}

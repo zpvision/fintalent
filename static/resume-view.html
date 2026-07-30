@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="ru">
+<head>
+ <meta charset="utf-8">
+ <meta name="viewport" content="width=device-width,initial-scale=1">
+ <title>Резюме — FinTalent</title>
+ <link rel="preconnect" href="https://fonts.googleapis.com">
+ <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+ <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+ <link rel="stylesheet" href="/static/styles.css">
+ <link rel="stylesheet" href="/static/resume-view.css?v=2">
+ <link rel="stylesheet" href="/static/resume-view-header.css?v=1">
+</head>
+<body>
+ <header class="header container">
+  <a class="brand" href="/" aria-label="FinTalent">
+   <span class="brand-mark"><img src="/static/logo.png" alt=""></span>
+   <span><b>Fin <em>Talent</em></b><small>биржа вакансий для бухгалтеров</small></span>
+  </a>
+  <nav><a href="/#jobs">Вакансии</a><a href="/#candidates">Резюме</a><a href="/#companies">Компании</a><a href="/marketplace">Тесты и навыки</a><a href="#">Блог</a><a href="#">Цены</a></nav>
+  <div class="auth" id="auth-area"><a class="btn ghost register-link" href="/login">Войти</a><a class="btn primary register-link" href="/register">Регистрация</a></div>
+  <button class="menu" aria-label="Открыть меню">☰</button>
+ </header>
+ <div class="resume-view-shell">
+  <aside class="resume-view-sidebar">
+   <nav>
+    <a class="active" href="#overview"><i>▤</i><span>Обзор резюме</span></a>
+    <a href="#skills"><i>◇</i><span>Навыки и компетенции</span></a>
+    <a href="#duties"><i>✓</i><span>Обязанности</span></a>
+    <a href="#experience"><i>▣</i><span>Опыт работы</span></a>
+    <a href="#education"><i>⌂</i><span>Образование</span></a>
+    <a href="#languages"><i>文</i><span>Языки</span></a>
+    <a class="disabled" href="#"><i>◉</i><span>Тестирование</span><small>скоро</small></a>
+    <a class="disabled" href="#"><i>✎</i><span>Публикации</span><small>скоро</small></a>
+   </nav>
+   <div class="resume-contact-card"><span>✦</span><b>Заинтересовал кандидат?</b><p>Свяжитесь и предложите обсудить профессиональные возможности.</p><button type="button">Связаться</button></div>
+  </aside>
+  <main class="resume-view-main">
+   <div id="resume-view-content" class="resume-view-content"><div class="resume-view-loading"><i></i><b>Собираем профессиональный профиль…</b></div></div>
+  </main>
+ </div>
+ <script src="/static/auth.js"></script>
+ <script src="/static/resume-view.js?v=1"></script>
+</body>
+</html>
