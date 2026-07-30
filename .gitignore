@@ -5,3 +5,5 @@
 *.log
 tmp/
 .DS_Store
+vacancy-*-check*.png
+vacancy-view-revision.png

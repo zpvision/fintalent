@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
@@ -81,12 +82,14 @@ func prepareGeographyDatabase(ctx context.Context) error {
 				return err
 			}
 		}
-		syncCtx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-		defer cancel()
-		if synced, syncErr := syncRussianLocations(syncCtx, countryID); syncErr != nil {
-			log.Printf("Не удалось синхронизировать полный список городов: %v", syncErr)
-		} else {
-			log.Printf("Справочник городов России синхронизирован: %d записей", synced)
+		if strings.EqualFold(strings.TrimSpace(os.Getenv("SYNC_GEOGRAPHY")), "true") {
+			syncCtx, cancel := context.WithTimeout(ctx, 90*time.Second)
+			defer cancel()
+			if synced, syncErr := syncRussianLocations(syncCtx, countryID); syncErr != nil {
+				log.Printf("Не удалось синхронизировать полный список городов: %v", syncErr)
+			} else {
+				log.Printf("Справочник городов России синхронизирован: %d записей", synced)
+			}
 		}
 	} else {
 		if _, err = db.ExecContext(ctx, `DELETE FROM cities WHERE country_id=$1 AND external_id IS NULL`, countryID); err != nil {

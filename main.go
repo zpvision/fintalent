@@ -58,13 +58,22 @@ func main() {
 	loadLocalEnv(".env")
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
+		if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production") {
+			log.Fatal("DATABASE_URL обязателен в production")
+		}
 		databaseURL = "postgres://postgres:postgres@localhost:5432/fintalent?sslmode=disable"
 	}
 	var err error
 	db, err = sql.Open("pgx", databaseURL)
 	if err != nil {
+		if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production") {
+			log.Fatalf("Ошибка настройки PostgreSQL: %v", err)
+		}
 		log.Printf("Ошибка настройки PostgreSQL: %v", err)
 	} else if err = prepareDatabase(); err != nil {
+		if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production") {
+			log.Fatalf("Не удалось подготовить PostgreSQL: %v", err)
+		}
 		log.Printf("PostgreSQL пока недоступен: %v", err)
 	} else {
 		log.Println("PostgreSQL подключен")
@@ -109,12 +118,41 @@ func main() {
 	}, isAdmin)
 	testHandler.Register(http.DefaultServeMux)
 
-	log.Println("FinTalent запущен: http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	listenAddress := strings.TrimSpace(os.Getenv("HTTP_ADDR"))
+	if listenAddress == "" {
+		port := strings.TrimSpace(os.Getenv("PORT"))
+		if port == "" {
+			port = "8080"
+		}
+		listenAddress = ":" + port
+	}
+	server := &http.Server{
+		Addr:              listenAddress,
+		Handler:           securityHeaders(http.DefaultServeMux),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       90 * time.Second,
+	}
+	log.Printf("FinTalent запущен на %s", listenAddress)
+	log.Fatal(server.ListenAndServe())
+}
+
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "SAMEORIGIN")
+		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)")
+		if secureCookies() {
+			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func prepareDatabase() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 	if err := db.PingContext(ctx); err != nil {
 		return err
@@ -151,11 +189,18 @@ func prepareDatabase() error {
 	if err := prepareGeographyDatabase(ctx); err != nil {
 		return err
 	}
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("SEED_DEMO_DATA")), "false") {
+		return nil
+	}
 	return prepareDemoContent(ctx)
 }
 
 func contextWithTimeout() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), 3*time.Second)
+}
+
+func secureCookies() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("COOKIE_SECURE")), "true")
 }
 
 func servePage(filename string) http.HandlerFunc {
@@ -267,7 +312,7 @@ func createSession(w http.ResponseWriter, userID int64) error {
 	if err != nil {
 		return err
 	}
-	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Expires: expires, MaxAge: 30 * 24 * 60 * 60})
+	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: token, Path: "/", HttpOnly: true, Secure: secureCookies(), SameSite: http.SameSiteLaxMode, Expires: expires, MaxAge: 30 * 24 * 60 * 60})
 	return nil
 }
 

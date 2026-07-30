@@ -266,13 +266,21 @@ func adminLogin(w http.ResponseWriter, r *http.Request) {
 	if !requirePost(w, r) || !parseForm(w, r) {
 		return
 	}
-	loginOK := subtle.ConstantTimeCompare([]byte(r.FormValue("login")), []byte("admin")) == 1
-	passwordOK := subtle.ConstantTimeCompare([]byte(r.FormValue("password")), []byte("admin")) == 1
+	expectedLogin, expectedPassword := strings.TrimSpace(os.Getenv("ADMIN_LOGIN")), os.Getenv("ADMIN_PASSWORD")
+	if expectedLogin == "" || expectedPassword == "" {
+		if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production") {
+			writeJSON(w, http.StatusServiceUnavailable, "Вход администратора не настроен")
+			return
+		}
+		expectedLogin, expectedPassword = "admin", "admin"
+	}
+	loginOK := subtle.ConstantTimeCompare([]byte(r.FormValue("login")), []byte(expectedLogin)) == 1
+	passwordOK := subtle.ConstantTimeCompare([]byte(r.FormValue("password")), []byte(expectedPassword)) == 1
 	if !loginOK || !passwordOK {
 		writeJSON(w, http.StatusUnauthorized, "Неверный логин или пароль")
 		return
 	}
-	http.SetCookie(w, &http.Cookie{Name: adminCookie, Value: adminSessionToken, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, MaxAge: 12 * 60 * 60})
+	http.SetCookie(w, &http.Cookie{Name: adminCookie, Value: adminSessionToken, Path: "/", HttpOnly: true, Secure: secureCookies(), SameSite: http.SameSiteStrictMode, MaxAge: 12 * 60 * 60})
 	writeJSON(w, http.StatusOK, "Вход выполнен")
 }
 
@@ -280,7 +288,7 @@ func adminLogout(w http.ResponseWriter, r *http.Request) {
 	if !requirePost(w, r) {
 		return
 	}
-	http.SetCookie(w, &http.Cookie{Name: adminCookie, Value: "", Path: "/", HttpOnly: true, MaxAge: -1})
+	http.SetCookie(w, &http.Cookie{Name: adminCookie, Value: "", Path: "/", HttpOnly: true, Secure: secureCookies(), MaxAge: -1})
 	writeJSON(w, http.StatusOK, "Выход выполнен")
 }
 
