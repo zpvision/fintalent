@@ -22,7 +22,7 @@
 <div id="admin-app" class="admin-app hidden">
   <aside class="sidebar">
     <a class="sidebar-brand" href="/"><span>F</span><div><b>Fin Talent</b><small>админ-панель</small></div></a>
-    <nav><small>УПРАВЛЕНИЕ</small><button id="dictionary-nav" class="active">▤ <span>Справочники</span></button><button id="survey-nav">☷ <span>Опрос соискателя</span></button><button id="vacancy-survey-nav">▣ <span>Создание вакансии</span></button></nav>
+    <nav><small>УПРАВЛЕНИЕ</small><button id="dictionary-nav" class="active">▤ <span>Справочники</span></button><button id="users-nav">♙ <span>Пользователи</span></button><button id="publications-nav">▥ <span>Публикации</span></button><button id="survey-nav">☷ <span>Опрос соискателя</span></button><button id="vacancy-survey-nav">▣ <span>Создание вакансии</span></button></nav>
     <div class="admin-account"><i>A</i><div><b>Администратор</b><small>admin</small></div><button id="logout" title="Выйти">↪</button></div>
   </aside>
   <main class="workspace">
@@ -37,9 +37,15 @@
       <footer><span id="item-count"></span><button id="cancel" class="secondary">Отменить</button><button id="save" class="primary">Сохранить справочник</button></footer>
     </section>
     <section id="survey-section" class="survey-section hidden"><div id="survey-blocks" class="survey-blocks"></div><div id="survey-empty" class="survey-empty hidden"><b>Блоков пока нет</b><p>Создайте первый блок и добавьте в него справочники.</p></div></section>
+    <section id="users-section" class="users-section hidden">
+      <div class="users-table-wrap"><table class="users-table"><thead><tr><th>Почта</th><th>ФИО</th><th>Блокировка</th><th>Пароль</th></tr></thead><tbody id="users-list"></tbody></table></div>
+      <div id="users-empty" class="users-empty hidden">Пользователей пока нет</div>
+    </section>
+    <section id="admin-publications" class="admin-publications hidden"><div class="admin-publication-filters"><input id="admin-publication-search" placeholder="Поиск по названию или автору"><select id="admin-publication-status"><option value="">Все статусы</option><option value="draft">Черновики</option><option value="published">Опубликовано</option><option value="hidden">Скрыто</option><option value="blocked">Заблокировано</option><option value="archived">Архив</option></select></div><div id="admin-publication-list"></div></section>
   </main>
 </div>
 <div id="new-modal" class="modal hidden"><form id="new-form"><h2>Новый справочник</h2><p>Укажите понятное название и технический alias.</p><label>Название<input name="name" required maxlength="200" placeholder="Например, Формат работы"></label><label>Alias на английском<input name="alias" required maxlength="100" pattern="[a-z][a-z0-9_]*" placeholder="work_format"></label><div><button type="button" id="close-modal" class="secondary">Отмена</button><button class="primary">Создать</button></div></form></div>
 <div id="survey-modal" class="modal hidden"><form id="survey-form"><h2 id="survey-modal-title">Создать блок опроса</h2><p>Один блок — один шаг при создании резюме.</p><label>Название блока<input name="name" required maxlength="200" placeholder="Например, Опыт работы"></label><fieldset><legend>Справочники в этом блоке</legend><div id="survey-dictionaries" class="survey-dictionary-choices"></div></fieldset><div><button type="button" id="close-survey-modal" class="secondary">Отмена</button><button class="primary">Сохранить</button></div></form></div>
-<script src="/static/admin.js?v=5"></script><script src="/static/admin-survey.js?v=8"></script>
+<div id="password-modal" class="modal hidden"><form id="password-form"><h2>Изменить пароль</h2><p id="password-user"></p><input type="hidden" name="user_id"><label>Новый пароль<input type="password" name="password" minlength="8" maxlength="72" autocomplete="new-password" required placeholder="От 8 до 72 символов"></label><div><button type="button" id="close-password-modal" class="secondary">Отмена</button><button class="primary">Сохранить пароль</button></div></form></div>
+<script src="/static/admin.js?v=6"></script><script src="/static/admin-survey.js?v=8"></script><script src="/static/admin-users.js?v=1"></script><script src="/static/admin-publications.js?v=1"></script>
 </body></html>

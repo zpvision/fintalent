@@ -107,6 +107,7 @@ func main() {
 	registerDemoContentRoutes()
 	registerGeographyRoutes()
 	registerMarketplaceRoutes()
+	registerPublicationRoutes()
 	testRepo := testrepository.New(db)
 	testService := testservice.New(testRepo)
 	testHandler := testhandler.New(testService, func(r *http.Request) (int64, error) {
@@ -171,6 +172,9 @@ func prepareDatabase() error {
 	if err != nil {
 		return err
 	}
+	if _, err = db.ExecContext(ctx, `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN NOT NULL DEFAULT FALSE`); err != nil {
+		return err
+	}
 	if err := prepareAdminDatabase(ctx); err != nil {
 		return err
 	}
@@ -189,10 +193,16 @@ func prepareDatabase() error {
 	if err := prepareGeographyDatabase(ctx); err != nil {
 		return err
 	}
+	if err := preparePublicationDatabase(ctx); err != nil {
+		return err
+	}
 	if strings.EqualFold(strings.TrimSpace(os.Getenv("SEED_DEMO_DATA")), "false") {
 		return nil
 	}
-	return prepareDemoContent(ctx)
+	if err := prepareDemoContent(ctx); err != nil {
+		return err
+	}
+	return preparePublicationDemo(ctx)
 }
 
 func contextWithTimeout() (context.Context, context.CancelFunc) {
@@ -285,9 +295,14 @@ func loginUser(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	var userID int64
 	var passwordHash string
-	err := db.QueryRowContext(ctx, `SELECT id,password_hash FROM users WHERE email=$1`, emailAddress).Scan(&userID, &passwordHash)
+	var isBlocked bool
+	err := db.QueryRowContext(ctx, `SELECT id,password_hash,is_blocked FROM users WHERE email=$1`, emailAddress).Scan(&userID, &passwordHash, &isBlocked)
 	if err != nil || bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)) != nil {
 		writeJSON(w, http.StatusUnauthorized, "Неверный email или пароль")
+		return
+	}
+	if isBlocked {
+		writeJSON(w, http.StatusForbidden, "Ваш аккаунт заблокирован")
 		return
 	}
 	if err := createSession(w, userID); err != nil {
@@ -325,7 +340,7 @@ func userFromRequest(r *http.Request) (*user, error) {
 	ctx, cancel := contextWithTimeout()
 	defer cancel()
 	u := &user{}
-	err = db.QueryRowContext(ctx, `SELECT u.id,u.full_name,u.email FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>NOW()`, hex.EncodeToString(hash[:])).Scan(&u.ID, &u.FullName, &u.Email)
+	err = db.QueryRowContext(ctx, `SELECT u.id,u.full_name,u.email FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>NOW() AND NOT u.is_blocked`, hex.EncodeToString(hash[:])).Scan(&u.ID, &u.FullName, &u.Email)
 	return u, err
 }
 

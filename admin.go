@@ -164,6 +164,8 @@ func registerAdminRoutes() {
 	http.HandleFunc("/api/admin/dictionaries", adminDictionaries)
 	http.HandleFunc("/api/admin/dictionaries/", adminDictionary)
 	http.HandleFunc("/api/admin/position-icons", adminPositionIconUpload)
+	http.HandleFunc("/api/admin/users", adminUsers)
+	http.HandleFunc("/api/admin/users/", adminUserAction)
 	http.HandleFunc("/api/assets/dictionary-icon/", dictionaryIconAsset)
 	registerApplicantSurveyRoutes()
 	registerVacancySurveyRoutes()
