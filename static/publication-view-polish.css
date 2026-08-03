@@ -1,0 +1,263 @@
+.refined-impact i{width:19px;height:19px;display:grid;place-items:center;color:#617392}.refined-impact i svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}#relevance-card button{width:100%;height:36px;margin-top:10px;border:1px solid #bfe5cf;border-radius:7px;background:#f1fbf5;color:#118353;font:700 11px Inter;cursor:pointer}.series-progress{height:4px;margin-top:12px;border-radius:5px;background:#edf1f5;overflow:hidden}.series-progress i{display:block;height:100%;border-radius:5px;background:#18a668}#series-card p,.article-series-main p{color:#687890;font-size:11px}
+
+/* Keep actions compact and readable: icon on the left, content on the right. */
+.article-actions button {
+  min-height: 66px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-content: center;
+  column-gap: 10px;
+  padding: 10px 15px;
+  color: #102044;
+  text-align: left;
+  transition: color .2s ease, background-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+
+.article-actions button[data-reaction] {
+  position: relative;
+}
+
+.article-actions button svg {
+  width: 22px;
+  height: 22px;
+  grid-column: 1;
+  grid-row: 1 / 3;
+  align-self: center;
+  margin: 0;
+  color: #64738c;
+  stroke: currentColor;
+  transition: color .2s ease, transform .22s ease;
+}
+
+.article-actions button span {
+  grid-column: 2;
+  color: #101c3f;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.article-actions button b {
+  grid-column: 2;
+  margin: 3px 0 0;
+  color: #101c3f;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.article-actions button:hover {
+  position: relative;
+  z-index: 2;
+  background: linear-gradient(145deg, #f8fbff, #eef4ff);
+  box-shadow: 0 8px 20px rgba(30, 91, 210, .12);
+  transform: translateY(-2px);
+}
+
+.article-actions button:hover svg {
+  color: #1559f6;
+  transform: scale(1.12) rotate(-3deg);
+}
+
+.article-actions button:hover span {
+  color: #1559f6;
+}
+
+.article-actions button:active {
+  box-shadow: 0 3px 9px rgba(30, 91, 210, .1);
+  transform: translateY(0) scale(.985);
+}
+
+.article-actions button:focus-visible {
+  position: relative;
+  z-index: 3;
+  outline: 3px solid rgba(21, 89, 246, .2);
+  outline-offset: -3px;
+}
+
+.article-actions button.reaction-celebrate {
+  animation: reaction-thanks-bounce .48s cubic-bezier(.2, .9, .3, 1.3);
+}
+
+.reaction-thanks {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  top: 5px;
+  padding: 4px 9px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #10a966, #16bd86);
+  box-shadow: 0 5px 13px rgba(12, 158, 98, .24);
+  color: #fff;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: reaction-thanks-label 1.15s ease both;
+}
+
+.reaction-particle {
+  --particle-angle: 0deg;
+  --particle-delay: 0ms;
+  position: absolute;
+  z-index: 5;
+  left: 27px;
+  top: 31px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #18b979;
+  opacity: 0;
+  pointer-events: none;
+  animation: reaction-particle-burst .62s ease-out var(--particle-delay) both;
+}
+
+@keyframes reaction-thanks-bounce {
+  0% { transform: scale(1); }
+  36% { transform: translateY(-3px) scale(1.035); }
+  65% { transform: translateY(1px) scale(.99); }
+  100% { transform: scale(1); }
+}
+
+@keyframes reaction-thanks-label {
+  0% { opacity: 0; transform: translate(-50%, 8px) scale(.75); }
+  18%, 72% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -7px) scale(.92); }
+}
+
+@keyframes reaction-particle-burst {
+  0% { opacity: 0; transform: rotate(var(--particle-angle)) translateX(0) scale(.4); }
+  24% { opacity: 1; }
+  100% { opacity: 0; transform: rotate(var(--particle-angle)) translateX(24px) scale(1); }
+}
+
+.article-actions button.active {
+  position: relative;
+  border: 2px solid transparent;
+  background: linear-gradient(135deg, #fff 15%, #f0fcf7 100%) padding-box,
+              linear-gradient(115deg, #1559f6, #08a9d7 55%, #00c689) border-box;
+  color: #102044;
+  box-shadow: 0 8px 20px rgba(20, 91, 170, .15), inset 0 1px 0 #fff;
+}
+
+.article-actions button.active svg {
+  color: #1264e9;
+  filter: drop-shadow(0 3px 5px rgba(21, 89, 246, .18));
+}
+
+.article-actions button.active span {
+  color: #102044;
+}
+
+.article-actions button.active b {
+  color: #009c69;
+}
+
+.article-actions button.active::after {
+  content: '✓';
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #00b97e;
+  box-shadow: 0 3px 8px rgba(0, 185, 126, .24);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.article-actions button.active:hover {
+  background: linear-gradient(135deg, #fff 5%, #e8fbf3 100%) padding-box,
+              linear-gradient(115deg, #0d50ed, #079fd2 50%, #00b97e) border-box;
+  box-shadow: 0 12px 25px rgba(20, 91, 170, .2), inset 0 1px 0 #fff;
+}
+
+.article-actions button.active:hover svg {
+  color: #0d58e7;
+}
+
+.article-actions button.active:hover span {
+  color: #102044;
+}
+
+.article-actions button.active:hover b {
+  color: #008f61;
+}
+
+#share-button {
+  min-width: 128px;
+  min-height: 44px;
+  grid-template-rows: auto;
+  align-self: center;
+  margin: 8px 9px;
+  padding: 0 13px;
+  border: 1px solid #dfe6f0;
+  border-radius: 8px;
+  box-shadow: 0 2px 7px rgba(23, 41, 78, .04);
+}
+
+#share-button:hover,
+#more-button:hover {
+  border-color: #9fbcf8;
+  background: #f5f8ff;
+  box-shadow: 0 7px 18px rgba(30, 91, 210, .14);
+}
+
+#share-button svg,
+#share-button span {
+  grid-row: 1;
+}
+
+#more-button {
+  min-width: 38px;
+  min-height: 44px;
+  display: grid;
+  grid-template-columns: 1fr;
+  align-self: center;
+  margin: 8px 9px 8px 0;
+  padding: 0;
+  border: 1px solid #dfe6f0;
+  border-radius: 8px;
+  color: #5f6f8b;
+  text-align: center;
+  place-items: center;
+  font-size: 20px;
+  box-shadow: 0 2px 7px rgba(23, 41, 78, .04);
+}
+
+#more-button:hover {
+  color: #1559f6;
+  transform: translateY(-2px) rotate(2deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .article-actions button,
+  .article-actions button svg {
+    transition: none;
+  }
+
+  .article-actions button.reaction-celebrate,
+  .reaction-thanks,
+  .reaction-particle {
+    animation: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .article-actions button {
+    min-height: 62px;
+    padding: 9px 12px;
+  }
+
+  #share-button { min-width: 0; }
+
+  #share-button,
+  #more-button { margin: 7px; }
+}

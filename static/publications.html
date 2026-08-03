@@ -1,5 +1,54 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Публикации — FinTalent</title><meta name="description" content="Экспертные материалы и профессиональные разборы специалистов финансовой отрасли"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="/static/publications.css?v=1"></head><body><header></header>
-<main class="publications-page"><section class="pub-hero"><div><span class="pub-eyebrow">ПРОФЕССИОНАЛЬНОЕ СООБЩЕСТВО</span><h1>Публикации</h1><p>Экспертные материалы, профессиональные разборы и практический опыт специалистов финансовой отрасли.</p></div><a class="pub-create" href="/publications/create">＋ Создать публикацию</a></section>
-<section class="pub-controls"><form id="publication-search"><label class="pub-search">⌕<input name="q" placeholder="Найти статью, автора, навык или тему"><button>Найти</button></label></form><div class="pub-filter-row"><nav id="scope-filter"><button data-scope="" class="active">Все</button><button data-scope="subscriptions">Подписки</button><button data-scope="popular">Популярные</button><button data-scope="recommended">Рекомендуемые</button><button data-scope="saved">Сохранённые</button><button data-scope="mine">Мои публикации</button><button data-scope="drafts">Черновики</button></nav><select id="sort-filter" aria-label="Сортировка"><option value="new">Сначала новые</option><option value="popular">Сначала популярные</option><option value="useful">По полезности</option><option value="saved">По сохранениям</option><option value="discussed">По обсуждениям</option></select></div><div class="pub-advanced"><select id="category-filter"><option value="">Все категории</option></select><select id="difficulty-filter"><option value="">Любой уровень</option><option value="beginner">Начальный</option><option value="medium">Средний</option><option value="advanced">Продвинутый</option><option value="expert">Экспертный</option></select><input id="author-filter" placeholder="Автор"><input type="date" id="date-filter"></div></section>
-<div class="pub-main"><section><div id="publication-list" class="publication-list"><div class="pub-loading">Загружаем экспертные материалы…</div></div><button id="load-more" class="load-more hidden">Показать ещё</button></section><aside><div class="pub-side-card"><i>✦</i><h2>Делитесь опытом</h2><p>Публикации помогают подтвердить компетентность и обратить внимание работодателей на ваши профессиональные навыки.</p><a href="/publications/create">Начать публикацию →</a></div><div class="pub-side-card"><h2>Популярные темы</h2><div id="popular-topics" class="topic-cloud"><span>УСН</span><span>НДС</span><span>Отчётность</span><span>1С</span><span>Финансовый анализ</span></div></div></aside></div></main>
-<script src="/static/publications.js?v=1"></script></body></html>
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Публикации — FinTalent</title>
+  <meta name="description" content="Экспертные материалы и профессиональные разборы специалистов финансовой отрасли">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/publications.css?v=2">
+  <link rel="stylesheet" href="/static/publications-fixes.css?v=1">
+  <link rel="stylesheet" href="/static/publications-readable.css?v=1">
+  <link rel="stylesheet" href="/static/publications-polish.css?v=1">
+</head>
+<body>
+<header></header>
+<main class="publications-page">
+  <section class="publications-heading">
+    <div><h1>Публикации</h1><p>Экспертные материалы, профессиональные разборы<br>и практический опыт специалистов финансовой отрасли.</p></div>
+    <a class="publication-create" href="/publications/create"><span>＋</span> Создать публикацию</a>
+  </section>
+
+  <div class="publications-layout">
+    <section class="publications-workspace">
+      <nav id="scope-filter" class="publication-tabs" aria-label="Разделы публикаций">
+        <button data-scope="" class="active">Все публикации</button><button data-scope="subscriptions">Подписки</button><button data-scope="popular">Популярные</button><button data-scope="new">Новые</button><button data-scope="recommended">Рекомендуемые</button><button data-scope="saved">Сохранённые</button><button data-scope="mine">Мои публикации</button><button data-scope="drafts">Черновики</button>
+      </nav>
+
+      <section class="publication-filters">
+        <form id="publication-search" class="publication-search"><span>⌕</span><input name="q" placeholder="Поиск по заголовку, теме, автору, навыку…"><button aria-label="Найти">Найти</button></form>
+        <select id="category-filter"><option value="">Категория</option></select>
+        <select id="topic-filter"><option value="">Тема</option></select>
+        <select id="skill-filter"><option value="">Навык</option></select>
+        <select id="difficulty-filter"><option value="">Уровень</option><option value="beginner">Начальный</option><option value="medium">Средний</option><option value="advanced">Продвинутый</option><option value="expert">Экспертный</option></select>
+        <button id="more-filters" class="more-filters" type="button">⚙ Ещё фильтры</button>
+        <div id="extra-filters" class="extra-filters hidden"><input id="author-filter" placeholder="Автор"><input type="date" id="date-filter"></div>
+      </section>
+
+      <div class="publication-list-tools"><label>Сортировка: <select id="sort-filter"><option value="new">Сначала новые</option><option value="popular">Сначала популярные</option><option value="useful">По полезности</option><option value="saved">По сохранениям</option><option value="discussed">По обсуждениям</option></select></label><div class="view-buttons"><button id="list-view" class="active" title="Список">☷</button><button id="grid-view" title="Плитка">▦</button></div></div>
+      <div id="publication-list" class="publication-list"><div class="publication-loading">Загружаем экспертные материалы…</div></div>
+      <button id="load-more" class="load-more hidden">Показать ещё</button>
+    </section>
+
+    <aside class="publications-sidebar">
+      <section class="publication-side-card topics-card"><header><h2>Популярные темы</h2><a href="#publication-search">Все темы</a></header><div id="popular-topics"></div><button id="show-all-topics">Ещё темы⌄</button></section>
+      <section class="publication-side-card subscriptions-card"><header><h2>Авторы публикаций</h2><a href="?scope=subscriptions">Мои подписки</a></header><div id="publication-authors"></div></section>
+      <section class="publication-side-card publication-promo"><div class="promo-illustration">✎</div><h2>Публикуйте и развивайте<br>свою экспертность</h2><p>Делитесь опытом, получайте признание коллег и повышайте свой профессиональный индекс.</p><a href="/publications/create">Создать публикацию</a></section>
+    </aside>
+  </div>
+</main>
+<script src="/static/publications.js?v=2"></script>
+</body>
+</html>

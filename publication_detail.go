@@ -315,6 +315,9 @@ func renderPublicationSEOPage(w http.ResponseWriter, r *http.Request, d publicat
 		return
 	}
 	page := string(templateBytes)
+	page = strings.Replace(page, "</head>", `<link rel="stylesheet" href="/static/publication-view-refined.css?v=1"></head>`, 1)
+	page = strings.Replace(page, "</head>", `<link rel="stylesheet" href="/static/publication-view-polish.css?v=1"></head>`, 1)
+	page = strings.Replace(page, "</body>", `<script src="/static/publication-view-refined.js?v=1"></script></body>`, 1)
 	replacements := map[string]string{"{{SEO_TITLE}}": html.EscapeString(title), "{{SEO_DESCRIPTION}}": html.EscapeString(description), "{{CANONICAL}}": html.EscapeString(canonical), "{{SEO_IMAGE}}": html.EscapeString(image), "{{ROBOTS}}": robots, "{{STRUCTURED_DATA}}": string(schema), "{{ARTICLE_TITLE}}": html.EscapeString(d.Title), "{{ARTICLE_EXCERPT}}": html.EscapeString(d.Excerpt), "{{ARTICLE_HTML}}": d.ContentHTML, "{{PUBLICATION_ID}}": strconv.FormatInt(d.ID, 10)}
 	for key, value := range replacements {
 		page = strings.ReplaceAll(page, key, value)

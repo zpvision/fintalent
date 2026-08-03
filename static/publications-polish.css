@@ -1,0 +1,263 @@
+/* Publications catalogue: comfortable FinTalent-scale typography and spacing. */
+.publications-page {
+  width: min(1360px, calc(100% - 64px));
+  padding-top: 30px;
+}
+
+.publications-heading {
+  min-height: 112px;
+}
+
+.publications-heading h1 {
+  margin-bottom: 9px;
+  font-size: 32px;
+  letter-spacing: -.7px;
+}
+
+.publications-heading p {
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.publication-create {
+  height: 44px;
+  padding: 0 21px;
+  border-radius: 9px;
+  font-size: 12px;
+  box-shadow: 0 8px 20px rgba(23, 100, 235, .2);
+}
+
+.publications-layout {
+  grid-template-columns: minmax(0, 1fr) 310px;
+  gap: 24px;
+  margin-top: 16px;
+}
+
+.publication-tabs {
+  gap: 4px;
+  padding-bottom: 11px;
+}
+
+.publication-tabs button {
+  height: 38px;
+  padding: 0 14px;
+  font-size: 12px;
+}
+
+.publication-filters {
+  gap: 9px;
+  padding: 13px;
+  border-radius: 12px;
+  box-shadow: 0 5px 20px rgba(40, 65, 130, .025);
+}
+
+.publication-search,
+.publication-filters select,
+.more-filters,
+.extra-filters input {
+  height: 43px;
+}
+
+.publication-search input,
+.publication-filters select,
+.more-filters,
+.extra-filters input {
+  font-size: 12px;
+}
+
+.publication-list-tools {
+  height: 54px;
+}
+
+.publication-list-tools label,
+.publication-list-tools select {
+  font-size: 12px;
+}
+
+.publication-list-tools select,
+.view-buttons button {
+  height: 34px;
+}
+
+.publication-list {
+  gap: 13px;
+}
+
+.publication-card {
+  grid-template-columns: 190px minmax(0, 1fr) 190px;
+  gap: 18px;
+  min-height: 218px;
+  padding: 15px;
+  border-radius: 13px;
+}
+
+.publication-cover {
+  min-height: 186px;
+  border-radius: 10px;
+}
+
+.publication-content {
+  padding: 3px 0;
+}
+
+.publication-labels {
+  height: 28px;
+}
+
+.publication-labels span,
+.publication-tags span {
+  padding: 5px 9px;
+  font-size: 11px;
+}
+
+.publication-card h2 {
+  margin: 7px 0;
+  font-size: 18px;
+  line-height: 1.35;
+  letter-spacing: -.25px;
+}
+
+.publication-description {
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.publication-author-line {
+  margin-top: 16px;
+}
+
+.publication-author-avatar {
+  width: 31px;
+  height: 31px;
+  flex-basis: 31px;
+}
+
+.publication-author-copy b {
+  font-size: 12px;
+}
+
+.publication-author-copy small,
+.publication-date,
+.publication-reading {
+  font-size: 11px;
+}
+
+.publication-tags {
+  margin-top: 12px;
+}
+
+.publication-metrics {
+  padding-left: 17px;
+}
+
+.publication-state {
+  padding: 5px 9px;
+  font-size: 11px;
+}
+
+.publication-bookmark {
+  width: 32px;
+  height: 32px;
+  font-size: 16px;
+}
+
+.publication-stat-list {
+  gap: 11px;
+  margin-top: 28px;
+}
+
+.publication-stat,
+.publication-stat b {
+  font-size: 12px;
+}
+
+.publication-usefulness {
+  font-size: 11px;
+}
+
+.publication-usefulness b {
+  font-size: 18px;
+}
+
+.publication-side-card {
+  margin-bottom: 14px;
+  padding: 19px;
+  border-radius: 13px;
+}
+
+.publication-side-card h2 {
+  font-size: 16px;
+}
+
+.publication-side-card header a,
+.topics-card > button {
+  font-size: 12px;
+}
+
+.topic-row {
+  grid-template-columns: 34px 1fr;
+  gap: 10px;
+}
+
+.topic-row i {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+}
+
+.topic-row b,
+.author-row b {
+  font-size: 13px;
+}
+
+.topic-row small,
+.author-row small {
+  font-size: 11px;
+}
+
+.author-row {
+  grid-template-columns: 36px 1fr auto;
+  gap: 10px;
+  margin: 13px 0;
+}
+
+.author-row i {
+  width: 36px;
+  height: 36px;
+}
+
+.publication-promo h2 {
+  font-size: 17px;
+}
+
+.publication-promo p,
+.publication-promo a {
+  font-size: 12px;
+}
+
+.publication-promo a {
+  height: 38px;
+}
+
+@media (max-width: 1150px) {
+  .publications-page { width: calc(100% - 40px); }
+  .publications-layout { grid-template-columns: minmax(0, 1fr) 275px; }
+  .publication-card { grid-template-columns: 165px minmax(0, 1fr) 175px; }
+}
+
+@media (max-width: 900px) {
+  .publications-layout { display: block; }
+  .publication-card { grid-template-columns: 175px minmax(0, 1fr) 180px; }
+}
+
+@media (max-width: 700px) {
+  .publications-page { width: calc(100% - 24px); padding-top: 20px; }
+  .publications-heading h1 { font-size: 28px; }
+  .publication-card { grid-template-columns: 128px minmax(0, 1fr); }
+  .publication-cover { min-height: 142px; }
+}
+
+@media (max-width: 480px) {
+  .publication-card h2 { font-size: 17px; }
+  .publication-description { font-size: 13px; }
+}

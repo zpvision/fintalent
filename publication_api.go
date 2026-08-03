@@ -103,6 +103,18 @@ func publicationsAPI(w http.ResponseWriter, r *http.Request) {
 	if cat := q.Get("category"); cat != "" {
 		add("c.slug=$%d", cat)
 	}
+	if topic := q.Get("topic"); topic != "" {
+		add("EXISTS(SELECT 1 FROM publication_topic_links ptl JOIN publication_topics pt ON pt.id=ptl.topic_id WHERE ptl.publication_id=p.id AND pt.slug=$%d)", topic)
+	}
+	if skill := strings.TrimSpace(q.Get("skill")); skill != "" {
+		add("EXISTS(SELECT 1 FROM publication_skill_links psl JOIN dictionary_items psi ON psi.id=psl.skill_id WHERE psl.publication_id=p.id AND psi.value=$%d)", skill)
+	}
+	if author := strings.TrimSpace(q.Get("author")); author != "" {
+		add("u.full_name ILIKE '%%'||$%d||'%%'", author)
+	}
+	if publishedDate := strings.TrimSpace(q.Get("date")); publishedDate != "" {
+		add("p.published_at::date=$%d::date", publishedDate)
+	}
 	if diff := q.Get("difficulty"); diff != "" {
 		add("p.difficulty=$%d", diff)
 	}
