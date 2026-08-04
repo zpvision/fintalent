@@ -24,6 +24,12 @@ func prepareDemoContent(ctx context.Context) error {
 		return err
 	}
 	_, err = db.ExecContext(ctx, strings.ReplaceAll(string(schema), "__DEMO_PASSWORD_HASH__", string(hash)))
+	if err != nil {
+		return err
+	}
+	// The knowledge seed depends on demo users and resumes, which are created
+	// above. It is idempotent and also keeps existing real attempts untouched.
+	_, err = db.ExecContext(ctx, resumeTestKnowledgeMigrationSQL)
 	return err
 }
 

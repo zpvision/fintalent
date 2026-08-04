@@ -4,6 +4,8 @@
 *.exe
 *.log
 tmp/
+static/uploads/
+node_modules/
 .DS_Store
 vacancy-*-check*.png
 vacancy-view-revision.png

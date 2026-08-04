@@ -1,0 +1,28 @@
+/* Comfortable type scale for the publication editor. */
+.editor-page{width:min(1360px,calc(100% - 40px))}
+.editor-top{height:82px;gap:18px}
+.editor-top>a{font-size:12px;font-weight:600}
+.editor-status{font-size:11px}.editor-status i{width:8px;height:8px}
+.view-switch{padding:4px;border-radius:10px}.view-switch button{height:34px;padding:0 13px;font-size:11px}
+.publish-button{height:42px;padding:0 20px;border-radius:9px;font-size:12px;box-shadow:0 7px 17px rgba(21,89,246,.18)}
+.editor-layout{grid-template-columns:minmax(0,1fr) 320px;gap:20px}
+.editor-canvas{padding:32px 44px}.editor-settings{padding:23px}
+.cover-upload b{font-size:14px}.cover-upload small{font-size:11px}
+.subtitle-input{font-size:18px}
+.editor-canvas>#editor-mode>#publication-excerpt{height:78px;font-size:13px;line-height:1.65}
+.summary-editor{padding:20px;border-radius:12px}.summary-editor b{font-size:14px}.summary-editor small{margin-top:5px;font-size:11px}
+.summary-editor header button,.summary-editor>button{font-size:11px}.summary-row{gap:9px;margin-top:10px}.summary-row input{min-height:30px;font-size:12px}
+.block-toolbar{gap:7px;padding:14px;border-radius:11px}.block-toolbar span{margin-bottom:2px;font-size:11px;font-weight:600}
+.block-toolbar button{height:34px;padding:0 11px;border-radius:7px;font-size:11px;transition:border-color .18s ease,color .18s ease,background .18s ease,transform .18s ease}
+.block-toolbar button:hover{border-color:#9db9f6;background:#f1f5ff;color:#1559f6;transform:translateY(-1px)}
+.content-blocks{gap:12px;margin-top:17px}.content-block{grid-template-columns:30px 1fr 30px;padding:12px}
+.content-block textarea,.content-block input{min-height:48px;font-size:14px;line-height:1.65}
+.content-block[data-type=h2] textarea{font-size:23px}.content-block[data-type=h3] textarea{font-size:19px}.content-block small{font-size:10px}
+.editor-settings h2{margin-bottom:21px;font-size:18px}.editor-settings>label{margin:15px 0;color:#33486e;font-size:11px}
+.editor-settings input,.editor-settings select,.editor-settings textarea{min-height:43px;margin-top:7px;padding:10px 11px;border-radius:8px;font-size:12px}
+.editor-settings select[multiple]{height:98px}.editor-settings textarea{height:78px}.editor-settings .check{font-size:12px}
+.editor-settings .check input{width:18px;min-height:18px}.secondary,.danger{height:40px;padding:0 15px;font-size:11px}
+.preview-summary li,.preview-content{font-size:14px}#editor-notice{padding:13px 17px;font-size:12px}
+@media(max-width:1000px){.editor-layout{grid-template-columns:minmax(0,1fr) 290px}.editor-canvas{padding:28px}}
+@media(max-width:850px){.editor-layout{grid-template-columns:1fr}.editor-settings{position:static}}
+@media(max-width:520px){.editor-page{width:calc(100% - 18px)}.editor-canvas{padding:17px}.view-switch button{padding:0 8px;font-size:10px}.block-toolbar button{font-size:10px}}

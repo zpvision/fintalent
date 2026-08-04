@@ -17,6 +17,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/microcosm-cc/bluemonday"
 )
 
 //go:embed migrations/024_publications.sql migrations/025_publications_demo.sql
@@ -126,23 +128,23 @@ func renderPublicationBlocks(blocks []publicationBlock) string {
 	var out strings.Builder
 	writeText := func(tag, class, text string) {
 		if strings.TrimSpace(text) != "" {
-			fmt.Fprintf(&out, "<%s class=\"%s\">%s</%s>", tag, class, html.EscapeString(strings.TrimSpace(text)), tag)
+			fmt.Fprintf(&out, "<%s class=\"%s\">%s</%s>", tag, class, safePublicationInlineHTML(text), tag)
 		}
 	}
 	for i, block := range blocks {
 		id := fmt.Sprintf("section-%d", i+1)
 		switch block.Type {
 		case "h2":
-			fmt.Fprintf(&out, `<h2 id="%s">%s</h2>`, id, html.EscapeString(strings.TrimSpace(block.Text)))
+			fmt.Fprintf(&out, `<h2 id="%s">%s</h2>`, id, safePublicationInlineHTML(block.Text))
 		case "h3":
-			fmt.Fprintf(&out, `<h3 id="%s">%s</h3>`, id, html.EscapeString(strings.TrimSpace(block.Text)))
+			fmt.Fprintf(&out, `<h3 id="%s">%s</h3>`, id, safePublicationInlineHTML(block.Text))
 		case "paragraph":
 			writeText("p", "", block.Text)
 		case "quote":
 			writeText("blockquote", "", block.Text)
 		case "warning", "info", "avoid", "note", "example", "conclusion":
 			labels := map[string]string{"warning": "Предупреждение", "info": "Информация", "avoid": "Как избежать", "note": "Обратите внимание", "example": "Практический пример", "conclusion": "Вывод"}
-			fmt.Fprintf(&out, `<aside class="article-callout %s"><b>%s</b><p>%s</p></aside>`, block.Type, labels[block.Type], html.EscapeString(strings.TrimSpace(block.Text)))
+			fmt.Fprintf(&out, `<aside class="article-callout %s"><b>%s</b><p>%s</p></aside>`, block.Type, labels[block.Type], safePublicationInlineHTML(block.Text))
 		case "bullets", "numbered", "checklist":
 			tag := "ul"
 			if block.Type == "numbered" {
@@ -151,7 +153,7 @@ func renderPublicationBlocks(blocks []publicationBlock) string {
 			fmt.Fprintf(&out, "<%s class=\"%s\">", tag, block.Type)
 			for _, item := range block.Items {
 				if strings.TrimSpace(item) != "" {
-					fmt.Fprintf(&out, "<li>%s</li>", html.EscapeString(strings.TrimSpace(item)))
+					fmt.Fprintf(&out, "<li>%s</li>", safePublicationInlineHTML(item))
 				}
 			}
 			fmt.Fprintf(&out, "</%s>", tag)
@@ -181,7 +183,7 @@ func renderPublicationBlocks(blocks []publicationBlock) string {
 					if ri == 0 {
 						tag = "th"
 					}
-					fmt.Fprintf(&out, "<%s>%s</%s>", tag, html.EscapeString(cell), tag)
+					fmt.Fprintf(&out, "<%s>%s</%s>", tag, safePublicationInlineHTML(cell), tag)
 				}
 				out.WriteString("</tr>")
 			}
@@ -191,8 +193,33 @@ func renderPublicationBlocks(blocks []publicationBlock) string {
 	return out.String()
 }
 
+var publicationInlinePolicy = func() *bluemonday.Policy {
+	policy := bluemonday.StrictPolicy()
+	policy.AllowElements("b", "strong", "i", "em", "u", "code", "mark", "br", "a")
+	policy.AllowAttrs("href").OnElements("a")
+	policy.AllowStandardURLs()
+	policy.RequireNoFollowOnLinks(true)
+	policy.RequireNoReferrerOnLinks(true)
+	policy.AddTargetBlankToFullyQualifiedLinks(true)
+	return policy
+}()
+
+func safePublicationInlineHTML(value string) string {
+	return publicationInlinePolicy.Sanitize(strings.TrimSpace(value))
+}
+
 func validatePublicationInput(in *publicationInput) error {
 	in.Title = strings.Join(strings.Fields(in.Title), " ")
+	if strings.TrimSpace(in.SEOTitle) == "" {
+		in.SEOTitle = truncatePublicationSEO(in.Title, 60)
+	}
+	if strings.TrimSpace(in.SEODescription) == "" {
+		description := strings.TrimSpace(in.Excerpt)
+		if description == "" {
+			description = strings.TrimSpace(in.Subtitle)
+		}
+		in.SEODescription = truncatePublicationSEO(description, 160)
+	}
 	in.Slug = slugify(in.Slug)
 	if in.Slug == "" {
 		in.Slug = slugify(in.Title)
@@ -235,6 +262,19 @@ func validatePublicationInput(in *publicationInput) error {
 	}
 	in.CoverImage = safeMediaURL(in.CoverImage)
 	return nil
+}
+
+func truncatePublicationSEO(value string, limit int) string {
+	value = strings.Join(strings.Fields(value), " ")
+	runes := []rune(value)
+	if len(runes) <= limit {
+		return value
+	}
+	short := strings.TrimSpace(string(runes[:limit-1]))
+	if index := strings.LastIndex(short, " "); index > limit/2 {
+		short = short[:index]
+	}
+	return strings.TrimSpace(short) + "…"
 }
 
 func optionalUserID(r *http.Request) int64 {

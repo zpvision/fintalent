@@ -1,0 +1,34 @@
+{
+  "name": "fintalent",
+  "version": "1.0.0",
+  "description": "Local frontend bundles for FinTalent",
+  "private": true,
+  "scripts": {
+    "build:publication-editor": "esbuild frontend/publication-editor-editorjs.js --bundle --minify --format=iife --target=es2020 --outfile=static/vendor/publication-editor-editorjs.js",
+    "build": "npm run build:publication-editor"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zpvision/fintalent.git"
+  },
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/zpvision/fintalent/issues"
+  },
+  "homepage": "https://github.com/zpvision/fintalent#readme",
+  "dependencies": {
+    "@editorjs/code": "^2.9.4",
+    "@editorjs/delimiter": "^1.4.2",
+    "@editorjs/editorjs": "^2.31.6",
+    "@editorjs/header": "^2.8.9",
+    "@editorjs/inline-code": "^1.5.2",
+    "@editorjs/list": "^2.0.9",
+    "@editorjs/marker": "^1.4.0",
+    "@editorjs/quote": "^2.7.6",
+    "@editorjs/table": "^2.4.5",
+    "@editorjs/underline": "^1.2.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1"
+  }
+}

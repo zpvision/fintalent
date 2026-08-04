@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/microcosm-cc/bluemonday"
 )
 
 type publicationCard struct {
@@ -254,7 +256,8 @@ func publicationMetaAPI(w http.ResponseWriter, r *http.Request) {
 	}
 	uid := optionalUserID(r)
 	categories := queryPairs(r, `SELECT id,name,slug FROM publication_categories WHERE is_active ORDER BY sort_order,name`)
-	topics := queryPairs(r, `SELECT id,name,slug FROM publication_topics WHERE is_active ORDER BY name`)
+	topics := publicationDictionaryPairs(r.Context(), "publication_topics", true)
+	tags := publicationDictionaryPairs(r.Context(), "publication_tags", false)
 	skills := queryPairs(r, `SELECT i.id,i.value,d.alias FROM dictionary_items i JOIN dictionaries d ON d.id=i.dictionary_id WHERE d.alias IN('accounting_areas','software','crm','position') AND i.active AND i.deleted_at IS NULL ORDER BY i.value LIMIT 100`)
 	tests := queryPairs(r, `SELECT t.id,v.title,t.slug FROM tests t JOIN test_versions v ON v.test_id=t.id AND v.version=t.current_version WHERE t.status='published' ORDER BY v.title LIMIT 100`)
 	series := []map[string]any{}
@@ -270,7 +273,32 @@ func publicationMetaAPI(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	writeAdminJSON(w, 200, map[string]any{"categories": categories, "topics": topics, "skills": skills, "tests": tests, "series": series})
+	writeAdminJSON(w, 200, map[string]any{"categories": categories, "topics": topics, "tags": tags, "skills": skills, "tests": tests, "series": series})
+}
+
+func publicationDictionaryPairs(ctx context.Context, alias string, syncTopics bool) []map[string]any {
+	rows, err := db.QueryContext(ctx, `SELECT i.id,i.value FROM dictionary_items i JOIN dictionaries d ON d.id=i.dictionary_id WHERE d.alias=$1 AND i.active AND i.deleted_at IS NULL ORDER BY i.sort_order,i.id`, alias)
+	if err != nil {
+		return []map[string]any{}
+	}
+	defer rows.Close()
+	result := []map[string]any{}
+	for rows.Next() {
+		var id int64
+		var name string
+		if rows.Scan(&id, &name) != nil {
+			continue
+		}
+		slug := slugify(name)
+		if syncTopics && slug != "" {
+			var topicID int64
+			if db.QueryRowContext(ctx, `INSERT INTO publication_topics(name,slug) VALUES($1,$2) ON CONFLICT(slug) DO UPDATE SET name=EXCLUDED.name,is_active=TRUE RETURNING id`, name, slug).Scan(&topicID) == nil {
+				id = topicID
+			}
+		}
+		result = append(result, map[string]any{"id": id, "name": name, "slug": slug})
+	}
+	return result
 }
 
 func queryPairs(r *http.Request, q string) []map[string]any {
@@ -297,9 +325,69 @@ func publicationSlugAPI(w http.ResponseWriter, r *http.Request) {
 	writeAdminJSON(w, 200, map[string]any{"slug": slug, "available": slug != "" && !exists})
 }
 func publicationSummaryStub(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		if optionalUserID(r) == 0 {
+			writeJSON(w, 401, "Требуется авторизация")
+			return
+		}
+		var raw struct {
+			Title   string             `json:"title"`
+			Excerpt string             `json:"excerpt"`
+			Content []publicationBlock `json:"content"`
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, 2<<20)
+		if json.NewDecoder(r.Body).Decode(&raw) != nil {
+			writeJSON(w, 400, "Некорректное содержимое публикации")
+			return
+		}
+		points := generatePublicationSummary(raw.Title, raw.Excerpt, raw.Content)
+		if len(points) < 3 {
+			writeJSON(w, 400, "Добавьте больше текста, чтобы сформировать тезисы")
+			return
+		}
+		writeAdminJSON(w, 200, map[string]any{"available": true, "points": points, "message": "Тезисы сформированы из текста публикации"})
+		return
+	}
 	if optionalUserID(r) == 0 {
 		writeJSON(w, 401, "Требуется авторизация")
 		return
 	}
 	writeAdminJSON(w, 200, map[string]any{"available": false, "message": "Автоматическая генерация будет доступна после подключения AI. Заполните тезисы вручную — неподтверждённые факты не создаются."})
+}
+
+func generatePublicationSummary(title, excerpt string, blocks []publicationBlock) []string {
+	candidates := []string{}
+	if strings.TrimSpace(excerpt) != "" {
+		candidates = append(candidates, excerpt)
+	}
+	for _, block := range blocks {
+		switch block.Type {
+		case "h2", "h3", "paragraph", "conclusion", "avoid", "note", "example":
+			candidates = append(candidates, block.Text)
+		case "bullets", "numbered", "checklist":
+			candidates = append(candidates, block.Items...)
+		}
+	}
+	result, seen := []string{}, map[string]bool{}
+	for _, candidate := range candidates {
+		candidate = bluemonday.StrictPolicy().Sanitize(candidate)
+		candidate = strings.Join(strings.Fields(strings.TrimSpace(candidate)), " ")
+		if idx := strings.IndexAny(candidate, ".!?\n"); idx >= 35 {
+			candidate = candidate[:idx+1]
+		}
+		runes := []rune(candidate)
+		if len(runes) > 180 {
+			candidate = strings.TrimSpace(string(runes[:177])) + "…"
+		}
+		key := strings.ToLower(candidate)
+		if len([]rune(candidate)) < 18 || seen[key] || strings.EqualFold(candidate, title) {
+			continue
+		}
+		seen[key] = true
+		result = append(result, candidate)
+		if len(result) == 7 {
+			break
+		}
+	}
+	return result
 }

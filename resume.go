@@ -33,6 +33,7 @@ func registerResumeRoutes() {
 	http.HandleFunc("/resume/create", servePage("static/resume-create.html"))
 	http.HandleFunc("/resume/view/", servePage("static/resume-view.html"))
 	http.HandleFunc("/api/public/resumes/", publicResumeHandler)
+	http.HandleFunc("/api/resumes/", resumeKnowledgeActionHandler)
 	http.HandleFunc("/api/public/dictionaries/", publicDictionaryHandler)
 	http.HandleFunc("/api/assets/position-icon/", positionIconHandler)
 	http.HandleFunc("/api/assets/accounting-area-icon/", accountingAreaIconHandler)

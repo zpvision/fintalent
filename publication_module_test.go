@@ -52,8 +52,15 @@ func TestRenderPublicationBlocksEscapesUserContent(t *testing.T) {
 	if strings.Contains(html, "<script") || strings.Contains(html, "javascript:") || strings.Contains(html, "onerror=") {
 		t.Fatalf("unsafe content rendered: %s", html)
 	}
-	if !strings.Contains(html, "&lt;script&gt;") {
-		t.Fatalf("text was not escaped: %s", html)
+}
+
+func TestRenderPublicationBlocksKeepsSafeInlineFormatting(t *testing.T) {
+	html := renderPublicationBlocks([]publicationBlock{{Type: "paragraph", Text: `<strong>Важное</strong> и <a href="https://example.com">ссылка</a><img src=x onerror=alert(1)>`}})
+	if !strings.Contains(html, "<strong>Важное</strong>") || !strings.Contains(html, `href="https://example.com"`) {
+		t.Fatalf("safe formatting was removed: %s", html)
+	}
+	if strings.Contains(html, "<img") || strings.Contains(html, "onerror") {
+		t.Fatalf("unsafe formatting survived: %s", html)
 	}
 }
 
@@ -64,6 +71,22 @@ func TestValidatePublicationInput(t *testing.T) {
 	}
 	if in.Difficulty != "medium" || in.Visibility != "draft" || in.Slug == "" {
 		t.Fatalf("defaults not applied: %+v", in)
+	}
+}
+
+func TestGeneratePublicationSummaryUsesOnlySourceText(t *testing.T) {
+	blocks := []publicationBlock{
+		{Type: "h2", Text: "Проверьте применимость налогового режима до подачи уведомления"},
+		{Type: "paragraph", Text: "Сравните ограничения по доходам и численности сотрудников. Остальные детали не должны попасть в первый тезис."},
+		{Type: "checklist", Items: []string{"Зафиксируйте контрольные даты и ответственных сотрудников"}},
+	}
+	points := generatePublicationSummary("Переход на УСН", "Пошаговый разбор перехода на упрощённую систему налогообложения", blocks)
+	if len(points) < 3 {
+		t.Fatalf("expected at least three points, got %d", len(points))
+	}
+	joined := strings.Join(points, " ")
+	if strings.Contains(joined, "несуществующий факт") || !strings.Contains(joined, "ограничения") {
+		t.Fatalf("summary is not extractive: %q", joined)
 	}
 }
 

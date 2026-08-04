@@ -11,10 +11,17 @@ var testingMigrationSQL string
 //go:embed migrations/004_attempt_timing.sql
 var attemptTimingMigrationSQL string
 
+//go:embed migrations/026_resume_test_knowledge.sql
+var resumeTestKnowledgeMigrationSQL string
+
 func prepareTestingDatabase(ctx context.Context) error {
 	if _, err := db.ExecContext(ctx, testingMigrationSQL); err != nil {
 		return err
 	}
 	_, err := db.ExecContext(ctx, attemptTimingMigrationSQL)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, resumeTestKnowledgeMigrationSQL)
 	return err
 }
