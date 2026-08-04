@@ -49,7 +49,172 @@ func prepareMarketplaceDatabase(ctx context.Context) error {
 	); CREATE INDEX IF NOT EXISTS test_positions_position_idx ON test_positions(position_id,test_id);`); err != nil {
 		return err
 	}
-	return seedPositionTests(ctx)
+	if err := seedPositionTests(ctx); err != nil {
+		return err
+	}
+	return seedAccountingTopicTests(ctx)
+}
+
+type accountingTopicTestSeed struct {
+	Slug        string
+	Title       string
+	Category    string
+	Difficulty  string
+	Description string
+}
+
+var accountingTopicTestSeeds = []accountingTopicTestSeed{
+	{"accounting-topic-vat", "НДС: расчёт, вычеты и отчётность", "Налоговый учёт", "hard", "Практическая проверка знаний по учёту НДС, налоговым вычетам, документам и подготовке декларации."},
+	{"accounting-topic-profit-tax", "Налог на прибыль организаций", "Налоговый учёт", "hard", "Проверка знаний о доходах, расходах, налоговой базе, регистрах и контроле расчёта налога на прибыль."},
+	{"accounting-topic-payroll", "Расчёт заработной платы", "ТМЦ и зарплата", "medium", "Практический тест по начислению зарплаты, удержаниям, кадровым документам и контролю расчётов с сотрудниками."},
+	{"accounting-topic-accounting-basics", "Бухгалтерский учёт: основы и проводки", "Бухгалтерский учёт", "medium", "Проверка понимания двойной записи, первичных документов, счетов учёта и закрытия периода."},
+	{"accounting-topic-usn", "УСН: учёт доходов и расходов", "Налоговый учёт", "medium", "Тест по организации налогового учёта при УСН, первичным документам и подготовке отчётности."},
+	{"accounting-topic-fixed-assets", "Основные средства и амортизация", "Бухгалтерский учёт", "medium", "Проверка знаний о принятии основных средств к учёту, амортизации, модернизации и выбытии."},
+	{"accounting-topic-inventory", "Товарно-материальные ценности", "ТМЦ и зарплата", "medium", "Практические вопросы по поступлению, движению, инвентаризации и списанию товарно-материальных ценностей."},
+	{"accounting-topic-cash", "Кассовые операции и подотчёт", "Бухгалтерский учёт", "easy", "Тест по кассовой дисциплине, подотчётным суммам, подтверждающим документам и внутреннему контролю."},
+	{"accounting-topic-reporting", "Бухгалтерская отчётность", "Право и отчётность", "hard", "Проверка навыков подготовки, сверки и анализа бухгалтерской отчётности перед сдачей."},
+	{"accounting-topic-financial-analysis", "Финансовый анализ компании", "Финансовый анализ", "hard", "Тест по чтению отчётности, оценке ликвидности, рентабельности, денежного потока и финансовых рисков."},
+	{"accounting-topic-one-c", "1С:Бухгалтерия — практическая работа", "1С и программы", "medium", "Проверка практических навыков ведения учёта, контроля документов и закрытия периода в 1С:Бухгалтерии."},
+	{"accounting-topic-audit", "Внутренний контроль и аудит", "Право и отчётность", "hard", "Проверка знаний о контрольных процедурах, аудиторских доказательствах, рисках и исправлении ошибок."},
+	{"accounting-topic-management-accounting", "Управленческий учёт и бюджетирование", "Финансовый анализ", "medium", "Тест по бюджетам, план-факт анализу, центрам ответственности и подготовке управленческой отчётности."},
+}
+
+func seedAccountingTopicTests(ctx context.Context) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var authorID int64
+	if err = tx.QueryRowContext(ctx, `SELECT id FROM users WHERE email='3@3.ru'`).Scan(&authorID); err != nil {
+		return err
+	}
+	for _, item := range accountingTopicTestSeeds {
+		var testID int64
+		err = tx.QueryRowContext(ctx, `INSERT INTO tests(author_id,slug,category,category_id,difficulty,status,visibility,is_free,passing_percent,time_limit_seconds)
+			VALUES($1,$2,$3::varchar,(SELECT id FROM test_categories WHERE name=$3::text),$4,'published','marketplace',TRUE,70,1200)
+			ON CONFLICT(slug) DO UPDATE SET author_id=EXCLUDED.author_id,category=EXCLUDED.category,category_id=EXCLUDED.category_id,difficulty=EXCLUDED.difficulty,status='published',visibility='marketplace',updated_at=NOW()
+			RETURNING id`, authorID, item.Slug, item.Category, item.Difficulty).Scan(&testID)
+		if err != nil {
+			return err
+		}
+		var versionID int64
+		err = tx.QueryRowContext(ctx, `INSERT INTO test_versions(test_id,version,title,description,created_by,published_at)
+			VALUES($1,1,$2,$3,$4,NOW()) ON CONFLICT(test_id,version) DO UPDATE SET title=EXCLUDED.title,description=EXCLUDED.description,published_at=COALESCE(test_versions.published_at,NOW()),updated_at=NOW() RETURNING id`, testID, item.Title, item.Description, authorID).Scan(&versionID)
+		if err != nil {
+			return err
+		}
+		if _, err = tx.ExecContext(ctx, `INSERT INTO test_statistics(test_id) VALUES($1) ON CONFLICT DO NOTHING`, testID); err != nil {
+			return err
+		}
+		var count int
+		if err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM test_questions WHERE test_version_id=$1`, versionID).Scan(&count); err != nil {
+			return err
+		}
+		if count == 0 {
+			for number := 1; number <= 12; number++ {
+				if err = seedAccountingTopicQuestion(ctx, tx, versionID, item.Title, number); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	if err = seedAccountingTopicAttempts(ctx, tx, authorID); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func seedAccountingTopicAttempts(ctx context.Context, tx *sql.Tx, userID int64) error {
+	results := []struct {
+		slug          string
+		percent       float64
+		daysAgo       int
+		confirmations int
+	}{
+		{"accounting-topic-vat", 94, 3, 6},
+		{"accounting-topic-usn", 92, 1, 6},
+		{"accounting-topic-payroll", 89, 8, 3},
+		{"accounting-topic-reporting", 91, 12, 2},
+		{"accounting-topic-one-c", 87, 17, 3},
+	}
+	for _, result := range results {
+		_, err := tx.ExecContext(ctx, `
+			INSERT INTO test_attempts(test_id,test_version_id,user_id,score,max_score,percent,passed,started_at,finished_at,duration_seconds,status,context)
+			SELECT t.id,v.id,$1,$2,100,$2,TRUE,
+				NOW()-($3::int||' days')::interval-INTERVAL '18 minutes',
+				NOW()-($3::int||' days')::interval,1080,'finished',
+				jsonb_build_object('demo_accounting_result',t.slug)
+			FROM tests t
+			JOIN test_versions v ON v.test_id=t.id AND v.version=t.current_version
+			WHERE t.slug=$4 AND NOT EXISTS(
+				SELECT 1 FROM test_attempts a
+				WHERE a.user_id=$1 AND a.test_id=t.id
+				  AND a.context->>'demo_accounting_result'=t.slug
+			)`, userID, result.percent, result.daysAgo, result.slug)
+		if err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, `
+			INSERT INTO resume_test_confirmations(resume_id,test_id,confirmer_id,created_at)
+			SELECT r.id,t.id,confirmers.id,
+				NOW()-((confirmers.position*7+t.id%5)||' hours')::interval
+			FROM resumes r
+			JOIN tests t ON t.slug=$2
+			JOIN LATERAL (
+				SELECT selected.id,ROW_NUMBER() OVER (ORDER BY selected.id)::int AS position
+				FROM (
+					SELECT u.id
+					FROM users u
+					WHERE u.id<>r.user_id
+					  AND (u.email LIKE 'market-review-%@fintalent.local' OR u.email LIKE '%@%.ru')
+					ORDER BY CASE WHEN u.email LIKE 'market-review-%@fintalent.local' THEN 0 ELSE 1 END,u.id
+					LIMIT $3
+				) selected
+			) confirmers ON TRUE
+			WHERE r.user_id=$1 AND r.deleted_at IS NULL
+			ON CONFLICT(resume_id,test_id,confirmer_id) DO NOTHING`, userID, result.slug, result.confirmations)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func seedAccountingTopicQuestion(ctx context.Context, tx *sql.Tx, versionID int64, topic string, number int) error {
+	templates := []string{
+		"Какое действие нужно выполнить первым при проверке участка «%s»?",
+		"Что лучше всего подтверждает корректность операции по теме «%s»?",
+		"Как следует действовать при обнаружении расхождения в разделе «%s»?",
+		"Какая процедура снижает риск ошибки при работе с темой «%s»?",
+		"Что необходимо сделать перед формированием итоговой отчётности по теме «%s»?",
+		"Какие данные следует сопоставить при контрольной проверке раздела «%s»?",
+	}
+	question := fmt.Sprintf(templates[(number-1)%len(templates)], topic)
+	kind := "single_choice"
+	if number%4 == 0 {
+		kind = "multiple_choice"
+	}
+	var questionID int64
+	if err := tx.QueryRowContext(ctx, `INSERT INTO test_questions(test_version_id,sort_order,question,question_type,explanation,points,settings)
+		VALUES($1,$2,$3,$4,'Правильное решение опирается на первичные документы, регламент, сверку данных и фиксацию результата проверки.',1,'{"shuffle_answers":true}'::jsonb) RETURNING id`, versionID, number-1, question, kind).Scan(&questionID); err != nil {
+		return err
+	}
+	answers := []struct {
+		text    string
+		correct bool
+	}{
+		{"Проверить первичные документы и сопоставить данные учёта", true},
+		{"Зафиксировать результат проверки и основание корректировки", kind == "multiple_choice"},
+		{"Изменить показатели без подтверждающих документов", false},
+		{"Игнорировать расхождение до следующего отчётного периода", false},
+	}
+	for order, answer := range answers {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO test_answers(question_id,answer,is_correct,sort_order) VALUES($1,$2,$3,$4)`, questionID, answer.text, answer.correct, order); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func seedPositionTests(ctx context.Context) error {
