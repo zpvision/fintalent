@@ -56,16 +56,15 @@ func registerDemoContentRoutes() {
 		}{Vacancies: []card{}, Resumes: []card{}}
 		rows, _ := db.QueryContext(r.Context(), `SELECT v.id,v.title,u.full_name,v.city,COALESCE(v.salary_from,0) FROM vacancies v JOIN users u ON u.id=v.user_id WHERE v.status='published' AND v.deleted_at IS NULL ORDER BY random() LIMIT 4`)
 		if rows != nil {
-			defer rows.Close()
 			for rows.Next() {
 				var c card
 				_ = rows.Scan(&c.ID, &c.Title, &c.Name, &c.City, &c.Salary)
 				result.Vacancies = append(result.Vacancies, c)
 			}
+			_ = rows.Close()
 		}
 		rows, _ = db.QueryContext(r.Context(), `SELECT r.id,u.full_name,COALESCE((SELECT i.value FROM resume_categories rc JOIN dictionary_items i ON i.id=rc.category_id JOIN dictionaries d ON d.id=i.dictionary_id WHERE rc.resume_id=r.id AND d.alias='position' ORDER BY rc.sort_order LIMIT 1),'Финансовый специалист'),COALESCE(c.name,''),COALESCE(r.desired_salary,0),COALESCE(u.avatar_url,''),COALESCE((SELECT string_agg(value,'|||') FROM (SELECT i.value FROM resume_categories rc JOIN dictionary_items i ON i.id=rc.category_id JOIN dictionaries d ON d.id=i.dictionary_id WHERE rc.resume_id=r.id AND d.alias='accounting_areas' ORDER BY rc.sort_order LIMIT 4) areas),'') FROM resumes r JOIN users u ON u.id=r.user_id LEFT JOIN cities c ON c.id=r.preferred_city_id WHERE r.status='published' AND r.visibility='public' AND r.deleted_at IS NULL ORDER BY random() LIMIT 4`)
 		if rows != nil {
-			defer rows.Close()
 			for rows.Next() {
 				var c card
 				var tags string
@@ -75,6 +74,7 @@ func registerDemoContentRoutes() {
 				}
 				result.Resumes = append(result.Resumes, c)
 			}
+			_ = rows.Close()
 		}
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		_ = json.NewEncoder(w).Encode(result)
