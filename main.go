@@ -107,6 +107,7 @@ func main() {
 	registerDemoContentRoutes()
 	registerGeographyRoutes()
 	registerMarketplaceRoutes()
+	registerProfiMarketRoutes()
 	registerPublicationRoutes()
 	testRepo := testrepository.New(db)
 	testService := testservice.New(testRepo)
@@ -190,6 +191,9 @@ func prepareDatabase() error {
 	if err := prepareMarketplaceDatabase(ctx); err != nil {
 		return err
 	}
+	if err := prepareProfiMarketDatabase(ctx); err != nil {
+		return err
+	}
 	if err := prepareGeographyDatabase(ctx); err != nil {
 		return err
 	}
@@ -200,6 +204,9 @@ func prepareDatabase() error {
 		return nil
 	}
 	if err := prepareDemoContent(ctx); err != nil {
+		return err
+	}
+	if err := prepareProfiMarketDemo(ctx); err != nil {
 		return err
 	}
 	return preparePublicationDemo(ctx)
