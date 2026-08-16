@@ -18,6 +18,7 @@
 .pmr-product-art.has-cover>img{width:100%;height:100%;min-height:385px;display:block;object-fit:cover}
 .pmr-group-image{width:230px;align-self:center;overflow:hidden;border-radius:14px;background:#f2f3f8;box-shadow:0 14px 30px rgba(36,31,96,.12)}
 .pmr-group-image img{width:100%;height:190px;display:block;object-fit:cover}
+.pmr-group-image.placeholder{box-shadow:none}.pmr-group-image.placeholder img{object-fit:contain}
 @media(max-width:1100px){.pmr-product-art.has-cover>img{min-height:325px}}
 @media(max-width:700px){.pmr-group-image{width:100%}.pmr-group-image img{height:auto;max-height:260px}}
 

@@ -7,10 +7,12 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"net/mail"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -30,6 +32,7 @@ type user struct {
 	ID       int64  `json:"id"`
 	FullName string `json:"full_name"`
 	Email    string `json:"email"`
+	Avatar   string `json:"avatar"`
 }
 
 func loadLocalEnv(path string) {
@@ -100,6 +103,7 @@ func main() {
 	http.HandleFunc("/api/login", loginUser)
 	http.HandleFunc("/api/logout", logoutUser)
 	http.HandleFunc("/api/me", currentUser)
+	http.HandleFunc("/api/profile/avatar", profileAvatar)
 	registerAdminRoutes()
 	registerResumeRoutes()
 	registerVacancyModuleRoutes()
@@ -234,6 +238,9 @@ func servePage(filename string) http.HandlerFunc {
 				return
 			}
 			content = []byte(strings.Replace(string(content), "</head>", `<link rel="stylesheet" href="/static/layout-safety.css"><link rel="stylesheet" href="/static/site-header.css?v=1"><link rel="stylesheet" href="/static/site-background.css?v=1"><script src="/static/site-errors.js?v=1"></script></head>`, 1))
+			if filepath.Base(filename) == "profile.html" {
+				content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/profile-avatar.js?v=1"></script></body>`, 1))
+			}
 			content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/site-header.js?v=1"></script></body>`, 1))
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			_, _ = w.Write(content)
@@ -347,8 +354,73 @@ func userFromRequest(r *http.Request) (*user, error) {
 	ctx, cancel := contextWithTimeout()
 	defer cancel()
 	u := &user{}
-	err = db.QueryRowContext(ctx, `SELECT u.id,u.full_name,u.email FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>NOW() AND NOT u.is_blocked`, hex.EncodeToString(hash[:])).Scan(&u.ID, &u.FullName, &u.Email)
+	err = db.QueryRowContext(ctx, `SELECT u.id,u.full_name,u.email,COALESCE(u.avatar_url,'') FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>NOW() AND NOT u.is_blocked`, hex.EncodeToString(hash[:])).Scan(&u.ID, &u.FullName, &u.Email, &u.Avatar)
 	return u, err
+}
+
+func profileAvatar(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSON(w, http.StatusMethodNotAllowed, "Метод не поддерживается")
+		return
+	}
+	u, err := userFromRequest(r)
+	if err != nil {
+		writeJSON(w, http.StatusUnauthorized, "Требуется авторизация")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 6<<20)
+	if err = r.ParseMultipartForm(5 << 20); err != nil {
+		writeJSON(w, http.StatusBadRequest, "Фотография должна быть не больше 5 МБ")
+		return
+	}
+	file, _, err := r.FormFile("avatar")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, "Выберите фотографию")
+		return
+	}
+	defer file.Close()
+	head := make([]byte, 512)
+	n, _ := io.ReadFull(file, head)
+	ext := map[string]string{"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}[http.DetectContentType(head[:n])]
+	if ext == "" {
+		writeJSON(w, http.StatusBadRequest, "Поддерживаются JPG, PNG и WebP")
+		return
+	}
+	token := make([]byte, 16)
+	if _, err = rand.Read(token); err != nil {
+		writeJSON(w, 500, "Не удалось сохранить фотографию")
+		return
+	}
+	dir := filepath.Join("static", "uploads", "avatars")
+	if err = os.MkdirAll(dir, 0755); err != nil {
+		writeJSON(w, 500, "Не удалось сохранить фотографию")
+		return
+	}
+	name := hex.EncodeToString(token) + ext
+	path := filepath.Join(dir, name)
+	out, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0644)
+	if err != nil {
+		writeJSON(w, 500, "Не удалось сохранить фотографию")
+		return
+	}
+	if _, err = out.Write(head[:n]); err == nil {
+		_, err = io.Copy(out, io.LimitReader(file, 5<<20))
+	}
+	if closeErr := out.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		_ = os.Remove(path)
+		writeJSON(w, 500, "Не удалось сохранить фотографию")
+		return
+	}
+	url := "/static/uploads/avatars/" + name
+	if _, err = db.ExecContext(r.Context(), `UPDATE users SET avatar_url=$1 WHERE id=$2`, url, u.ID); err != nil {
+		_ = os.Remove(path)
+		writeJSON(w, 500, "Не удалось обновить профиль")
+		return
+	}
+	profiRespond(w, http.StatusCreated, map[string]string{"avatar": url})
 }
 
 func currentUser(w http.ResponseWriter, r *http.Request) {

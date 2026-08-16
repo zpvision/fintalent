@@ -11,10 +11,11 @@
     const shell=document.querySelector('.pmr-shell');
     if(!shell)return;
 
-    const metrics=shell.querySelector('.pmr-benefits');
-    if(metrics&&solution.key_metrics?.length){
-      metrics.innerHTML=solution.key_metrics.map(x=>`<article>${UI.icon(x.icon)}<span><b>${UI.esc(x.title)}</b><small>${UI.esc(x.description)}</small></span></article>`).join('');
-    }
+    const art=shell.querySelector('.pmr-product-art');
+    if(art&&!solution.cover_image){art.classList.add('has-cover','placeholder');art.innerHTML='<img src="/static/profimarket-package-placeholder.svg" alt="Обложка не добавлена">'}
+    let metrics=shell.querySelector('.pmr-benefits');
+    if(metrics&&solution.key_metrics?.length)metrics.innerHTML=solution.key_metrics.map(x=>`<article>${UI.icon(x.icon)}<span><b>${UI.esc(x.title)}</b><small>${UI.esc(x.description)}</small></span></article>`).join('');
+    else if(metrics){metrics.remove();metrics=null}
     applyTheme(metrics,solution.metric_style,styleCatalog.defaults.metrics);
     const top=shell.querySelector('.pmr-top-grid');
     if(top&&metrics){

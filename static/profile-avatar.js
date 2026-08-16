@@ -1,0 +1,10 @@
+(()=>{
+  document.head.insertAdjacentHTML('beforeend','<link rel="stylesheet" href="/static/profile-avatar.css?v=1">');
+  const main=document.querySelector('.dashboard-main');
+  if(!main)return;
+  main.insertAdjacentHTML('afterbegin','<section class="profile-photo-card"><div class="profile-photo-preview" id="profile-photo-preview">Я</div><div><h2>Фотография профиля</h2><p>Она будет показана в вашем резюме, публикациях и решениях ПрофиМаркета.</p><label class="profile-photo-button">Выбрать фотографию<input id="profile-photo-input" type="file" accept="image/jpeg,image/png,image/webp"></label><small id="profile-photo-status">JPG, PNG или WebP, до 5 МБ</small></div></section>');
+  const paint=(element,url,initial)=>{if(element)element.innerHTML=url?`<img src="${url}" alt="Фотография профиля">`:initial};
+  fetch('/api/me').then(async response=>{if(!response.ok)return;const user=await response.json(),initial=(user.full_name||'П').trim().charAt(0).toUpperCase();paint(document.querySelector('#header-avatar'),user.avatar,initial);paint(document.querySelector('#sidebar-avatar'),user.avatar,initial);paint(document.querySelector('#profile-photo-preview'),user.avatar,initial)});
+  const input=document.querySelector('#profile-photo-input'),status=document.querySelector('#profile-photo-status');
+  input.onchange=async()=>{const file=input.files[0];if(!file)return;if(file.size>5*1024*1024){status.textContent='Файл больше 5 МБ';return}status.textContent='Загружаем…';const body=new FormData();body.append('avatar',file);try{const response=await fetch('/api/profile/avatar',{method:'POST',body}),data=await response.json().catch(()=>({}));if(!response.ok)throw Error(data.error||'Не удалось загрузить фотографию');const initial='П';paint(document.querySelector('#header-avatar'),data.avatar,initial);paint(document.querySelector('#sidebar-avatar'),data.avatar,initial);paint(document.querySelector('#profile-photo-preview'),data.avatar,initial);status.textContent='Фотография сохранена'}catch(error){status.textContent=error.message}finally{input.value=''}};
+})();

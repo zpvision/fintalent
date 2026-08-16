@@ -129,6 +129,9 @@ func loadPublicResume(r *http.Request, id int64) (*publicResumeView, error) {
 	if err != nil {
 		return nil, err
 	}
+	if view.Avatar == "" {
+		view.Avatar = "/static/avatar-placeholder.svg"
+	}
 	if salary.Valid {
 		view.DesiredSalary = salary.Float64
 	}
