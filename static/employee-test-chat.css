@@ -1,0 +1,122 @@
+body:has(.employee-chat-shell){overflow:hidden;background:linear-gradient(145deg,#f8fbff,#edf4ff)}
+#employee-test:has(.employee-chat-shell){display:block;padding:0}
+#employee-test .employee-chat-shell{width:100%;max-width:none;height:100vh;margin:0;border:0;border-radius:0;box-shadow:none}
+.employee-chat-shell .chat-top>a{cursor:default}
+.employee-chat-shell .result-message p:last-of-type{margin-bottom:0}
+@media(max-width:550px){body:has(.employee-chat-shell){overflow:auto}#employee-test .employee-chat-shell{height:100vh}}
+
+.employee-chat-shell .chat-compose>button {
+  width: 48px;
+  min-width: 48px;
+  height: 48px;
+  min-height: 48px;
+  aspect-ratio: 1;
+  align-self: center;
+  justify-self: center;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(145deg,#1559f6 0%,#087fd5 52%,#00c689 100%);
+  box-shadow: 0 7px 18px rgba(21,89,246,.22),0 3px 8px rgba(0,198,137,.14);
+  font: 700 18px/1 Inter,Arial,sans-serif;
+  cursor: pointer;
+  transition: transform .18s ease,box-shadow .18s ease,filter .18s ease;
+}
+.employee-chat-shell .chat-compose>button:hover {
+  transform: translateY(-2px) scale(1.04);
+  filter: saturate(1.08);
+  box-shadow: 0 10px 23px rgba(21,89,246,.27),0 5px 12px rgba(0,198,137,.18);
+}
+.employee-chat-shell .chat-compose>button:active { transform: translateY(0) scale(.96); }
+.employee-chat-shell .chat-compose>button:focus-visible { outline: 4px solid rgba(21,89,246,.18); outline-offset: 3px; }
+.employee-chat-shell .chat-compose>button:disabled { opacity: .48; cursor: not-allowed; transform: none; filter: grayscale(.25); }
+
+.employee-chat-shell .employee-thanks {
+  position: relative;
+  width: min(520px,88%);
+  max-width: 520px;
+  overflow: hidden;
+  margin: 28px auto 18px;
+  padding: 34px 34px 30px;
+  border: 1px solid #cfe8df;
+  border-radius: 22px;
+  background: radial-gradient(circle at 50% 0,rgba(21,89,246,.10),transparent 42%),linear-gradient(145deg,#fff,#f1fbf7);
+  text-align: center;
+  animation: employeeThanksAppear .55s cubic-bezier(.2,.8,.2,1) both;
+}
+.employee-thanks-mark {
+  position: relative;
+  z-index: 2;
+  width: 62px;
+  height: 62px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(145deg,#1559f6,#00c689);
+  box-shadow: 0 10px 25px rgba(21,89,246,.22);
+  font-size: 29px;
+  animation: employeeThanksMark .7s .15s cubic-bezier(.2,.9,.2,1.25) both;
+}
+.employee-thanks>small { color: #1559f6; font-size: 10px; font-weight: 800; letter-spacing: .13em; }
+.employee-thanks h2 { margin: 9px 0 10px; color: #071541; font-size: 24px; }
+.employee-thanks>p { margin: 0 auto; color: #637492; font-size: 13px; line-height: 1.6; }
+.employee-thanks>strong { display: block; margin-top: 17px; color: #07835f; font-size: 14px; }
+.employee-thanks>em { display: block; margin-top: 17px; color: #8b98aa; font-size: 10px; font-style: normal; }
+.employee-thanks-confetti i { position: absolute; z-index: 1; left: 50%; top: 62px; width: 7px; height: 13px; border-radius: 3px; background: hsl(calc(var(--i)*31deg),80%,56%); opacity: 0; transform: rotate(calc(var(--i)*29deg)); animation: employeeConfetti 1.05s calc(var(--i)*.035s) ease-out both; }
+@keyframes employeeThanksAppear { from{opacity:0;transform:translateY(18px) scale(.97)} to{opacity:1;transform:none} }
+@keyframes employeeThanksMark { from{opacity:0;transform:scale(.35) rotate(-18deg)} to{opacity:1;transform:none} }
+@keyframes employeeConfetti { 0%{opacity:1;transform:translate(0,0) rotate(0)} 100%{opacity:0;transform:translate(var(--x),var(--y)) rotate(calc(var(--i)*75deg))} }
+@media(prefers-reduced-motion:reduce){.employee-chat-shell .employee-thanks,.employee-thanks-mark,.employee-thanks-confetti i{animation:none}}
+
+/* Только цветовая тема общего чата — без глобальной раскладки профиля. */
+.employee-chat-shell { background: #f5f8fd; box-shadow: 0 0 45px rgba(31,74,145,.13); }
+.employee-chat-shell .chat-avatar { background: linear-gradient(145deg,#124dec,#08b7d2 68%,#08bf86); }
+.employee-chat-shell .chat-top h1 { color: #071541; }
+.employee-chat-shell .chat-top p,.employee-chat-shell .chat-progress span { color: #60709a; }
+.employee-chat-shell .chat-top p i { background: #08bf86; }
+.employee-chat-shell .chat-bar { background: #e5ebf5; }
+.employee-chat-shell .chat-bar i { background: linear-gradient(90deg,#1559f6,#08b7d2,#08bf86); }
+.employee-chat-shell .bot-message { border-color: #dfe8f6; box-shadow: 0 5px 18px rgba(31,74,145,.07); }
+.employee-chat-shell .bot-message.intro { background: #eff5ff; border-color: #cfddfa; }
+.employee-chat-shell .message-meta b { color: #1559f6; }
+.employee-chat-shell .question-message { border-left-color: #1559f6; }
+.employee-chat-shell .question-message .question-label { color: #1559f6; background: #edf3ff; }
+.employee-chat-shell .question-message>p { color: #071541; }
+.employee-chat-shell .options-message { border-color: #dce5f3; }
+.employee-chat-shell .options-message li b::before { color: #1559f6; background: #edf3ff; }
+.employee-chat-shell .options-message li:hover { border-color: #8eaff8; background: #f3f7ff; box-shadow: 0 3px 10px rgba(21,89,246,.1); }
+.employee-chat-shell .options-message li:focus-visible { outline-color: #1559f6; }
+.employee-chat-shell .options-message li.selected { border-color: #1559f6; background: #edf3ff; box-shadow: 0 0 0 1px #1559f6; }
+.employee-chat-shell .options-message li>i { background: linear-gradient(145deg,#1559f6,#08bf86); }
+.employee-chat-shell .user-message { background: linear-gradient(120deg,#1559f6,#098fd3 68%,#08b98a); box-shadow: 0 6px 18px rgba(21,89,246,.18); }
+.employee-chat-shell .chat-compose input { color: #263251; background: #f1f5fb; }
+.employee-chat-shell .chat-compose input:focus { outline-color: #8dadf8; }
+.employee-chat-shell .confirm-options { color: #fff; background: linear-gradient(105deg,#124dec,#08b7d2 68%,#08bf86); box-shadow: 0 6px 15px rgba(21,89,246,.16); }
+
+.employee-finish-flags { position: fixed; z-index: 100; inset: 0; overflow: hidden; pointer-events: none; }
+.employee-finish-flags i {
+  --flag-x: calc(7% + (var(--i) * 5.1%));
+  position: absolute;
+  left: var(--flag-x);
+  top: -20px;
+  width: 8px;
+  height: 13px;
+  border-radius: 3px;
+  background: #1559f6;
+  animation: employeeFinishFlag calc(1.8s + (var(--i) * .07s)) calc(var(--i) * .035s) ease-in forwards;
+}
+.employee-finish-flags i:nth-child(3n) { background: #00c689; }
+.employee-finish-flags i:nth-child(3n+1) { background: #ffd166; }
+.employee-finish-flags i:nth-child(even) { width: 6px; height: 6px; border-radius: 50%; }
+@keyframes employeeFinishFlag {
+  0% { opacity: 0; transform: translateY(-10px) rotate(0); }
+  10% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(105vh) rotate(620deg); }
+}
+@media(prefers-reduced-motion:reduce){.employee-finish-flags i{animation:none}}

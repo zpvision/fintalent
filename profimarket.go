@@ -329,8 +329,8 @@ func validateProfiInput(input *profiSolutionInput, publishing bool) error {
 	input.Title = strings.TrimSpace(input.Title)
 	input.ShortDescription = strings.TrimSpace(input.ShortDescription)
 	input.Description = strings.TrimSpace(input.Description)
-	if publishing && (len([]rune(input.Title)) < 5 || len([]rune(input.ShortDescription)) < 20) {
-		return errors.New("заполните название и короткое описание")
+	if publishing && len([]rune(input.Title)) < 8 {
+		return errors.New("название должно содержать не менее 8 символов")
 	}
 	if len([]rune(input.Title)) > 240 || len([]rune(input.ShortDescription)) > 1200 || len([]rune(input.Description)) > 20000 {
 		return errors.New("одно из текстовых полей слишком длинное")

@@ -113,6 +113,7 @@ func main() {
 	registerMarketplaceRoutes()
 	registerProfiMarketRoutes()
 	registerPublicationRoutes()
+	registerEmployeeTestingRoutes()
 	testRepo := testrepository.New(db)
 	testService := testservice.New(testRepo)
 	testHandler := testhandler.New(testService, func(r *http.Request) (int64, error) {

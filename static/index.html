@@ -10,6 +10,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/styles.css">
   <link rel="stylesheet" href="/static/hero-typing.css?v=1">
+  <link rel="stylesheet" href="/static/hero-rotator.css?v=1">
+  <link rel="stylesheet" href="/static/profimarket-hero.css?v=1">
   <style>
     .hero-visual{width:56%;right:0;overflow:hidden;border-radius:18px 0 0 18px}
     .hero-visual img{transform:translateX(7%) scale(1.18);transform-origin:52% 52%;object-position:center 32%}
@@ -30,7 +32,8 @@
   </header>
 
   <main>
-    <section class="hero container">
+    <div class="hero-rotator" id="hero-rotator">
+    <section class="hero container hero-slide is-active" data-hero-slide="vacancies">
       <div class="hero-copy">
         <div class="eyebrow">♢&nbsp; Проверенные специалисты <i></i> Работа в финансах и управлении</div>
         <h1 aria-label="Биржа вакансий для бухгалтеров, финансистов и руководителей">Биржа вакансий<br>для <span class="typing-role" id="typing-role">бухгалтеров</span></h1>
@@ -46,6 +49,34 @@
         <a class="hero-promo-card" href="/resume/create"><i>✦</i><span><small>ВАШ СЛЕДУЮЩИЙ ШАГ</small><b>Создайте сильное резюме</b><em>Расскажите о своём опыте и станьте заметнее для работодателей</em><strong>Начать <u>→</u></strong></span></a>
       </div>
     </section>
+    <section class="hero container hero-slide employee-testing-hero" data-hero-slide="testing" aria-hidden="true">
+      <div class="testing-hero-bg"><img src="/static/employee-testing-hero.png?v=2" alt="Команда проходит профессиональное тестирование"></div>
+      <div class="testing-hero-copy">
+        <div class="testing-eyebrow"><i>✓</i> ОЦЕНКА КОМАНДЫ В FINTALENT</div>
+        <h1>Тестирование<br><span id="testing-typing">сотрудников</span></h1>
+        <p>Назначайте собственные тесты по персональной ссылке<br>и получайте понятные результаты по каждому сотруднику.</p>
+        <div class="testing-hero-actions">
+          <a class="testing-primary" href="/tests?tab=employees"><span>Назначить тест</span><i>→</i></a>
+          <a class="testing-secondary" href="/tests?tab=mine">Создать свой тест</a>
+        </div>
+        <div class="testing-benefits"><span>Уникальная ссылка</span><span>Контроль времени</span><span>Результаты команды</span></div>
+      </div>
+    </section>
+    <section class="hero container hero-slide profimarket-hero" data-hero-slide="profimarket" aria-hidden="true">
+      <div class="profimarket-hero-bg"><img src="/static/profimarket-hero.png" alt="Эксперт создаёт профессиональные решения для бизнеса"></div>
+      <div class="profimarket-hero-copy">
+        <div class="profimarket-eyebrow"><i>✦</i> ПРОФИМАРКЕТ FINTALENT</div>
+        <h1>ПрофиМаркет —<br><span id="profimarket-typing">готовые решения</span></h1>
+        <p>Используйте готовые материалы для работы<br>или делитесь своими решениями с другими.</p>
+        <div class="profimarket-hero-actions">
+          <a class="profimarket-primary" href="/profimarket"><span>Найти решение</span><i>→</i></a>
+          <a class="profimarket-secondary" href="/profimarket/create">Создать решение</a>
+        </div>
+        <div class="profimarket-benefits"><span>Практика экспертов</span><span>Готово к внедрению</span><span>Новые возможности</span></div>
+      </div>
+    </section>
+    <div class="hero-rotator-dots" aria-label="Рекламные предложения"><button class="active" type="button" aria-label="Биржа вакансий"></button><button type="button" aria-label="Тестирование сотрудников"></button><button type="button" aria-label="ПрофиМаркет"></button></div>
+    </div>
 
     <section class="search-panel container">
       <div class="search-grid">
@@ -96,6 +127,7 @@
   <script src="/static/dictionaries.js"></script>
   <script src="/static/searchable-select.js"></script>
   <script src="/static/hero-typing.js?v=1"></script>
+  <script src="/static/hero-rotator.js?v=3"></script>
   <script src="/static/home-showcase.js?v=3"></script>
 </body>
 </html>
