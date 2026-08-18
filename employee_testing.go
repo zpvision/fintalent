@@ -398,15 +398,20 @@ func employeeTestAnswer(w http.ResponseWriter, r *http.Request, token string) {
 		return
 	}
 	defer tx.Rollback()
+	var responseSeconds int
+	if err = tx.QueryRowContext(r.Context(), `SELECT GREATEST(0,EXTRACT(EPOCH FROM NOW()-COALESCE((SELECT MAX(answered_at) FROM test_attempt_answers WHERE attempt_id=$1),(SELECT started_at FROM test_attempts WHERE id=$1)))::int)`, attemptID).Scan(&responseSeconds); err != nil {
+		jsonError(w, 500, "Не удалось сохранить время ответа")
+		return
+	}
 	if _, err = tx.ExecContext(r.Context(), `DELETE FROM test_attempt_answers WHERE attempt_id=$1 AND question_id=$2`, attemptID, in.QuestionID); err != nil {
 		jsonError(w, 500, "Не удалось сохранить ответ")
 		return
 	}
 	if len(in.SelectedAnswerIDs) == 0 {
-		_, err = tx.ExecContext(r.Context(), `INSERT INTO test_attempt_answers(attempt_id,question_id,text_answer) SELECT a.id,q.id,$3 FROM test_attempts a JOIN test_questions q ON q.test_version_id=a.test_version_id WHERE a.id=$1 AND q.id=$2 AND a.status='started'`, attemptID, in.QuestionID, strings.TrimSpace(in.TextAnswer))
+		_, err = tx.ExecContext(r.Context(), `INSERT INTO test_attempt_answers(attempt_id,question_id,text_answer,response_seconds) SELECT a.id,q.id,$3,$4 FROM test_attempts a JOIN test_questions q ON q.test_version_id=a.test_version_id WHERE a.id=$1 AND q.id=$2 AND a.status='started'`, attemptID, in.QuestionID, strings.TrimSpace(in.TextAnswer), responseSeconds)
 	} else {
 		for _, answerID := range in.SelectedAnswerIDs {
-			_, err = tx.ExecContext(r.Context(), `INSERT INTO test_attempt_answers(attempt_id,question_id,selected_answer_id) SELECT a.id,q.id,ta.id FROM test_attempts a JOIN test_questions q ON q.test_version_id=a.test_version_id JOIN test_answers ta ON ta.question_id=q.id WHERE a.id=$1 AND q.id=$2 AND ta.id=$3 AND a.status='started'`, attemptID, in.QuestionID, answerID)
+			_, err = tx.ExecContext(r.Context(), `INSERT INTO test_attempt_answers(attempt_id,question_id,selected_answer_id,response_seconds) SELECT a.id,q.id,ta.id,$4 FROM test_attempts a JOIN test_questions q ON q.test_version_id=a.test_version_id JOIN test_answers ta ON ta.question_id=q.id WHERE a.id=$1 AND q.id=$2 AND ta.id=$3 AND a.status='started'`, attemptID, in.QuestionID, answerID, responseSeconds)
 			if err != nil {
 				break
 			}

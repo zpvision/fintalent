@@ -104,6 +104,7 @@ func main() {
 	http.HandleFunc("/api/logout", logoutUser)
 	http.HandleFunc("/api/me", currentUser)
 	http.HandleFunc("/api/profile/avatar", profileAvatar)
+	registerProfileSettingsRoutes()
 	registerAdminRoutes()
 	registerResumeRoutes()
 	registerVacancyModuleRoutes()
