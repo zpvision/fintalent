@@ -2,7 +2,7 @@
   const element = document.querySelector('#typing-role');
   if (!element) return;
 
-  const words = ['бухгалтеров', 'финансистов', 'руководителей'];
+  const words = ['бухгалтеров', 'финансистов', 'руководителей', 'директоров'];
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reducedMotion) {
     element.textContent = words[0];
