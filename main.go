@@ -99,6 +99,10 @@ func main() {
 	http.HandleFunc("/vacancies", servePage("static/vacancies.html"))
 	http.HandleFunc("/client-exchange", servePage("static/client-exchange.html"))
 	http.HandleFunc("/client-exchange/create", servePage("static/client-exchange-create.html"))
+	http.HandleFunc("/accounting-companies", servePage("static/accounting-companies.html"))
+	http.HandleFunc("/accounting-companies/create", servePage("static/accounting-company-create.html"))
+	http.HandleFunc("/accounting-companies/view", servePage("static/accounting-company-view.html"))
+	http.HandleFunc("/accounting-companies/passport", servePage("static/accounting-company-passport.html"))
 	http.HandleFunc("/resumes", servePage("static/resumes.html"))
 	http.HandleFunc("/docs/openapi.yaml", servePage("docs/openapi.yaml"))
 	http.HandleFunc("/api/register", registerUser)
@@ -118,6 +122,7 @@ func main() {
 	registerPublicationRoutes()
 	registerEmployeeTestingRoutes()
 	registerClientExchangeRoutes()
+	registerAccountingCompanyRoutes()
 	testRepo := testrepository.New(db)
 	testService := testservice.New(testRepo)
 	testHandler := testhandler.New(testService, func(r *http.Request) (int64, error) {
@@ -212,6 +217,9 @@ func prepareDatabase() error {
 	if err := prepareClientExchangeDatabase(ctx); err != nil {
 		return err
 	}
+	if err := prepareAccountingCompanyDatabase(ctx); err != nil {
+		return err
+	}
 	if strings.EqualFold(strings.TrimSpace(os.Getenv("SEED_DEMO_DATA")), "false") {
 		return nil
 	}
@@ -224,7 +232,10 @@ func prepareDatabase() error {
 	if err := preparePublicationDemo(ctx); err != nil {
 		return err
 	}
-	return prepareClientExchangeDemo(ctx)
+	if err := prepareClientExchangeDemo(ctx); err != nil {
+		return err
+	}
+	return prepareAccountingCompanyDemo(ctx)
 }
 
 func contextWithTimeout() (context.Context, context.CancelFunc) {
@@ -248,12 +259,15 @@ func servePage(filename string) http.HandlerFunc {
 				http.NotFound(w, r)
 				return
 			}
-			content = []byte(strings.Replace(string(content), "</head>", `<link rel="stylesheet" href="/static/layout-safety.css"><link rel="stylesheet" href="/static/site-header.css?v=1"><link rel="stylesheet" href="/static/site-background.css?v=1"><script src="/static/site-errors.js?v=1"></script></head>`, 1))
+			content = []byte(strings.Replace(string(content), "</head>", `<link rel="stylesheet" href="/static/layout-safety.css"><link rel="stylesheet" href="/static/site-header.css?v=1"><link rel="stylesheet" href="/static/site-background.css?v=1"><link rel="stylesheet" href="/static/accounting-company-responsive.css?v=1"><script src="/static/site-errors.js?v=1"></script></head>`, 1))
 			if filepath.Base(filename) == "profile.html" {
-				content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/profile-avatar.js?v=1"></script><script src="/static/profile-client-exchange.js?v=1"></script></body>`, 1))
+				content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/profile-avatar.js?v=1"></script><script src="/static/profile-client-exchange.js?v=1"></script><script src="/static/profile-accounting-company.js?v=1"></script></body>`, 1))
 			}
 			if filepath.Base(filename) == "admin.html" {
-				content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/admin-client-exchange.js?v=1"></script></body>`, 1))
+				content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/admin-client-exchange.js?v=1"></script><script src="/static/admin-accounting-company.js?v=1"></script></body>`, 1))
+			}
+			if filepath.Base(filename) == "accounting-company-view.html" {
+				content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/accounting-company-reviews.js?v=1"></script></body>`, 1))
 			}
 			content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/site-header.js?v=1"></script></body>`, 1))
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")

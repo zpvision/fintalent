@@ -9,6 +9,10 @@
   oldHeader.replaceWith(header);
   const communityLink=[...header.querySelectorAll('.ft-main-nav a')].find(link=>link.getAttribute('href')==='#');
   communityLink?.insertAdjacentHTML('beforebegin',`<a class="${active('/client-exchange')?'active':''}" href="/client-exchange">Клиентская биржа</a>`);
+  if(communityLink){
+    communityLink.insertAdjacentHTML('afterend',`<div class="ft-community ${active('/accounting-companies')?'active':''}"><button type="button">Сообщество <span>⌄</span></button><div><a class="${active('/accounting-companies')?'active':''}" href="/accounting-companies"><b>Бухгалтерские компании</b><small>Услуги, цены и подтверждённые компетенции</small></a></div></div>`);
+    communityLink.remove();
+  }
   header.querySelector('.ft-menu-toggle').onclick=()=>header.classList.toggle('menu-open');
   fetch('/api/me').then(r=>r.ok?r.json():null).then(user=>{if(!user)return;const name=user.full_name||user.email||'Профиль',initial=name.trim().charAt(0).toUpperCase();header.querySelector('.ft-account').innerHTML=`<a class="ft-profile" href="/profile"><i>${escapeText(initial)}</i><span><small>Личный кабинет</small><b>${escapeText(name)}</b></span></a>`}).catch(()=>{});
   function escapeText(value){const span=document.createElement('span');span.textContent=value;return span.innerHTML}
