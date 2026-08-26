@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS client_exchange_dictionary_items (
     min_value NUMERIC(18,2),
     max_value NUMERIC(18,2),
     color VARCHAR(30) NOT NULL DEFAULT 'blue',
+    icon VARCHAR(500) NOT NULL DEFAULT '',
     legal_name VARCHAR(300) NOT NULL DEFAULT '',
     operator_code VARCHAR(100) NOT NULL DEFAULT '',
     sort_order INTEGER NOT NULL DEFAULT 0,
@@ -16,6 +17,7 @@ CREATE TABLE IF NOT EXISTS client_exchange_dictionary_items (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(kind, code)
 );
+ALTER TABLE client_exchange_dictionary_items ADD COLUMN IF NOT EXISTS icon VARCHAR(500) NOT NULL DEFAULT '';
 CREATE INDEX IF NOT EXISTS client_exchange_dictionary_kind_idx ON client_exchange_dictionary_items(kind, active, sort_order) WHERE deleted_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS client_exchange_listings (

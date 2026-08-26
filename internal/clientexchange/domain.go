@@ -19,6 +19,7 @@ type DictionaryItem struct {
 	MinValue     *float64 `json:"min,omitempty"`
 	MaxValue     *float64 `json:"max,omitempty"`
 	Color        string   `json:"color"`
+	Icon         string   `json:"icon"`
 	LegalName    string   `json:"legal_name,omitempty"`
 	OperatorCode string   `json:"operator_code,omitempty"`
 	SortOrder    int      `json:"sort_order"`
@@ -31,11 +32,13 @@ type ListingInput struct {
 	ClientINN             string   `json:"client_inn"`
 	ClientLegalName       string   `json:"client_legal_name"`
 	IndustryID            *int64   `json:"industry_id"`
+	IndustryIDs           []int64  `json:"industry_ids"`
 	EmployeeRangeID       *int64   `json:"employee_range_id"`
 	TaxSystemID           *int64   `json:"tax_system_id"`
 	RevenueRangeID        *int64   `json:"revenue_range_id"`
 	AccountingStateID     *int64   `json:"accounting_state_id"`
 	TransferReasonID      *int64   `json:"transfer_reason_id"`
+	TransferReasonIDs     []int64  `json:"transfer_reason_ids"`
 	TransferTypeID        *int64   `json:"transfer_type_id"`
 	TransferReasonComment string   `json:"transfer_reason_comment"`
 	TransferPrice         *float64 `json:"transfer_price"`

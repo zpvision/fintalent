@@ -39,7 +39,7 @@ func (h *Handler) adminDictionaries(w http.ResponseWriter, r *http.Request) {
 		if x.Color == "" {
 			x.Color = "blue"
 		}
-		err := h.db.QueryRowContext(r.Context(), `INSERT INTO client_exchange_dictionary_items(kind,code,name,description,min_value,max_value,color,legal_name,operator_code,sort_order,active) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`, x.Kind, x.Code, clean(x.Name, 300), clean(x.Description, 3000), x.MinValue, x.MaxValue, clean(x.Color, 30), clean(x.LegalName, 300), clean(x.OperatorCode, 100), x.SortOrder, x.Active).Scan(&x.ID)
+		err := h.db.QueryRowContext(r.Context(), `INSERT INTO client_exchange_dictionary_items(kind,code,name,description,min_value,max_value,color,icon,legal_name,operator_code,sort_order,active) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`, x.Kind, x.Code, clean(x.Name, 300), clean(x.Description, 3000), x.MinValue, x.MaxValue, clean(x.Color, 30), clean(x.Icon, 500), clean(x.LegalName, 300), clean(x.OperatorCode, 100), x.SortOrder, x.Active).Scan(&x.ID)
 		if err != nil {
 			fail(w, 409, "Такой code уже существует в этом справочнике")
 			return
@@ -58,7 +58,7 @@ func (h *Handler) adminDictionaries(w http.ResponseWriter, r *http.Request) {
 		args = append(args, kind)
 		where += " AND kind=$1"
 	}
-	rows, err := h.db.QueryContext(r.Context(), `SELECT d.id,d.kind,d.code,d.name,d.description,d.min_value,d.max_value,d.color,d.legal_name,d.operator_code,d.sort_order,d.active,
+	rows, err := h.db.QueryContext(r.Context(), `SELECT d.id,d.kind,d.code,d.name,d.description,d.min_value,d.max_value,d.color,d.icon,d.legal_name,d.operator_code,d.sort_order,d.active,
 		EXISTS(SELECT 1 FROM client_exchange_listings l WHERE l.deleted_at IS NULL AND (l.industry_id=d.id OR l.employee_range_id=d.id OR l.tax_system_id=d.id OR l.revenue_range_id=d.id OR l.accounting_state_id=d.id OR l.transfer_reason_id=d.id OR l.transfer_type_id=d.id))
 		OR EXISTS(SELECT 1 FROM client_exchange_listing_options o WHERE o.item_id=d.id)
 		FROM client_exchange_dictionary_items d WHERE `+where+` ORDER BY d.kind,d.sort_order,d.name`, args...)
@@ -71,7 +71,7 @@ func (h *Handler) adminDictionaries(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var x DictionaryItem
 		var min, max sql.NullFloat64
-		if rows.Scan(&x.ID, &x.Kind, &x.Code, &x.Name, &x.Description, &min, &max, &x.Color, &x.LegalName, &x.OperatorCode, &x.SortOrder, &x.Active, &x.Used) != nil {
+		if rows.Scan(&x.ID, &x.Kind, &x.Code, &x.Name, &x.Description, &min, &max, &x.Color, &x.Icon, &x.LegalName, &x.OperatorCode, &x.SortOrder, &x.Active, &x.Used) != nil {
 			continue
 		}
 		if min.Valid {
@@ -108,7 +108,7 @@ func (h *Handler) adminDictionary(w http.ResponseWriter, r *http.Request) {
 		if x.Color == "" {
 			x.Color = "blue"
 		}
-		res, err := h.db.ExecContext(r.Context(), `UPDATE client_exchange_dictionary_items SET kind=$2,code=$3,name=$4,description=$5,min_value=$6,max_value=$7,color=$8,legal_name=$9,operator_code=$10,sort_order=$11,active=$12,updated_at=NOW() WHERE id=$1 AND deleted_at IS NULL`, id, x.Kind, x.Code, clean(x.Name, 300), clean(x.Description, 3000), x.MinValue, x.MaxValue, clean(x.Color, 30), clean(x.LegalName, 300), clean(x.OperatorCode, 100), x.SortOrder, x.Active)
+		res, err := h.db.ExecContext(r.Context(), `UPDATE client_exchange_dictionary_items SET kind=$2,code=$3,name=$4,description=$5,min_value=$6,max_value=$7,color=$8,icon=$9,legal_name=$10,operator_code=$11,sort_order=$12,active=$13,updated_at=NOW() WHERE id=$1 AND deleted_at IS NULL`, id, x.Kind, x.Code, clean(x.Name, 300), clean(x.Description, 3000), x.MinValue, x.MaxValue, clean(x.Color, 30), clean(x.Icon, 500), clean(x.LegalName, 300), clean(x.OperatorCode, 100), x.SortOrder, x.Active)
 		if err != nil {
 			fail(w, 409, "Не удалось сохранить: проверьте уникальность code")
 			return

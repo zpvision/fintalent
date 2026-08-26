@@ -77,7 +77,7 @@ func (h *Handler) meta(w http.ResponseWriter, r *http.Request) {
 	if _, ok := h.current(w, r); !ok {
 		return
 	}
-	rows, err := h.db.QueryContext(r.Context(), `SELECT id,kind,code,name,description,min_value,max_value,color,legal_name,operator_code,sort_order,active FROM client_exchange_dictionary_items WHERE active AND deleted_at IS NULL ORDER BY kind,sort_order,name`)
+	rows, err := h.db.QueryContext(r.Context(), `SELECT id,kind,code,name,description,min_value,max_value,color,icon,legal_name,operator_code,sort_order,active FROM client_exchange_dictionary_items WHERE active AND deleted_at IS NULL ORDER BY kind,sort_order,name`)
 	if err != nil {
 		fail(w, 500, "Не удалось загрузить справочники")
 		return
@@ -87,7 +87,7 @@ func (h *Handler) meta(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var x DictionaryItem
 		var min, max sql.NullFloat64
-		if err = rows.Scan(&x.ID, &x.Kind, &x.Code, &x.Name, &x.Description, &min, &max, &x.Color, &x.LegalName, &x.OperatorCode, &x.SortOrder, &x.Active); err != nil {
+		if err = rows.Scan(&x.ID, &x.Kind, &x.Code, &x.Name, &x.Description, &min, &max, &x.Color, &x.Icon, &x.LegalName, &x.OperatorCode, &x.SortOrder, &x.Active); err != nil {
 			fail(w, 500, "Не удалось загрузить справочники")
 			return
 		}
@@ -176,7 +176,12 @@ func (h *Handler) catalog(w http.ResponseWriter, r *http.Request, u UserIdentity
 	if v := strings.TrimSpace(q.Get("region")); v != "" {
 		add("l.region=$%d", v)
 	}
-	for _, f := range []struct{ name, col string }{{"industry_id", "l.industry_id"}, {"tax_system_id", "l.tax_system_id"}, {"revenue_range_id", "l.revenue_range_id"}, {"employee_range_id", "l.employee_range_id"}, {"transfer_type_id", "l.transfer_type_id"}, {"accounting_state_id", "l.accounting_state_id"}} {
+	if v := parseInt64(q.Get("industry_id")); v > 0 {
+		args = append(args, v)
+		n := len(args)
+		where = append(where, fmt.Sprintf("(l.industry_id=$%d OR EXISTS(SELECT 1 FROM client_exchange_listing_options xo WHERE xo.listing_id=l.id AND xo.kind='industry' AND xo.item_id=$%d))", n, n))
+	}
+	for _, f := range []struct{ name, col string }{{"tax_system_id", "l.tax_system_id"}, {"revenue_range_id", "l.revenue_range_id"}, {"employee_range_id", "l.employee_range_id"}, {"transfer_type_id", "l.transfer_type_id"}, {"accounting_state_id", "l.accounting_state_id"}} {
 		if v := parseInt64(q.Get(f.name)); v > 0 {
 			add(f.col+"=$%d", v)
 		}
@@ -232,6 +237,8 @@ func (h *Handler) catalog(w http.ResponseWriter, r *http.Request, u UserIdentity
 }
 
 func (h *Handler) createListing(ctx context.Context, userID int64, input ListingInput) (int64, error) {
+	normalizeIndustryIDs(&input)
+	normalizeTransferReasonIDs(&input)
 	if err := h.validateInput(ctx, input, false); err != nil {
 		return 0, err
 	}
@@ -247,6 +254,8 @@ func (h *Handler) createListing(ctx context.Context, userID int64, input Listing
 }
 
 func (h *Handler) validateInput(ctx context.Context, in ListingInput, publishing bool) error {
+	normalizeIndustryIDs(&in)
+	normalizeTransferReasonIDs(&in)
 	if in.ClientINN != "" && !validINN(in.ClientINN) {
 		return errors.New("ИНН должен содержать 10 или 12 цифр")
 	}
@@ -260,7 +269,7 @@ func (h *Handler) validateInput(ctx context.Context, in ListingInput, publishing
 		return errors.New("Комиссия должна быть от 0 до 100%")
 	}
 	if publishing {
-		if in.IndustryID == nil || in.EmployeeRangeID == nil || in.TaxSystemID == nil || in.RevenueRangeID == nil || in.AccountingStateID == nil || in.TransferReasonID == nil || in.TransferTypeID == nil || strings.TrimSpace(in.Region) == "" {
+		if len(in.IndustryIDs) == 0 || in.EmployeeRangeID == nil || in.TaxSystemID == nil || in.RevenueRangeID == nil || in.AccountingStateID == nil || in.TransferReasonID == nil || in.TransferTypeID == nil || strings.TrimSpace(in.City) == "" {
 			return errors.New("Заполните обязательные поля всех шагов")
 		}
 	}
@@ -276,6 +285,18 @@ func (h *Handler) validateInput(ctx context.Context, in ListingInput, publishing
 			}
 		}
 	}
+	for _, id := range in.IndustryIDs {
+		var ok bool
+		if err := h.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM client_exchange_dictionary_items WHERE id=$1 AND kind='industry' AND active AND deleted_at IS NULL)`, id).Scan(&ok); err != nil || !ok {
+			return errors.New("invalid industry")
+		}
+	}
+	for _, id := range in.TransferReasonIDs {
+		var ok bool
+		if err := h.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM client_exchange_dictionary_items WHERE id=$1 AND kind='transfer_reason' AND active AND deleted_at IS NULL)`, id).Scan(&ok); err != nil || !ok {
+			return errors.New("invalid transfer reason")
+		}
+	}
 	return nil
 }
 
@@ -288,10 +309,12 @@ func (h *Handler) saveOptions(ctx context.Context, listingID int64, in ListingIn
 	if _, err = tx.ExecContext(ctx, `DELETE FROM client_exchange_listing_options WHERE listing_id=$1`, listingID); err != nil {
 		return err
 	}
+	normalizeIndustryIDs(&in)
+	normalizeTransferReasonIDs(&in)
 	sets := []struct {
 		kind string
 		ids  []int64
-	}{{"marketplace", in.MarketplaceIDs}, {"edo_provider", in.EDOProviderIDs}, {"accounting_program", in.AccountingProgramIDs}}
+	}{{"industry", in.IndustryIDs}, {"marketplace", in.MarketplaceIDs}, {"edo_provider", in.EDOProviderIDs}, {"accounting_program", in.AccountingProgramIDs}, {"transfer_reason", in.TransferReasonIDs}}
 	for _, set := range sets {
 		for _, id := range set.ids {
 			var ok bool
@@ -304,6 +327,47 @@ func (h *Handler) saveOptions(ctx context.Context, listingID int64, in ListingIn
 		}
 	}
 	return tx.Commit()
+}
+
+func normalizeTransferReasonIDs(in *ListingInput) {
+	seen := map[int64]bool{}
+	ids := []int64{}
+	if in.TransferReasonID != nil && *in.TransferReasonID > 0 {
+		seen[*in.TransferReasonID] = true
+		ids = append(ids, *in.TransferReasonID)
+	}
+	for _, id := range in.TransferReasonIDs {
+		if id > 0 && !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	in.TransferReasonIDs = ids
+	if len(ids) > 0 {
+		in.TransferReasonID = &in.TransferReasonIDs[0]
+	}
+}
+
+func normalizeIndustryIDs(in *ListingInput) {
+	seen := map[int64]bool{}
+	ids := []int64{}
+	if in.IndustryID != nil && *in.IndustryID > 0 {
+		seen[*in.IndustryID] = true
+		ids = append(ids, *in.IndustryID)
+	}
+	for _, id := range in.IndustryIDs {
+		if id > 0 && !seen[id] {
+			seen[id] = true
+			ids = append(ids, id)
+		}
+	}
+	in.IndustryIDs = ids
+	if len(ids) > 0 {
+		first := ids[0]
+		in.IndustryID = &first
+		return
+	}
+	in.IndustryID = nil
 }
 
 func parseInt(v string, d int) int {

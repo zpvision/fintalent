@@ -14,9 +14,9 @@ import (
 func (h *Handler) getListingJSON(ctx context.Context, id, viewerID int64, ownerView bool) (json.RawMessage, error) {
 	query := `SELECT jsonb_build_object(
 		'id',l.id,'public_id',l.public_id,'seller_user_id',CASE WHEN l.seller_user_id=$2 THEN l.seller_user_id ELSE NULL END,
-		'is_owner',l.seller_user_id=$2,'title',COALESCE(NULLIF(l.title,''),i.name),'industry',jsonb_build_object('id',i.id,'name',i.name),
-		'employees',jsonb_build_object('id',er.id,'name',er.name),'tax_system',jsonb_build_object('id',ts.id,'name',ts.name),
-		'revenue',jsonb_build_object('id',rr.id,'name',rr.name),'accounting_state',jsonb_build_object('id',ast.id,'name',ast.name,'color',ast.color),
+		'is_owner',l.seller_user_id=$2,'title',COALESCE(NULLIF(l.title,''),i.name),'industry',jsonb_build_object('id',i.id,'name',i.name,'icon',i.icon),
+		'employees',jsonb_build_object('id',er.id,'name',er.name,'icon',er.icon),'tax_system',jsonb_build_object('id',ts.id,'name',ts.name,'icon',ts.icon),
+		'revenue',jsonb_build_object('id',rr.id,'name',rr.name,'icon',rr.icon),'accounting_state',jsonb_build_object('id',ast.id,'name',ast.name,'color',ast.color,'icon',ast.icon),
 		'transfer_reason',jsonb_build_object('id',tr.id,'name',tr.name),'transfer_type',jsonb_build_object('id',tt.id,'name',tt.name,'code',tt.code),
 		'transfer_reason_comment',l.transfer_reason_comment,'transfer_price',l.transfer_price,'monthly_commission_percent',l.monthly_commission_percent,
 		'commission_months',l.commission_months,'current_monthly_fee',l.current_monthly_fee,'operations_per_month',l.operations_per_month,'banks_count',l.banks_count,
@@ -25,9 +25,11 @@ func (h *Handler) getListingJSON(ctx context.Context, id, viewerID int64, ownerV
 		'views_count',l.views_count,'responses_count',(SELECT COUNT(*) FROM client_exchange_responses cr WHERE cr.listing_id=l.id AND cr.status<>'withdrawn'),
 		'is_favorite',EXISTS(SELECT 1 FROM client_exchange_favorites f WHERE f.listing_id=l.id AND f.user_id=$2),
 		'my_response_status',(SELECT cr.status FROM client_exchange_responses cr WHERE cr.listing_id=l.id AND cr.buyer_user_id=$2 ORDER BY cr.created_at DESC LIMIT 1),
-		'marketplaces',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',d.id,'name',d.name) ORDER BY d.sort_order) FROM client_exchange_listing_options o JOIN client_exchange_dictionary_items d ON d.id=o.item_id WHERE o.listing_id=l.id AND o.kind='marketplace'),'[]'::jsonb),
-		'edo_providers',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',d.id,'name',d.name) ORDER BY d.sort_order) FROM client_exchange_listing_options o JOIN client_exchange_dictionary_items d ON d.id=o.item_id WHERE o.listing_id=l.id AND o.kind='edo_provider'),'[]'::jsonb),
-		'accounting_programs',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',d.id,'name',d.name) ORDER BY d.sort_order) FROM client_exchange_listing_options o JOIN client_exchange_dictionary_items d ON d.id=o.item_id WHERE o.listing_id=l.id AND o.kind='accounting_program'),'[]'::jsonb),
+		'industries',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',d.id,'name',d.name,'icon',d.icon) ORDER BY d.sort_order) FROM client_exchange_listing_options o JOIN client_exchange_dictionary_items d ON d.id=o.item_id WHERE o.listing_id=l.id AND o.kind='industry'),'[]'::jsonb),
+		'marketplaces',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',d.id,'name',d.name,'icon',d.icon) ORDER BY d.sort_order) FROM client_exchange_listing_options o JOIN client_exchange_dictionary_items d ON d.id=o.item_id WHERE o.listing_id=l.id AND o.kind='marketplace'),'[]'::jsonb),
+		'edo_providers',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',d.id,'name',d.name,'icon',d.icon) ORDER BY d.sort_order) FROM client_exchange_listing_options o JOIN client_exchange_dictionary_items d ON d.id=o.item_id WHERE o.listing_id=l.id AND o.kind='edo_provider'),'[]'::jsonb),
+		'accounting_programs',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',d.id,'name',d.name,'icon',d.icon) ORDER BY d.sort_order) FROM client_exchange_listing_options o JOIN client_exchange_dictionary_items d ON d.id=o.item_id WHERE o.listing_id=l.id AND o.kind='accounting_program'),'[]'::jsonb),
+		'transfer_reasons',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',d.id,'name',d.name,'icon',d.icon) ORDER BY d.sort_order) FROM client_exchange_listing_options o JOIN client_exchange_dictionary_items d ON d.id=o.item_id WHERE o.listing_id=l.id AND o.kind='transfer_reason'),'[]'::jsonb),
 		'private',CASE WHEN l.seller_user_id=$2 OR EXISTS(SELECT 1 FROM client_exchange_responses cr WHERE cr.listing_id=l.id AND cr.buyer_user_id=$2 AND cr.status='accepted') THEN jsonb_build_object('client_inn',l.client_inn,'client_legal_name',l.client_legal_name) ELSE NULL END,
 		'seller',jsonb_build_object('name',CASE WHEN l.seller_user_id=$2 OR EXISTS(SELECT 1 FROM client_exchange_responses cr WHERE cr.listing_id=l.id AND cr.buyer_user_id=$2 AND cr.status='accepted') THEN u.full_name ELSE 'Бухгалтерская компания' END,'avatar',COALESCE(u.avatar_url,''),'region',l.region,'verified',true,'email',CASE WHEN l.seller_user_id=$2 OR EXISTS(SELECT 1 FROM client_exchange_responses cr WHERE cr.listing_id=l.id AND cr.buyer_user_id=$2 AND cr.status='accepted') THEN u.email ELSE NULL END),
 		'published_at',l.published_at,'created_at',l.created_at,'updated_at',l.updated_at,'transferred_at',l.transferred_at,'current_step',l.current_step
@@ -136,6 +138,8 @@ func (h *Handler) listingRoute(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) updateListing(ctx context.Context, id int64, in ListingInput) error {
+	normalizeIndustryIDs(&in)
+	normalizeTransferReasonIDs(&in)
 	_, err := h.db.ExecContext(ctx, `UPDATE client_exchange_listings SET title=$2,client_inn=$3,client_legal_name=$4,industry_id=$5,employee_range_id=$6,tax_system_id=$7,revenue_range_id=$8,accounting_state_id=$9,transfer_reason_id=$10,transfer_type_id=$11,transfer_reason_comment=$12,transfer_price=$13,monthly_commission_percent=$14,commission_months=$15,current_monthly_fee=$16,operations_per_month=$17,banks_count=$18,has_vat=$19,foreign_trade=$20,bargain_allowed=$21,region=$22,city=$23,client_since=$24,desired_transfer_date=$25,comment=$26,current_step=$27,updated_at=NOW() WHERE id=$1`, id, clean(in.Title, 240), strings.TrimSpace(in.ClientINN), clean(in.ClientLegalName, 500), in.IndustryID, in.EmployeeRangeID, in.TaxSystemID, in.RevenueRangeID, in.AccountingStateID, in.TransferReasonID, in.TransferTypeID, clean(in.TransferReasonComment, 2000), in.TransferPrice, in.MonthlyCommission, in.CommissionMonths, in.CurrentMonthlyFee, in.OperationsPerMonth, in.BanksCount, in.HasVAT, in.ForeignTrade, in.BargainAllowed, clean(in.Region, 200), clean(in.City, 200), nullableDate(in.ClientSince), nullableDate(in.DesiredTransferDate), clean(in.Comment, 5000), clamp(in.CurrentStep, 1, 6))
 	if err != nil {
 		return errors.New("не удалось сохранить объявление")
@@ -232,6 +236,17 @@ func (h *Handler) loadInput(ctx context.Context, id int64) (ListingInput, error)
 		s := desired.Time.Format("2006-01-02")
 		x.DesiredTransferDate = &s
 	}
+	rows, rowsErr := h.db.QueryContext(ctx, `SELECT item_id FROM client_exchange_listing_options WHERE listing_id=$1 AND kind='industry' ORDER BY item_id`, id)
+	if rowsErr == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var industryID int64
+			if rows.Scan(&industryID) == nil {
+				x.IndustryIDs = append(x.IndustryIDs, industryID)
+			}
+		}
+	}
+	normalizeIndustryIDs(&x)
 	return x, err
 }
 

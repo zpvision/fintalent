@@ -1,21 +1,98 @@
 <!doctype html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Клиентская биржа — FinTalent</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/client-exchange.css?v=1">
+  <link rel="stylesheet" href="/static/client-exchange-list.css?v=1">
+  <link rel="stylesheet" href="/static/client-exchange-detail.css?v=1">
 </head>
 <body>
-<header class="ce-header"><a href="/" class="ce-logo"><img src="/static/logo.png" alt="FinTalent"><span><b>Fin Talent</b><small>биржа для бухгалтеров</small></span></a><nav><a href="/client-exchange" class="active">Клиентская биржа</a><a href="/profile?section=client-exchange">Мои объявления</a></nav><div class="ce-user"><button id="ce-notifications" aria-label="Уведомления">♡<i></i></button><a href="/profile" id="ce-user-name">Профиль</a></div></header>
-<main>
-  <section class="ce-hero"><div><span class="eyebrow">КЛИЕНТСКАЯ БИРЖА</span><h1>Найдите нового клиента<br>для своей бухгалтерской компании</h1><p>Обезличенные карточки, понятные условия и безопасное раскрытие контактов только после выбора покупателя.</p><div><button class="ce-primary" data-scroll-catalog>Ищу клиентов</button><a class="ce-secondary" href="/client-exchange/create">Передать клиента <span>→</span></a></div></div><aside><span>↗</span><b>Новые возможности<br>для роста компании</b><small>Выбирайте клиентов, которые подходят вашей специализации</small></aside></section>
-  <section class="ce-stats" id="ce-stats"><article><b>—</b><span>активных клиентов</span></article><article><b>—</b><span>добавлено за месяц</span></article><article><b>—</b><span>успешно передано</span></article><article><b>—</b><span>средняя стоимость</span></article></section>
-  <section class="ce-catalog" id="catalog"><aside class="ce-filters"><header><h2>Фильтры</h2><button id="reset-filters">Сбросить</button></header><form id="ce-filters"><label class="wide-search"><span>Поиск</span><input name="q" type="search" placeholder="Отрасль, город или клиент"></label><label><span>Регион</span><input name="region" placeholder="Например, Москва"></label><label><span>Отрасль</span><select name="industry_id"><option value="">Все отрасли</option></select></label><label><span>Налоговый режим</span><select name="tax_system_id"><option value="">Все режимы</option></select></label><label><span>Выручка</span><select name="revenue_range_id"><option value="">Любая</option></select></label><label><span>Сотрудники</span><select name="employee_range_id"><option value="">Любое количество</option></select></label><label><span>Условие передачи</span><select name="transfer_type_id"><option value="">Любое</option></select></label><label><span>Состояние учёта</span><select name="accounting_state_id"><option value="">Любое</option></select></label><label><span>Маркетплейс</span><select name="marketplace_id"><option value="">Любой</option></select></label><label><span>ЭДО</span><select name="edo_provider_id"><option value="">Любой</option></select></label><div class="range"><span>Текущая абонплата</span><input name="fee_from" inputmode="numeric" placeholder="от"><input name="fee_to" inputmode="numeric" placeholder="до"></div><div class="range"><span>Цена передачи</span><input name="price_from" inputmode="numeric" placeholder="от"><input name="price_to" inputmode="numeric" placeholder="до"></div><label class="switch"><input type="checkbox" name="foreign_trade" value="true"><i></i><span>Есть ВЭД</span></label></form></aside>
-    <div class="ce-results"><header><div><small>КАТАЛОГ КЛИЕНТОВ</small><h2>Актуальные предложения</h2><p id="ce-found">Загружаем…</p></div><select id="ce-sort"><option value="new">Сначала новые</option><option value="price_asc">Цена передачи ниже</option><option value="price_desc">Цена передачи выше</option><option value="fee_desc">Абонплата выше</option><option value="revenue_desc">Выручка выше</option></select></header><div id="ce-list" class="ce-list"><div class="ce-skeleton"></div><div class="ce-skeleton"></div></div><div id="ce-pagination" class="ce-pagination"></div></div>
-  </section>
-</main>
-<div id="ce-modal-root"></div><div id="ce-toast" class="ce-toast"></div>
-<script src="/static/client-exchange.js?v=1"></script><script src="/static/client-exchange-stats.js?v=1"></script>
-</body></html>
+  <header class="ce-header">
+    <a href="/" class="ce-logo">
+      <img src="/static/logo.png" alt="FinTalent">
+      <span><b>FinTalent</b><small>биржа для бухгалтеров</small></span>
+    </a>
+    <nav>
+      <a href="/vacancies">Вакансии</a>
+      <a href="/resumes">Резюме</a>
+      <a href="/tests">Тесты</a>
+      <a href="/publications">Публикации</a>
+      <a href="/profimarket">ПрофиМаркет</a>
+      <a href="/client-exchange" class="active">Клиентская биржа</a>
+    </nav>
+    <div class="ce-user">
+      <button id="ce-notifications" aria-label="Уведомления">♡<i></i></button>
+      <a href="/profile" id="ce-user-name">Профиль</a>
+    </div>
+  </header>
+
+  <main class="ce-page">
+    <section class="ce-titlebar" id="catalog">
+      <div>
+        <h1>Каталог клиентов</h1>
+        <p>Найдите новых клиентов для вашей бухгалтерской компании</p>
+      </div>
+      <div class="ce-title-actions">
+        <button class="ce-secondary" data-scroll-catalog><b>Ищу клиентов</b><span>Смотреть каталог</span></button>
+        <a class="ce-primary" href="/client-exchange/create"><b>Передать клиента</b><span>Разместить объявление</span></a>
+      </div>
+    </section>
+
+    <section class="ce-stats" id="ce-stats">
+      <article><i>♙</i><b>—</b><span>активных клиента</span><small>+11 за неделю</small></article>
+      <article><i>♙</i><b>—</b><span>добавлено за месяц</span><small>новые передачи</small></article>
+      <article><i>✓</i><b>—</b><span>успешно передано</span><small>за 3 месяца</small></article>
+      <article><i>♙</i><b>—</b><span>бухгалтерских компаний</span><small>на платформе</small></article>
+      <article class="ce-average"><span>Средняя передача</span><b>—</b><small>за последние 3 месяца</small></article>
+    </section>
+
+    <section class="ce-catalog">
+      <aside class="ce-filters">
+        <header>
+          <h2>Фильтры</h2>
+          <button id="reset-filters">Сбросить</button>
+        </header>
+        <form id="ce-filters">
+          <label class="wide-search"><span>Поиск</span><input name="q" type="search" placeholder="Отрасль, город или клиент"></label>
+          <label><span>Регион</span><input name="region" placeholder="Любой"></label>
+          <label><span>Налоговый режим</span><select name="tax_system_id"><option value="">Любой</option></select></label>
+          <label><span>Отрасль</span><select name="industry_id"><option value="">Любая</option></select></label>
+          <label><span>Выручка</span><select name="revenue_range_id"><option value="">Любая</option></select></label>
+          <label><span>Сотрудники</span><select name="employee_range_id"><option value="">Любое</option></select></label>
+          <label><span>Абонплата</span><select name="fee_preset"><option value="">Любая</option></select></label>
+          <label><span>Условия передачи</span><select name="transfer_type_id"><option value="">Любые</option></select></label>
+          <label><span>Состояние учёта</span><select name="accounting_state_id"><option value="">Любое</option></select></label>
+          <label><span>Маркетплейс</span><select name="marketplace_id"><option value="">Любой</option></select></label>
+          <label><span>ЭДО</span><select name="edo_provider_id"><option value="">Любой</option></select></label>
+          <div class="range"><span>Текущая абонплата</span><input name="fee_from" inputmode="numeric" placeholder="от"><input name="fee_to" inputmode="numeric" placeholder="до"></div>
+          <div class="range"><span>Цена передачи</span><input name="price_from" inputmode="numeric" placeholder="от"><input name="price_to" inputmode="numeric" placeholder="до"></div>
+          <label class="switch"><input type="checkbox" name="foreign_trade" value="true"><i></i><span>Есть ВЭД</span></label>
+        </form>
+      </aside>
+
+      <div class="ce-results">
+        <div class="ce-segments">
+          <button class="active">Все клиенты <span id="ce-total-pill">—</span></button>
+          <button>🔥 Подходят моей компании <span>37</span></button>
+        </div>
+        <header>
+          <div><small>КАТАЛОГ КЛИЕНТОВ</small><h2>Актуальные предложения</h2><p id="ce-found">Загружаем…</p></div>
+          <label class="ce-sort-label">Сортировка:<select id="ce-sort"><option value="new">По релевантности</option><option value="price_asc">Цена передачи ниже</option><option value="price_desc">Цена передачи выше</option><option value="fee_desc">Абонплата выше</option><option value="revenue_desc">Выручка выше</option></select></label>
+        </header>
+        <div id="ce-list" class="ce-list"><div class="ce-skeleton"></div><div class="ce-skeleton"></div><div class="ce-skeleton"></div><div class="ce-skeleton"></div></div>
+        <div id="ce-pagination" class="ce-pagination"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="ce-modal-root"></div>
+  <div id="ce-toast" class="ce-toast"></div>
+  <script src="/static/client-exchange.js?v=2"></script>
+  <script src="/static/client-exchange-stats.js?v=1"></script>
+</body>
+</html>
