@@ -1,0 +1,3 @@
+.vacancy-cooperation{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.vacancy-cooperation span{display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border:1px solid #b9e5d5;border-radius:9px;background:#effaf6;color:#087a5d;font-size:9px;font-weight:700}
+.vacancy-cooperation span i{display:grid;place-items:center;min-width:23px;height:18px;padding:0 4px;border-radius:5px;background:#0aa77c;color:#fff;font-size:7px;font-style:normal;font-weight:800}

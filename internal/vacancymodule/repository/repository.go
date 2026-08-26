@@ -110,7 +110,7 @@ func (p *Postgres) Create(ctx context.Context, user int64) (int64, error) {
 func (p *Postgres) List(ctx context.Context, user int64) ([]*domain.Vacancy, error) {
 	rows, err := p.db.QueryContext(ctx, `SELECT v.id,v.user_id,
 		COALESCE((SELECT STRING_AGG(vc.category_name_snapshot, ', ' ORDER BY vc.sort_order,vc.id) FROM vacancy_categories vc WHERE vc.vacancy_id=v.id AND vc.block_id=(SELECT b.id FROM vacancy_survey_blocks b ORDER BY b.sort_order,b.id LIMIT 1)),NULLIF(v.title,''),'Вакансия'),
-		v.description,v.status,v.salary_from,v.salary_to,v.salary_tax_mode,v.currency,v.employment_type,v.work_format,v.city,v.address,v.experience_from,v.experience_to,v.current_step,
+		v.description,v.status,v.salary_from,v.salary_to,v.salary_tax_mode,v.currency,v.employment_type,v.work_format,v.city,v.address,v.accepts_individual_entrepreneur,v.accepts_self_employed,v.experience_from,v.experience_to,v.current_step,
 		(SELECT test_id FROM vacancy_tests WHERE vacancy_external_id=v.id ORDER BY sort_order,id LIMIT 1),v.published_at,v.created_at,v.updated_at
 		FROM vacancies v WHERE v.user_id=$1 AND v.deleted_at IS NULL ORDER BY v.updated_at DESC,v.id DESC`, user)
 	if err != nil {
@@ -134,7 +134,7 @@ func scanVacancy(scanner interface{ Scan(...any) error }) (*domain.Vacancy, erro
 	var expFrom, expTo sql.NullInt64
 	var published sql.NullTime
 	var selectedTest sql.NullInt64
-	err := scanner.Scan(&v.ID, &v.UserID, &v.Title, &v.Description, &v.Status, &salaryFrom, &salaryTo, &v.SalaryTaxMode, &v.Currency, &v.EmploymentType, &v.WorkFormat, &v.City, &v.Address, &expFrom, &expTo, &v.CurrentStep, &selectedTest, &published, &v.CreatedAt, &v.UpdatedAt)
+	err := scanner.Scan(&v.ID, &v.UserID, &v.Title, &v.Description, &v.Status, &salaryFrom, &salaryTo, &v.SalaryTaxMode, &v.Currency, &v.EmploymentType, &v.WorkFormat, &v.City, &v.Address, &v.AcceptsIndividualEntrepreneur, &v.AcceptsSelfEmployed, &expFrom, &expTo, &v.CurrentStep, &selectedTest, &published, &v.CreatedAt, &v.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}
@@ -168,7 +168,7 @@ func scanVacancy(scanner interface{ Scan(...any) error }) (*domain.Vacancy, erro
 }
 
 func (p *Postgres) Get(ctx context.Context, id, user int64) (*domain.Vacancy, error) {
-	v, err := scanVacancy(p.db.QueryRowContext(ctx, `SELECT id,user_id,title,description,status,salary_from,salary_to,salary_tax_mode,currency,employment_type,work_format,city,address,experience_from,experience_to,current_step,(SELECT test_id FROM vacancy_tests WHERE vacancy_external_id=vacancies.id ORDER BY sort_order,id LIMIT 1),published_at,created_at,updated_at FROM vacancies WHERE id=$1 AND deleted_at IS NULL`, id))
+	v, err := scanVacancy(p.db.QueryRowContext(ctx, `SELECT id,user_id,title,description,status,salary_from,salary_to,salary_tax_mode,currency,employment_type,work_format,city,address,accepts_individual_entrepreneur,accepts_self_employed,experience_from,experience_to,current_step,(SELECT test_id FROM vacancy_tests WHERE vacancy_external_id=vacancies.id ORDER BY sort_order,id LIMIT 1),published_at,created_at,updated_at FROM vacancies WHERE id=$1 AND deleted_at IS NULL`, id))
 	if err != nil {
 		return nil, err
 	}
@@ -275,7 +275,7 @@ func (p *Postgres) Save(ctx context.Context, v *domain.Vacancy, requirements []d
 	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(701000000000000000::bigint + $1::bigint)`, v.ID); err != nil {
 		return err
 	}
-	res, err := tx.ExecContext(ctx, `UPDATE vacancies SET title=$1,description=$2,salary_from=$3,salary_to=$4,salary_tax_mode=$5,currency=$6,employment_type=$7,work_format=$8,city=$9,address=$10,experience_from=$11,experience_to=$12,current_step=$13,requirements_hash=$14,updated_at=NOW() WHERE id=$15 AND user_id=$16 AND status IN ('draft','published') AND deleted_at IS NULL`, v.Title, v.Description, v.SalaryFrom, v.SalaryTo, v.SalaryTaxMode, v.Currency, v.EmploymentType, v.WorkFormat, v.City, v.Address, v.ExperienceFrom, v.ExperienceTo, v.CurrentStep, hash, v.ID, v.UserID)
+	res, err := tx.ExecContext(ctx, `UPDATE vacancies SET title=$1,description=$2,salary_from=$3,salary_to=$4,salary_tax_mode=$5,currency=$6,employment_type=$7,work_format=$8,city=$9,address=$10,accepts_individual_entrepreneur=$11,accepts_self_employed=$12,experience_from=$13,experience_to=$14,current_step=$15,requirements_hash=$16,updated_at=NOW() WHERE id=$17 AND user_id=$18 AND status IN ('draft','published') AND deleted_at IS NULL`, v.Title, v.Description, v.SalaryFrom, v.SalaryTo, v.SalaryTaxMode, v.Currency, v.EmploymentType, v.WorkFormat, v.City, v.Address, v.AcceptsIndividualEntrepreneur, v.AcceptsSelfEmployed, v.ExperienceFrom, v.ExperienceTo, v.CurrentStep, hash, v.ID, v.UserID)
 	if err != nil {
 		return err
 	}

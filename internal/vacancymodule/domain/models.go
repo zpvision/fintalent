@@ -24,29 +24,31 @@ type Requirement struct {
 }
 
 type Vacancy struct {
-	ID              int64         `json:"id"`
-	UserID          int64         `json:"user_id"`
-	Title           string        `json:"title"`
-	Description     string        `json:"description"`
-	Status          string        `json:"status"`
-	SalaryFrom      *float64      `json:"salary_from"`
-	SalaryTo        *float64      `json:"salary_to"`
-	SalaryTaxMode   string        `json:"salary_tax_mode"`
-	Currency        string        `json:"currency"`
-	EmploymentType  string        `json:"employment_type"`
-	WorkFormat      string        `json:"work_format"`
-	City            string        `json:"city"`
-	Address         string        `json:"address"`
-	ExperienceFrom  *int          `json:"experience_from"`
-	ExperienceTo    *int          `json:"experience_to"`
-	CurrentStep     int           `json:"current_step"`
-	SelectedTestID  *int64        `json:"selected_test_id,omitempty"`
-	SelectedTestIDs []int64       `json:"selected_test_ids"`
-	Requirements    []Requirement `json:"requirements"`
-	DutyIDs         []int64       `json:"duty_ids"`
-	PublishedAt     *time.Time    `json:"published_at,omitempty"`
-	CreatedAt       time.Time     `json:"created_at"`
-	UpdatedAt       time.Time     `json:"updated_at"`
+	ID                            int64         `json:"id"`
+	UserID                        int64         `json:"user_id"`
+	Title                         string        `json:"title"`
+	Description                   string        `json:"description"`
+	Status                        string        `json:"status"`
+	SalaryFrom                    *float64      `json:"salary_from"`
+	SalaryTo                      *float64      `json:"salary_to"`
+	SalaryTaxMode                 string        `json:"salary_tax_mode"`
+	Currency                      string        `json:"currency"`
+	EmploymentType                string        `json:"employment_type"`
+	WorkFormat                    string        `json:"work_format"`
+	City                          string        `json:"city"`
+	Address                       string        `json:"address"`
+	AcceptsIndividualEntrepreneur bool          `json:"accepts_individual_entrepreneur"`
+	AcceptsSelfEmployed           bool          `json:"accepts_self_employed"`
+	ExperienceFrom                *int          `json:"experience_from"`
+	ExperienceTo                  *int          `json:"experience_to"`
+	CurrentStep                   int           `json:"current_step"`
+	SelectedTestID                *int64        `json:"selected_test_id,omitempty"`
+	SelectedTestIDs               []int64       `json:"selected_test_ids"`
+	Requirements                  []Requirement `json:"requirements"`
+	DutyIDs                       []int64       `json:"duty_ids"`
+	PublishedAt                   *time.Time    `json:"published_at,omitempty"`
+	CreatedAt                     time.Time     `json:"created_at"`
+	UpdatedAt                     time.Time     `json:"updated_at"`
 }
 
 type CategoryMetadata struct {

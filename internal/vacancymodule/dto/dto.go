@@ -10,22 +10,24 @@ type RequirementInput struct {
 }
 
 type VacancyDraft struct {
-	Title           string             `json:"title"`
-	Description     string             `json:"description"`
-	SalaryFrom      *float64           `json:"salary_from"`
-	SalaryTo        *float64           `json:"salary_to"`
-	SalaryTaxMode   string             `json:"salary_tax_mode"`
-	Currency        string             `json:"currency"`
-	EmploymentType  string             `json:"employment_type"`
-	WorkFormat      string             `json:"work_format"`
-	City            string             `json:"city"`
-	Address         string             `json:"address"`
-	ExperienceFrom  *int               `json:"experience_from"`
-	ExperienceTo    *int               `json:"experience_to"`
-	CurrentStep     int                `json:"current_step"`
-	SelectedTestID  *int64             `json:"selected_test_id"`
-	SelectedTestIDs []int64            `json:"selected_test_ids"`
-	Requirements    []RequirementInput `json:"requirements"`
+	Title                         string             `json:"title"`
+	Description                   string             `json:"description"`
+	SalaryFrom                    *float64           `json:"salary_from"`
+	SalaryTo                      *float64           `json:"salary_to"`
+	SalaryTaxMode                 string             `json:"salary_tax_mode"`
+	Currency                      string             `json:"currency"`
+	EmploymentType                string             `json:"employment_type"`
+	WorkFormat                    string             `json:"work_format"`
+	City                          string             `json:"city"`
+	Address                       string             `json:"address"`
+	AcceptsIndividualEntrepreneur bool               `json:"accepts_individual_entrepreneur"`
+	AcceptsSelfEmployed           bool               `json:"accepts_self_employed"`
+	ExperienceFrom                *int               `json:"experience_from"`
+	ExperienceTo                  *int               `json:"experience_to"`
+	CurrentStep                   int                `json:"current_step"`
+	SelectedTestID                *int64             `json:"selected_test_id"`
+	SelectedTestIDs               []int64            `json:"selected_test_ids"`
+	Requirements                  []RequirementInput `json:"requirements"`
 }
 
 type MatchPreview struct {

@@ -92,6 +92,8 @@ func (s *Service) Update(ctx context.Context, id, user int64, input dto.VacancyD
 	v.WorkFormat = strings.TrimSpace(input.WorkFormat)
 	v.City = strings.TrimSpace(input.City)
 	v.Address = strings.TrimSpace(input.Address)
+	v.AcceptsIndividualEntrepreneur = input.AcceptsIndividualEntrepreneur
+	v.AcceptsSelfEmployed = input.AcceptsSelfEmployed
 	v.ExperienceFrom = input.ExperienceFrom
 	v.ExperienceTo = input.ExperienceTo
 	v.CurrentStep = input.CurrentStep

@@ -1,0 +1,3 @@
+ALTER TABLE vacancies
+    ADD COLUMN IF NOT EXISTS accepts_individual_entrepreneur BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS accepts_self_employed BOOLEAN NOT NULL DEFAULT FALSE;

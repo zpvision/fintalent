@@ -60,20 +60,22 @@ type publicVacancyApplicationStats struct {
 }
 
 type publicVacancyView struct {
-	ID            int64                         `json:"id"`
-	Description   string                        `json:"description"`
-	SalaryFrom    *float64                      `json:"salary_from"`
-	SalaryTo      *float64                      `json:"salary_to"`
-	SalaryTaxMode string                        `json:"salary_tax_mode"`
-	Currency      string                        `json:"currency"`
-	City          string                        `json:"city"`
-	Address       string                        `json:"address"`
-	OwnerName     string                        `json:"owner_name"`
-	PublishedAt   time.Time                     `json:"published_at"`
-	Blocks        []publicVacancyBlock          `json:"blocks"`
-	Duties        []publicVacancyDutyGroup      `json:"duties"`
-	Tests         []publicVacancyTest           `json:"tests"`
-	Applications  publicVacancyApplicationStats `json:"applications"`
+	ID                            int64                         `json:"id"`
+	Description                   string                        `json:"description"`
+	SalaryFrom                    *float64                      `json:"salary_from"`
+	SalaryTo                      *float64                      `json:"salary_to"`
+	SalaryTaxMode                 string                        `json:"salary_tax_mode"`
+	Currency                      string                        `json:"currency"`
+	City                          string                        `json:"city"`
+	Address                       string                        `json:"address"`
+	AcceptsIndividualEntrepreneur bool                          `json:"accepts_individual_entrepreneur"`
+	AcceptsSelfEmployed           bool                          `json:"accepts_self_employed"`
+	OwnerName                     string                        `json:"owner_name"`
+	PublishedAt                   time.Time                     `json:"published_at"`
+	Blocks                        []publicVacancyBlock          `json:"blocks"`
+	Duties                        []publicVacancyDutyGroup      `json:"duties"`
+	Tests                         []publicVacancyTest           `json:"tests"`
+	Applications                  publicVacancyApplicationStats `json:"applications"`
 }
 
 func registerPublicVacancyRoutes() {
@@ -106,10 +108,10 @@ func publicVacancy(w http.ResponseWriter, r *http.Request) {
 func loadPublicVacancy(r *http.Request, id int64) (*publicVacancyView, error) {
 	view := &publicVacancyView{Blocks: []publicVacancyBlock{}, Duties: []publicVacancyDutyGroup{}, Tests: []publicVacancyTest{}}
 	var salaryFrom, salaryTo sql.NullFloat64
-	err := db.QueryRowContext(r.Context(), `SELECT v.id,v.description,v.salary_from,v.salary_to,v.salary_tax_mode,v.currency,v.city,v.address,u.full_name,v.published_at
+	err := db.QueryRowContext(r.Context(), `SELECT v.id,v.description,v.salary_from,v.salary_to,v.salary_tax_mode,v.currency,v.city,v.address,v.accepts_individual_entrepreneur,v.accepts_self_employed,u.full_name,v.published_at
 		FROM vacancies v JOIN users u ON u.id=v.user_id
 		WHERE v.id=$1 AND v.status='published' AND v.deleted_at IS NULL`, id).
-		Scan(&view.ID, &view.Description, &salaryFrom, &salaryTo, &view.SalaryTaxMode, &view.Currency, &view.City, &view.Address, &view.OwnerName, &view.PublishedAt)
+		Scan(&view.ID, &view.Description, &salaryFrom, &salaryTo, &view.SalaryTaxMode, &view.Currency, &view.City, &view.Address, &view.AcceptsIndividualEntrepreneur, &view.AcceptsSelfEmployed, &view.OwnerName, &view.PublishedAt)
 	if err != nil {
 		return nil, err
 	}

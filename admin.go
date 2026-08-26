@@ -174,6 +174,9 @@ func prepareAdminDatabase(ctx context.Context) error {
 	if err = prepareApplicantSurveyDatabase(ctx); err != nil {
 		return err
 	}
+	if err = prepareOKVEDDatabase(ctx); err != nil {
+		return err
+	}
 	return prepareVacancySurveyDatabase(ctx)
 }
 
@@ -185,6 +188,7 @@ func registerAdminRoutes() {
 	http.HandleFunc("/api/admin/session", adminSession)
 	http.HandleFunc("/api/admin/dictionaries", adminDictionaries)
 	http.HandleFunc("/api/admin/dictionaries/", adminDictionary)
+	http.HandleFunc("/api/admin/okved", adminOKVED)
 	http.HandleFunc("/api/admin/position-icons", adminPositionIconUpload)
 	http.HandleFunc("/api/admin/users", adminUsers)
 	http.HandleFunc("/api/admin/users/", adminUserAction)
