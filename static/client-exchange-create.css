@@ -453,6 +453,29 @@
   font-weight: 400;
 }
 
+.feature-fields {
+  align-items: start;
+}
+
+.feature-fields .brand-choice {
+  width: 100%;
+  align-self: start;
+}
+
+.feature-fields .brand-choice > header {
+  min-height: 74px;
+}
+
+.feature-fields .brand-choice .choice-grid {
+  grid-auto-rows: 78px;
+  align-content: start;
+}
+
+.feature-fields .brand-choice .choice-card.with-icon span {
+  height: 78px;
+  min-height: 78px;
+}
+
 .program-choice .choice-grid.compact {
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }

@@ -79,6 +79,10 @@
     const icon = String(item?.icon || "").trim();
     if (!icon) return fallback;
     if (icon.startsWith("/")) return `<img src="${esc(icon)}" alt="">`;
+    if (/^(?:static\/)?[a-z0-9][a-z0-9._/-]*\.(?:svg|png|jpe?g|webp|gif)$/i.test(icon) && !icon.includes("..")) {
+      const source = icon.toLowerCase().startsWith("static/") ? `/${icon}` : `/static/${icon}`;
+      return `<img src="${esc(source)}" alt="">`;
+    }
     return esc(icon);
   }
 
@@ -218,7 +222,7 @@
 
   function renderFeatures() {
     card.innerHTML = `${stepHead(3, "▦", "Особенности клиента", "Выберите площадки, ЭДО, программы и состояние учёта.")}
-      <div class="fields">
+      <div class="fields feature-fields">
         <section class="choice-section half slim-choice brand-choice"><header><i>🛍</i><div><b>Маркетплейсы</b><small>Можно выбрать несколько</small></div></header>${choices("marketplace", "marketplace_ids", true, { withIcons: true, compact: true })}</section>
         <section class="choice-section half slim-choice brand-choice"><header><i>⇄</i><div><b>Операторы ЭДО</b><small>Можно выбрать несколько</small></div></header>${choices("edo_provider", "edo_provider_ids", true, { withIcons: true, compact: true })}</section>
         <div class="field wide"><span>Есть внешнеэкономическая деятельность?</span><div class="boolean-grid"><label class="choice-card"><input type="radio" name="foreign_trade" value="true" ${data.foreign_trade ? "checked" : ""}><span><b>Да, есть ВЭД</b></span></label><label class="choice-card"><input type="radio" name="foreign_trade" value="false" ${!data.foreign_trade ? "checked" : ""}><span><b>Нет</b></span></label></div></div>

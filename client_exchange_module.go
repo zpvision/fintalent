@@ -8,7 +8,7 @@ import (
 	"FinTalent/internal/clientexchange"
 )
 
-//go:embed migrations/039_client_exchange.sql
+//go:embed migrations/039_client_exchange.sql migrations/042_client_exchange_icon_paths.sql
 var clientExchangeMigrationFS embed.FS
 
 func prepareClientExchangeDatabase(ctx context.Context) error {
@@ -16,7 +16,14 @@ func prepareClientExchangeDatabase(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_, err = db.ExecContext(ctx, string(schema))
+	if _, err = db.ExecContext(ctx, string(schema)); err != nil {
+		return err
+	}
+	iconPaths, err := clientExchangeMigrationFS.ReadFile("migrations/042_client_exchange_icon_paths.sql")
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, string(iconPaths))
 	return err
 }
 

@@ -7,7 +7,24 @@ import (
 	"strings"
 )
 
-var codePattern = regexp.MustCompile(`^[a-z][a-z0-9_]{0,99}$`)
+var (
+	codePattern     = regexp.MustCompile(`^[a-z][a-z0-9_]{0,99}$`)
+	iconFilePattern = regexp.MustCompile(`(?i)^(static/)?[a-z0-9][a-z0-9._/-]*\.(svg|png|jpe?g|webp|gif)$`)
+)
+
+func normalizeIconPath(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || strings.HasPrefix(value, "/") || strings.HasPrefix(value, "http://") || strings.HasPrefix(value, "https://") || strings.HasPrefix(value, "data:") || strings.Contains(value, "..") {
+		return value
+	}
+	if !iconFilePattern.MatchString(value) {
+		return value
+	}
+	if strings.HasPrefix(strings.ToLower(value), "static/") {
+		return "/" + value
+	}
+	return "/static/" + value
+}
 
 func validKind(kind string) bool {
 	for _, x := range DictionaryKinds {
@@ -39,6 +56,7 @@ func (h *Handler) adminDictionaries(w http.ResponseWriter, r *http.Request) {
 		if x.Color == "" {
 			x.Color = "blue"
 		}
+		x.Icon = normalizeIconPath(x.Icon)
 		err := h.db.QueryRowContext(r.Context(), `INSERT INTO client_exchange_dictionary_items(kind,code,name,description,min_value,max_value,color,icon,legal_name,operator_code,sort_order,active) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`, x.Kind, x.Code, clean(x.Name, 300), clean(x.Description, 3000), x.MinValue, x.MaxValue, clean(x.Color, 30), clean(x.Icon, 500), clean(x.LegalName, 300), clean(x.OperatorCode, 100), x.SortOrder, x.Active).Scan(&x.ID)
 		if err != nil {
 			fail(w, 409, "Такой code уже существует в этом справочнике")
@@ -108,6 +126,7 @@ func (h *Handler) adminDictionary(w http.ResponseWriter, r *http.Request) {
 		if x.Color == "" {
 			x.Color = "blue"
 		}
+		x.Icon = normalizeIconPath(x.Icon)
 		res, err := h.db.ExecContext(r.Context(), `UPDATE client_exchange_dictionary_items SET kind=$2,code=$3,name=$4,description=$5,min_value=$6,max_value=$7,color=$8,icon=$9,legal_name=$10,operator_code=$11,sort_order=$12,active=$13,updated_at=NOW() WHERE id=$1 AND deleted_at IS NULL`, id, x.Kind, x.Code, clean(x.Name, 300), clean(x.Description, 3000), x.MinValue, x.MaxValue, clean(x.Color, 30), clean(x.Icon, 500), clean(x.LegalName, 300), clean(x.OperatorCode, 100), x.SortOrder, x.Active)
 		if err != nil {
 			fail(w, 409, "Не удалось сохранить: проверьте уникальность code")

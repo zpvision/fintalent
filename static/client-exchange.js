@@ -301,7 +301,10 @@
     load();
   };
   document.querySelector("#reset-filters").onclick = reset;
-  document.querySelector("[data-scroll-catalog]").onclick = () => document.querySelector("#catalog").scrollIntoView({ behavior: "smooth" });
+  const scrollCatalogButton = document.querySelector("[data-scroll-catalog]");
+  if (scrollCatalogButton) {
+    scrollCatalogButton.onclick = () => document.querySelector("#catalog").scrollIntoView({ behavior: "smooth" });
+  }
 
   (async () => {
     try {
