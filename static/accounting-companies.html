@@ -1,6 +1,59 @@
-<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Бухгалтерские компании — FinTalent</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="/static/accounting-company.css?v=1"></head><body>
-<header></header><main class="ac-page">
- <section class="ac-catalog-hero"><div><span class="ac-kicker">СООБЩЕСТВО FINTALENT</span><h1>Бухгалтерские компании</h1><p>Найдите команду с подходящей специализацией, понятными ценами и подтверждёнными компетенциями.</p></div><a class="ac-button" href="/accounting-companies/create">Создать страницу компании</a></section>
- <section class="ac-catalog-layout"><aside class="ac-filter-card"><div class="ac-filter-title"><h2>Фильтры</h2><button id="ac-reset">Сбросить</button></div><form id="ac-filters"><label><span>Поиск</span><input name="q" placeholder="Название или специализация"></label><label><span>Город</span><input name="city" placeholder="Любой город"></label><label><span>Направление</span><select name="direction_id"><option value="">Все направления</option></select></label><label><span>Услуга</span><select name="service_id"><option value="">Все услуги</option></select></label><label><span>Система налогообложения</span><select name="tax_system_id"><option value="">Любая</option></select></label><label><span>Стоимость услуг до</span><input name="price_to" type="number" min="0" placeholder="₽"></label><label class="ac-check"><input name="online" value="true" type="checkbox"><i></i><span>Работают по всей России</span></label><label class="ac-check"><input name="passport" value="true" type="checkbox"><i></i><span>Есть Паспорт компетенций</span></label></form></aside>
- <section class="ac-results"><div class="ac-results-head"><div><h2>Надёжная бухгалтерия для бизнеса</h2><p id="ac-found">Загрузка…</p></div><select id="ac-sort"><option value="new">Сначала новые</option></select></div><div id="ac-company-list" class="ac-company-grid"><div class="ac-skeleton"></div><div class="ac-skeleton"></div></div><nav id="ac-pagination" class="ac-pagination"></nav></section></section>
-</main><script src="/static/accounting-companies.js?v=1"></script></body></html>
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Бухгалтерские компании — FinTalent</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/accounting-company.css?v=5">
+</head>
+<body>
+  <header></header>
+  <main class="ac-page ac-directory-page">
+    <nav class="ac-directory-breadcrumbs"><a href="/">Главная</a><span>›</span><b>Компании</b></nav>
+
+    <section class="ac-directory-top">
+      <div class="ac-directory-title">
+        <h1>Бухгалтерские компании</h1>
+        <p>Найдите надёжного партнёра для ведения бухгалтерии вашего бизнеса</p>
+      </div>
+      <a class="ac-directory-promo" href="/accounting-companies/create">
+        <span>
+          <b>Представьте свою компанию тысячам клиентов</b>
+          <small>Создайте страницу компании на FinTalent. Покажите услуги, тарифы и подтвердите экспертизу команды.</small>
+          <strong>Создать компанию <i>→</i></strong>
+        </span>
+        <i class="ac-promo-art" aria-hidden="true"><img src="/static/images/accounting-directory-promo.png" alt=""></i>
+      </a>
+    </section>
+
+    <form id="ac-filters" class="ac-directory-filters">
+      <label><span>Город</span><input name="city" placeholder="Все города"></label>
+      <label><span>Направления</span><select name="direction_id"><option value="">Все направления</option></select></label>
+      <label><span>Услуги</span><select name="service_id"><option value="">Выберите услугу</option></select></label>
+      <label><span>Система налогообложения</span><select name="tax_system_id"><option value="">Все системы</option></select></label>
+      <fieldset><legend>Цена</legend><input name="price_from" aria-label="Цена от" type="number" min="0" placeholder="от"><input name="price_to" aria-label="Цена до" type="number" min="0" placeholder="до"><b>₽</b></fieldset>
+      <button id="ac-reset" type="button">↻ Сбросить</button>
+      <div id="ac-quick-filters" class="ac-directory-chips"></div>
+    </form>
+
+    <section class="ac-directory-toolbar">
+      <p id="ac-found">Загрузка…</p>
+      <div>
+        <label>Сортировать:<select id="ac-sort"><option value="passport">По индексу компетенций</option><option value="new">Сначала новые</option></select></label>
+        <button type="button" class="active" aria-label="Компактный список">☷</button>
+        <button type="button" aria-label="Плитка">▦</button>
+      </div>
+    </section>
+
+    <section id="ac-company-list" class="ac-directory-list">
+      <div class="ac-skeleton"></div>
+      <div class="ac-skeleton"></div>
+    </section>
+    <footer class="ac-directory-footer"><nav id="ac-pagination" class="ac-pagination"></nav><label>Показывать по <select id="ac-limit"><option>10</option><option>20</option></select></label></footer>
+  </main>
+  <script src="/static/accounting-companies.js?v=4"></script>
+</body>
+</html>
