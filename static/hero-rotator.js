@@ -7,8 +7,10 @@
   const testingWords=['сотрудников','по собственным тестам','с понятным результатом'];
   const profimarketText=root.querySelector('#profimarket-typing');
   const profimarketWords=['готовые решения','полезные шаблоны','опыт экспертов'];
+  const clientExchangeText=root.querySelector('#client-exchange-typing');
+  const clientExchangeWords=['передача клиентов','новые клиенты','защищённая передача'];
   const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  let active=0,timer,typeTimer,word=0,letter=testingWords[0].length,deleting=true;
+  let active=0,timer,typeTimer,word=0,letter=testingWords[0].length,deleting=true,paused=false;
 
   function typeNext(){
     if(!testingText||active!==1||reduceMotion)return;
@@ -34,6 +36,18 @@
     if(letter>=next.length){deleting=true;typeTimer=setTimeout(typeProfimarket,1800);return;}
     typeTimer=setTimeout(typeProfimarket,76);
   }
+  function typeClientExchange(){
+    if(!clientExchangeText||active!==3||reduceMotion)return;
+    const value=clientExchangeWords[word];
+    if(deleting){
+      letter=Math.max(0,letter-1); clientExchangeText.textContent=value.slice(0,letter);
+      if(!letter){deleting=false;word=(word+1)%clientExchangeWords.length;typeTimer=setTimeout(typeClientExchange,260);return;}
+      typeTimer=setTimeout(typeClientExchange,48);return;
+    }
+    const next=clientExchangeWords[word]; letter+=1; clientExchangeText.textContent=next.slice(0,letter);
+    if(letter>=next.length){deleting=true;typeTimer=setTimeout(typeClientExchange,1800);return;}
+    typeTimer=setTimeout(typeClientExchange,76);
+  }
   function show(index){
     if(index===active)return;
     clearTimeout(typeTimer);
@@ -48,8 +62,21 @@
     dots[active].classList.add('active');
     if(active===1){word=0;letter=testingWords[0].length;deleting=true;testingText.textContent=testingWords[0];typeTimer=setTimeout(typeNext,1400);}
     if(active===2){word=0;letter=profimarketWords[0].length;deleting=true;profimarketText.textContent=profimarketWords[0];typeTimer=setTimeout(typeProfimarket,1400);}
+    if(active===3){
+      word=0;letter=clientExchangeWords[0].length;deleting=true;clientExchangeText.textContent=clientExchangeWords[0];typeTimer=setTimeout(typeClientExchange,1400);
+    }
   }
-  function schedule(){clearInterval(timer);timer=setInterval(()=>show((active+1)%slides.length),10000)}
+  function schedule(){
+    clearInterval(timer);
+    if(paused||reduceMotion)return;
+    timer=setInterval(()=>show((active+1)%slides.length),10000);
+  }
+  function pause(){paused=true;clearInterval(timer)}
+  function resume(){paused=false;schedule()}
   dots.forEach((dot,index)=>dot.addEventListener('click',()=>{show(index);schedule()}));
-  if(!reduceMotion)schedule();
+  root.addEventListener('mouseenter',pause);
+  root.addEventListener('mouseleave',resume);
+  root.addEventListener('focusin',pause);
+  root.addEventListener('focusout',event=>{if(!root.contains(event.relatedTarget))resume()});
+  schedule();
 })();

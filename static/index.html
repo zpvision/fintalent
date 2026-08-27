@@ -10,7 +10,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/styles.css">
   <link rel="stylesheet" href="/static/hero-typing.css?v=1">
-  <link rel="stylesheet" href="/static/hero-rotator.css?v=1">
+  <link rel="stylesheet" href="/static/hero-rotator.css?v=2">
+  <link rel="stylesheet" href="/static/client-exchange-hero-slide.css?v=5">
   <link rel="stylesheet" href="/static/profimarket-hero.css?v=1">
   <style>
     .hero-visual{width:56%;right:0;overflow:hidden;border-radius:18px 0 0 18px}
@@ -75,7 +76,51 @@
         <div class="profimarket-benefits"><span>Практика экспертов</span><span>Готово к внедрению</span><span>Новые возможности</span></div>
       </div>
     </section>
-    <div class="hero-rotator-dots" aria-label="Рекламные предложения"><button class="active" type="button" aria-label="Биржа вакансий"></button><button type="button" aria-label="Тестирование сотрудников"></button><button type="button" aria-label="ПрофиМаркет"></button></div>
+    <section class="hero container hero-slide client-exchange-hero" data-hero-slide="client-exchange" aria-hidden="true">
+      <div class="client-exchange-hero-bg" aria-hidden="true">
+        <div class="ce-transfer-scene">
+          <div class="ce-glow ce-glow-one"></div>
+          <div class="ce-glow ce-glow-two"></div>
+          <article class="ce-listing-preview">
+            <div class="ce-preview-match"><i>✓</i> 91% подходит вашей компании</div>
+            <div class="ce-preview-top">
+              <i class="ce-preview-icon">▤</i>
+              <div>
+                <h3>Интернет магазин</h3>
+                <span>Москва · УСН · НДС: нет</span>
+              </div>
+            </div>
+            <div class="ce-preview-metrics">
+              <div><small>Выручка</small><b>до 30 млн ₽</b></div>
+              <div><small>Сотрудники</small><b>5-10</b></div>
+              <div><small>Абонплата</small><b>38 000 ₽</b></div>
+            </div>
+            <div class="ce-preview-tags"><span>Озон</span><span>ВБ</span><span>1С</span><span>ЭДО</span></div>
+            <div class="ce-preview-reason">
+              <small>Причина передачи</small>
+              <b>Клиент слишком маленький для нашей компании</b>
+            </div>
+            <div class="ce-preview-transfer">Передам за 15% в течение 2 месяцев</div>
+          </article>
+          <aside class="ce-preview-modal">
+            <span>Просмотр карточки</span>
+            <b>Контакты скрыты</b>
+            <small>Откроются после выбора компании</small>
+          </aside>
+        </div>
+      </div>
+      <div class="client-exchange-copy">
+        <div class="client-exchange-eyebrow"><i>◇</i> НОВЫЙ РАЗДЕЛ FINTALENT</div>
+        <h1>Клиентская биржа<br><span id="client-exchange-typing">передача клиентов</span></h1>
+        <p>Передавайте клиентов на обслуживание или находите новые проекты для своей бухгалтерской компании: условия видны заранее, контакты открываются только после выбора.</p>
+        <div class="client-exchange-actions">
+          <a class="client-exchange-primary" href="/client-exchange"><span>Открыть биржу</span><i>→</i></a>
+          <a class="client-exchange-secondary" href="/client-exchange/create">Передать клиента</a>
+        </div>
+        <div class="client-exchange-benefits"><span>Обезличенные карточки</span><span>Отклики компаний</span><span>Безопасная передача</span></div>
+      </div>
+    </section>
+    <div class="hero-rotator-dots" aria-label="Рекламные предложения"><button class="active" type="button" aria-label="Биржа вакансий"></button><button type="button" aria-label="Тестирование сотрудников"></button><button type="button" aria-label="ПрофиМаркет"></button><button type="button" aria-label="Клиентская биржа"></button></div>
     </div>
 
     <section class="search-panel container">
@@ -127,7 +172,7 @@
   <script src="/static/dictionaries.js"></script>
   <script src="/static/searchable-select.js"></script>
   <script src="/static/hero-typing.js?v=1"></script>
-  <script src="/static/hero-rotator.js?v=3"></script>
+  <script src="/static/hero-rotator.js?v=6"></script>
   <script src="/static/home-showcase.js?v=3"></script>
 </body>
 </html>
