@@ -28,5 +28,5 @@ const modal=document.querySelector('#new-modal');document.querySelector('#new-di
 
 (async()=>{try{await api('/api/admin/session');showApp();await load()}catch{showLogin()}})();
 const testingScript=document.createElement('script');testingScript.src='/static/admin-tests.js';document.body.append(testingScript);
-const otherDictionariesScript=document.createElement('script');otherDictionariesScript.src='/static/admin-other-dictionaries.js?v=1';document.body.append(otherDictionariesScript);
+const otherDictionariesScript=document.createElement('script');otherDictionariesScript.src='/static/admin-other-dictionaries.js?v=2';document.body.append(otherDictionariesScript);
 const dutiesScript=document.createElement('script');dutiesScript.src='/static/admin-duties.js?v=2';document.body.append(dutiesScript);

@@ -80,7 +80,7 @@ func serveResumeKnowledge(w http.ResponseWriter, r *http.Request, resumeID int64
 		FROM test_attempts a
 		JOIN tests t ON t.id=a.test_id
 		JOIN test_versions v ON v.id=a.test_version_id
-		WHERE a.user_id=$1 AND a.status='finished' AND a.passed=TRUE AND a.percent>=70 AND a.finished_at IS NOT NULL
+		WHERE a.user_id=$1 AND a.status='finished' AND a.show_in_resume=TRUE AND a.finished_at IS NOT NULL
 		ORDER BY a.test_id,a.percent DESC,a.finished_at DESC`, ownerID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, "Не удалось загрузить результаты тестов")
@@ -143,7 +143,7 @@ func changeResumeKnowledgeConfirmation(w http.ResponseWriter, r *http.Request, r
 	if r.Method == http.MethodDelete {
 		_, err = db.ExecContext(r.Context(), `DELETE FROM resume_test_confirmations WHERE resume_id=$1 AND test_id=$2 AND confirmer_id=$3`, resumeID, input.TestID, viewer.ID)
 	} else {
-		_, err = db.ExecContext(r.Context(), `INSERT INTO resume_test_confirmations(resume_id,test_id,confirmer_id) SELECT $1,$2,$3 WHERE EXISTS(SELECT 1 FROM test_attempts WHERE user_id=$4 AND test_id=$2 AND status='finished' AND passed=TRUE AND percent>=70) ON CONFLICT DO NOTHING`, resumeID, input.TestID, viewer.ID, ownerID)
+		_, err = db.ExecContext(r.Context(), `INSERT INTO resume_test_confirmations(resume_id,test_id,confirmer_id) SELECT $1,$2,$3 WHERE EXISTS(SELECT 1 FROM test_attempts WHERE user_id=$4 AND test_id=$2 AND status='finished' AND show_in_resume=TRUE) ON CONFLICT DO NOTHING`, resumeID, input.TestID, viewer.ID, ownerID)
 	}
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, "Не удалось сохранить подтверждение")

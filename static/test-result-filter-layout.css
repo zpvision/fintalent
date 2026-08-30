@@ -1,0 +1,7 @@
+.result-filter-toolbar,.result-filter-empty,.result-visibility-note{grid-column:1/-1}
+.result-filter-segments button[data-result-filter="high"].active{border-color:#58c79d;color:#087a57;background:linear-gradient(135deg,#e8faf3,#dff7ed);box-shadow:0 6px 17px rgba(18,156,109,.14)}
+.result-filter-segments button[data-result-filter="high"].active>i,.result-filter-segments button[data-result-filter="high"].active>b{color:#fff;background:#16a978}
+.result-filter-segments button[data-result-filter="medium"].active{border-color:#e9bd55;color:#936309;background:linear-gradient(135deg,#fff8df,#fff2c9);box-shadow:0 6px 17px rgba(211,151,23,.14)}
+.result-filter-segments button[data-result-filter="medium"].active>i,.result-filter-segments button[data-result-filter="medium"].active>b{color:#fff;background:#dfa11b}
+.result-filter-segments button[data-result-filter="low"].active{border-color:#e6979e;color:#a63843;background:linear-gradient(135deg,#fff0f1,#ffe5e8);box-shadow:0 6px 17px rgba(201,70,82,.13)}
+.result-filter-segments button[data-result-filter="low"].active>i,.result-filter-segments button[data-result-filter="low"].active>b{color:#fff;background:#d6535f}

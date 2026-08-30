@@ -89,6 +89,7 @@ type Attempt struct {
 	Status          string          `json:"status"`
 	CorrectAnswers  int             `json:"correct_answers"`
 	TotalQuestions  int             `json:"total_questions"`
+	ShowInResume    bool            `json:"show_in_resume"`
 	Answers         []AttemptAnswer `json:"answers,omitempty"`
 	Questions       []Question      `json:"questions,omitempty"`
 }

@@ -1,0 +1,6 @@
+.resume-name-line{display:flex;align-items:center;gap:7px}.resume-name-line h1{min-width:0}
+.resume-zodiac-badge{position:relative;display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;width:25px;height:25px;cursor:help;opacity:.72;transition:opacity .16s,transform .16s}
+.resume-zodiac-badge:hover{opacity:1;transform:translateY(-1px)}
+.resume-zodiac-badge img{width:23px;height:23px}
+.resume-zodiac-badge>span{position:absolute;z-index:5;left:50%;bottom:-34px;padding:7px 10px;border-radius:8px;color:#fff;background:#14234a;font-size:10px;font-weight:700;white-space:nowrap;opacity:0;pointer-events:none;transform:translate(-50%,-4px);transition:.16s}
+.resume-zodiac-badge:hover>span,.resume-zodiac-badge:focus>span{opacity:1;transform:translate(-50%,0)}

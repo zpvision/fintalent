@@ -30,6 +30,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/answers/", h.answerRoutes)
 	mux.HandleFunc("/api/attempts/", h.attemptRoutes)
 	mux.HandleFunc("/api/me/test-results", h.myResults)
+	mux.HandleFunc("/api/me/test-results/", h.myResultVisibility)
 	mux.HandleFunc("/api/admin/tests", h.adminTests)
 	mux.HandleFunc("/api/admin/tests/", h.adminTestRoutes)
 	mux.HandleFunc("/api/admin/attempts/", h.adminAttemptRoutes)
@@ -352,6 +353,39 @@ func (h *Handler) myResults(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	respond(w, 200, v)
+}
+
+func (h *Handler) myResultVisibility(w http.ResponseWriter, r *http.Request) {
+	uid, ok := userID(h, w, r)
+	if !ok {
+		return
+	}
+	if r.Method != http.MethodPatch {
+		writeError(w, http.StatusMethodNotAllowed, "метод не поддерживается")
+		return
+	}
+	tail := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/me/test-results/"), "/")
+	parts := strings.Split(tail, "/")
+	if len(parts) != 2 || parts[1] != "resume-visibility" {
+		http.NotFound(w, r)
+		return
+	}
+	attemptID, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil || attemptID <= 0 {
+		writeError(w, http.StatusBadRequest, "некорректный результат")
+		return
+	}
+	var payload struct {
+		Visible bool `json:"visible"`
+	}
+	if !decode(w, r, &payload) {
+		return
+	}
+	if err = h.service.SetAttemptResumeVisibility(r.Context(), attemptID, uid, payload.Visible); err != nil {
+		handleErr(w, err)
+		return
+	}
+	respond(w, http.StatusOK, map[string]bool{"show_in_resume": payload.Visible})
 }
 func (h *Handler) adminTests(w http.ResponseWriter, r *http.Request) {
 	if !h.admin(r) {

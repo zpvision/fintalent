@@ -192,11 +192,82 @@ func registerAdminRoutes() {
 	http.HandleFunc("/api/admin/position-icons", adminPositionIconUpload)
 	http.HandleFunc("/api/admin/users", adminUsers)
 	http.HandleFunc("/api/admin/users/", adminUserAction)
+	http.HandleFunc("/api/admin/zodiac-signs", adminZodiacSigns)
 	http.HandleFunc("/api/assets/dictionary-icon/", dictionaryIconAsset)
 	registerApplicantSurveyRoutes()
 	registerVacancySurveyRoutes()
 	registerTestCategoryRoutes()
 	registerDutyRoutes()
+}
+
+type adminZodiacSign struct {
+	ID         int64  `json:"id"`
+	Code       string `json:"code"`
+	Name       string `json:"name"`
+	StartMonth int    `json:"start_month"`
+	StartDay   int    `json:"start_day"`
+	EndMonth   int    `json:"end_month"`
+	EndDay     int    `json:"end_day"`
+	Icon       string `json:"icon"`
+	SortOrder  int    `json:"sort_order"`
+	Active     bool   `json:"active"`
+}
+
+func adminZodiacSigns(w http.ResponseWriter, r *http.Request) {
+	if !isAdmin(r) {
+		writeAdminJSON(w, http.StatusUnauthorized, map[string]string{"error": "Требуется вход администратора"})
+		return
+	}
+	if r.Method == http.MethodGet {
+		rows, err := db.QueryContext(r.Context(), `SELECT id,code,name,start_month,start_day,end_month,end_day,icon,sort_order,is_active FROM zodiac_signs ORDER BY sort_order,id`)
+		if err != nil {
+			writeAdminJSON(w, 500, map[string]string{"error": "Не удалось загрузить знаки зодиака"})
+			return
+		}
+		defer rows.Close()
+		items := []adminZodiacSign{}
+		for rows.Next() {
+			var item adminZodiacSign
+			if err = rows.Scan(&item.ID, &item.Code, &item.Name, &item.StartMonth, &item.StartDay, &item.EndMonth, &item.EndDay, &item.Icon, &item.SortOrder, &item.Active); err != nil {
+				writeAdminJSON(w, 500, map[string]string{"error": "Не удалось загрузить знаки зодиака"})
+				return
+			}
+			items = append(items, item)
+		}
+		writeAdminJSON(w, http.StatusOK, items)
+		return
+	}
+	if r.Method != http.MethodPut {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var items []adminZodiacSign
+	if json.NewDecoder(r.Body).Decode(&items) != nil || len(items) != 12 {
+		writeAdminJSON(w, 400, map[string]string{"error": "Справочник должен содержать 12 знаков"})
+		return
+	}
+	tx, err := db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeAdminJSON(w, 500, map[string]string{"error": "Не удалось сохранить справочник"})
+		return
+	}
+	defer tx.Rollback()
+	for _, item := range items {
+		item.Name, item.Icon = strings.TrimSpace(item.Name), strings.TrimSpace(item.Icon)
+		if item.ID <= 0 || item.Name == "" || item.StartMonth < 1 || item.StartMonth > 12 || item.EndMonth < 1 || item.EndMonth > 12 || item.StartDay < 1 || item.StartDay > 31 || item.EndDay < 1 || item.EndDay > 31 {
+			writeAdminJSON(w, 400, map[string]string{"error": "Проверьте названия и границы дат"})
+			return
+		}
+		if _, err = tx.ExecContext(r.Context(), `UPDATE zodiac_signs SET name=$1,start_month=$2,start_day=$3,end_month=$4,end_day=$5,icon=$6,sort_order=$7,is_active=$8,updated_at=NOW() WHERE id=$9`, item.Name, item.StartMonth, item.StartDay, item.EndMonth, item.EndDay, item.Icon, item.SortOrder, item.Active, item.ID); err != nil {
+			writeAdminJSON(w, 500, map[string]string{"error": "Не удалось сохранить справочник"})
+			return
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		writeAdminJSON(w, 500, map[string]string{"error": "Не удалось сохранить справочник"})
+		return
+	}
+	writeAdminJSON(w, http.StatusOK, map[string]string{"message": "Справочник сохранён"})
 }
 
 func dictionaryIconAsset(w http.ResponseWriter, r *http.Request) {

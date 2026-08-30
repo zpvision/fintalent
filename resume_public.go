@@ -62,6 +62,12 @@ type publicResumeLanguage struct {
 	Name string `json:"name"`
 }
 
+type publicResumeZodiac struct {
+	Code string `json:"code"`
+	Name string `json:"name"`
+	Icon string `json:"icon"`
+}
+
 type publicResumeView struct {
 	ID                   int64                    `json:"id"`
 	OwnerID              int64                    `json:"-"`
@@ -72,6 +78,10 @@ type publicResumeView struct {
 	AvailableImmediately bool                     `json:"available_immediately"`
 	SearchStatus         string                   `json:"search_status"`
 	WorkPreferences      string                   `json:"work_preferences"`
+	BirthDay             int                      `json:"-"`
+	BirthMonth           int                      `json:"-"`
+	BirthYear            *int                     `json:"-"`
+	Zodiac               *publicResumeZodiac      `json:"zodiac,omitempty"`
 	PublishedAt          time.Time                `json:"published_at"`
 	Blocks               []publicResumeBlock      `json:"blocks"`
 	Duties               []publicResumeDutyGroup  `json:"duties"`
@@ -117,15 +127,17 @@ func loadPublicResume(r *http.Request, id int64) (*publicResumeView, error) {
 	}
 	var salary sql.NullFloat64
 	var published sql.NullTime
+	var birthDay, birthMonth, birthYear sql.NullInt64
 	err := db.QueryRowContext(r.Context(), `
 		SELECT r.id,u.id,u.full_name,COALESCE(u.avatar_url,''),r.desired_salary,
-			r.available_immediately,COALESCE(s.name,''),COALESCE(r.work_preferences,''),r.published_at
+			r.available_immediately,COALESCE(s.name,''),COALESCE(r.work_preferences,''),r.published_at,
+			r.birth_day,r.birth_month,r.birth_year
 		FROM resumes r
 		JOIN users u ON u.id=r.user_id
 		LEFT JOIN resume_search_statuses s ON s.code=r.search_status_code
 		WHERE r.id=$1 AND r.status='published' AND r.deleted_at IS NULL`,
 		id,
-	).Scan(&view.ID, &view.OwnerID, &view.Name, &view.Avatar, &salary, &view.AvailableImmediately, &view.SearchStatus, &view.WorkPreferences, &published)
+	).Scan(&view.ID, &view.OwnerID, &view.Name, &view.Avatar, &salary, &view.AvailableImmediately, &view.SearchStatus, &view.WorkPreferences, &published, &birthDay, &birthMonth, &birthYear)
 	if err != nil {
 		return nil, err
 	}
@@ -137,6 +149,24 @@ func loadPublicResume(r *http.Request, id int64) (*publicResumeView, error) {
 	}
 	if published.Valid {
 		view.PublishedAt = published.Time
+	}
+	if birthDay.Valid && birthMonth.Valid {
+		view.BirthDay, view.BirthMonth = int(birthDay.Int64), int(birthMonth.Int64)
+		if birthYear.Valid {
+			value := int(birthYear.Int64)
+			view.BirthYear = &value
+		}
+		var zodiac publicResumeZodiac
+		err = db.QueryRowContext(r.Context(), `SELECT code,name,icon FROM zodiac_signs
+			WHERE is_active=TRUE AND ((start_month=end_month AND $1=start_month AND $2 BETWEEN start_day AND end_day)
+			OR (start_month<end_month AND (($1=start_month AND $2>=start_day) OR ($1=end_month AND $2<=end_day)))
+			OR (start_month>end_month AND (($1=start_month AND $2>=start_day) OR ($1=end_month AND $2<=end_day))))
+			ORDER BY sort_order,id LIMIT 1`, view.BirthMonth, view.BirthDay).Scan(&zodiac.Code, &zodiac.Name, &zodiac.Icon)
+		if err == nil {
+			view.Zodiac = &zodiac
+		} else if err != sql.ErrNoRows {
+			return nil, err
+		}
 	}
 	if err = loadPublicResumeBlocks(r, view); err != nil {
 		return nil, err
@@ -244,7 +274,11 @@ func loadPublicResumeExperience(r *http.Request, view *publicResumeView) error {
 			e.responsibilities,e.achievements
 		FROM resume_work_experiences e
 		LEFT JOIN dictionary_items i ON i.id=e.industry_item_id
-		WHERE e.resume_id=$1 ORDER BY e.sort_order,e.id`,
+		WHERE e.resume_id=$1
+		ORDER BY e.is_current DESC,
+			COALESCE(e.end_year,e.start_year) DESC,
+			COALESCE(e.end_month,e.start_month) DESC,
+			e.start_year DESC,e.start_month DESC,e.id DESC`,
 		view.ID,
 	)
 	if err != nil {

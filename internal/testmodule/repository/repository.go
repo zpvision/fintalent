@@ -37,6 +37,7 @@ type Repository interface {
 	SaveAttemptAnswer(context.Context, int64, dto.SubmitAnswer) error
 	FinishAttempt(context.Context, int64, float64, float64, float64, bool, []domain.AttemptAnswer) error
 	ListAttempts(context.Context, int64, int64, bool) ([]domain.Attempt, error)
+	SetAttemptResumeVisibility(context.Context, int64, int64, bool) error
 	Statistics(context.Context, int64) (*domain.Statistics, error)
 }
 
@@ -542,7 +543,7 @@ func (p *Postgres) FinishAttempt(ctx context.Context, id int64, score, max, perc
 			return err
 		}
 	}
-	res, err := tx.ExecContext(ctx, `UPDATE test_attempts SET score=$1,max_score=$2,percent=$3,passed=$4,finished_at=NOW(),duration_seconds=EXTRACT(EPOCH FROM NOW()-started_at)::int,status='finished' WHERE id=$5 AND status='started'`, score, max, percent, passed, id)
+	res, err := tx.ExecContext(ctx, `UPDATE test_attempts SET score=$1,max_score=$2,percent=$3,passed=$4,show_in_resume=($3>80),finished_at=NOW(),duration_seconds=EXTRACT(EPOCH FROM NOW()-started_at)::int,status='finished' WHERE id=$5 AND status='started'`, score, max, percent, passed, id)
 	if err != nil {
 		return err
 	}
@@ -557,7 +558,7 @@ func (p *Postgres) FinishAttempt(ctx context.Context, id int64, score, max, perc
 	return tx.Commit()
 }
 func (p *Postgres) ListAttempts(ctx context.Context, testID, user int64, admin bool) ([]domain.Attempt, error) {
-	q := `SELECT a.id,a.test_id,a.test_version_id,a.user_id,u.full_name,v.title,a.score,a.max_score,a.percent,a.passed,a.started_at,a.finished_at,a.duration_seconds,a.status,(SELECT COUNT(DISTINCT aa.question_id) FROM test_attempt_answers aa WHERE aa.attempt_id=a.id AND aa.is_correct=TRUE),(SELECT COUNT(*) FROM test_questions tq WHERE tq.test_version_id=a.test_version_id) FROM test_attempts a JOIN users u ON u.id=a.user_id JOIN test_versions v ON v.id=a.test_version_id WHERE 1=1`
+	q := `SELECT a.id,a.test_id,a.test_version_id,a.user_id,u.full_name,v.title,a.score,a.max_score,a.percent,a.passed,a.started_at,a.finished_at,a.duration_seconds,a.status,(SELECT COUNT(DISTINCT aa.question_id) FROM test_attempt_answers aa WHERE aa.attempt_id=a.id AND aa.is_correct=TRUE),(SELECT COUNT(*) FROM test_questions tq WHERE tq.test_version_id=a.test_version_id),a.show_in_resume FROM test_attempts a JOIN users u ON u.id=a.user_id JOIN test_versions v ON v.id=a.test_version_id WHERE 1=1`
 	args := []any{}
 	if testID > 0 {
 		args = append(args, testID)
@@ -578,7 +579,7 @@ func (p *Postgres) ListAttempts(ctx context.Context, testID, user int64, admin b
 		var a domain.Attempt
 		var finished sql.NullTime
 		var passed sql.NullBool
-		if err := rows.Scan(&a.ID, &a.TestID, &a.TestVersionID, &a.UserID, &a.UserName, &a.TestTitle, &a.Score, &a.MaxScore, &a.Percent, &passed, &a.StartedAt, &finished, &a.DurationSeconds, &a.Status, &a.CorrectAnswers, &a.TotalQuestions); err != nil {
+		if err := rows.Scan(&a.ID, &a.TestID, &a.TestVersionID, &a.UserID, &a.UserName, &a.TestTitle, &a.Score, &a.MaxScore, &a.Percent, &passed, &a.StartedAt, &finished, &a.DurationSeconds, &a.Status, &a.CorrectAnswers, &a.TotalQuestions, &a.ShowInResume); err != nil {
 			return nil, err
 		}
 		if passed.Valid {
@@ -590,6 +591,17 @@ func (p *Postgres) ListAttempts(ctx context.Context, testID, user int64, admin b
 		out = append(out, a)
 	}
 	return out, rows.Err()
+}
+
+func (p *Postgres) SetAttemptResumeVisibility(ctx context.Context, attemptID, userID int64, visible bool) error {
+	result, err := p.db.ExecContext(ctx, `UPDATE test_attempts SET show_in_resume=$1 WHERE id=$2 AND user_id=$3 AND status='finished'`, visible, attemptID, userID)
+	if err != nil {
+		return err
+	}
+	if affected, _ := result.RowsAffected(); affected != 1 {
+		return ErrNotFound
+	}
+	return nil
 }
 func (p *Postgres) Statistics(ctx context.Context, id int64) (*domain.Statistics, error) {
 	var s domain.Statistics

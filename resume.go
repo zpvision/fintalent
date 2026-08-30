@@ -607,6 +607,9 @@ type resumeFinanceCity struct {
 }
 
 type resumeFinancePayload struct {
+	BirthDay             *int                  `json:"birth_day"`
+	BirthMonth           *int                  `json:"birth_month"`
+	BirthYear            *int                  `json:"birth_year"`
 	DesiredSalary        *float64              `json:"desired_salary"`
 	AvailableImmediately bool                  `json:"available_immediately"`
 	SearchStatusCode     string                `json:"search_status_code"`
@@ -674,15 +677,16 @@ func resumeFinanceHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		var salary sql.NullFloat64
+		var birthDay, birthMonth, birthYear sql.NullInt64
 		var status sql.NullString
 		var resumeID int64
 		err = db.QueryRow(`
 			SELECT r.id,r.desired_salary,r.available_immediately,r.search_status_code,
-				COALESCE(r.work_preferences,'')
+				COALESCE(r.work_preferences,''),r.birth_day,r.birth_month,r.birth_year
 			FROM resumes r
 			WHERE user_id = $1`,
 			userID,
-		).Scan(&resumeID, &salary, &payload.AvailableImmediately, &status, &payload.WorkPreferences)
+		).Scan(&resumeID, &salary, &payload.AvailableImmediately, &status, &payload.WorkPreferences, &birthDay, &birthMonth, &birthYear)
 		if err != nil && err != sql.ErrNoRows {
 			writeJSON(w, http.StatusInternalServerError, "Не удалось загрузить финансовые данные")
 			return
@@ -692,6 +696,18 @@ func resumeFinanceHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		if status.Valid && status.String != "" {
 			payload.SearchStatusCode = status.String
+		}
+		if birthDay.Valid {
+			value := int(birthDay.Int64)
+			payload.BirthDay = &value
+		}
+		if birthMonth.Valid {
+			value := int(birthMonth.Int64)
+			payload.BirthMonth = &value
+		}
+		if birthYear.Valid {
+			value := int(birthYear.Int64)
+			payload.BirthYear = &value
 		}
 		if resumeID > 0 {
 			selectedRows, selectedErr := db.Query(`
@@ -756,6 +772,10 @@ func resumeFinanceHandler(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, "Укажите желаемую зарплату")
 			return
 		}
+		if message := validateResumeBirthdate(payload.BirthDay, payload.BirthMonth, payload.BirthYear); message != "" {
+			writeJSON(w, http.StatusBadRequest, message)
+			return
+		}
 		if len(payload.WorkFormatIDs) == 0 || len(payload.WorkFormatIDs) > 3 || duplicateIDs(payload.WorkFormatIDs) {
 			writeJSON(w, http.StatusBadRequest, "Выберите формат работы")
 			return
@@ -802,18 +822,21 @@ func resumeFinanceHandler(w http.ResponseWriter, r *http.Request) {
 		txErr = tx.QueryRow(`
 			INSERT INTO resumes (
 				user_id, desired_salary, available_immediately,
-				search_status_code, preferred_city_id, work_preferences, updated_at
+				search_status_code, preferred_city_id, work_preferences, birth_day, birth_month, birth_year, updated_at
 			)
-			VALUES ($1, $2, $3, $4, $5, $6, NOW())
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
 			ON CONFLICT (user_id) DO UPDATE SET
 				desired_salary = EXCLUDED.desired_salary,
 				available_immediately = EXCLUDED.available_immediately,
 				search_status_code = EXCLUDED.search_status_code,
 				preferred_city_id = EXCLUDED.preferred_city_id,
 				work_preferences = EXCLUDED.work_preferences,
+				birth_day = EXCLUDED.birth_day,
+				birth_month = EXCLUDED.birth_month,
+				birth_year = EXCLUDED.birth_year,
 				updated_at = NOW()
 			RETURNING id`,
-			userID, *payload.DesiredSalary, payload.AvailableImmediately, payload.SearchStatusCode, payload.CityIDs[0], payload.WorkPreferences,
+			userID, *payload.DesiredSalary, payload.AvailableImmediately, payload.SearchStatusCode, payload.CityIDs[0], payload.WorkPreferences, payload.BirthDay, payload.BirthMonth, payload.BirthYear,
 		).Scan(&resumeID)
 		if txErr != nil {
 			writeJSON(w, http.StatusInternalServerError, "Не удалось сохранить финансовые данные")
@@ -863,6 +886,26 @@ func resumeFinanceHandler(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}
+}
+
+func validateResumeBirthdate(day, month, year *int) string {
+	if day == nil || month == nil {
+		return "Укажите день и месяц рождения"
+	}
+	if *month < 1 || *month > 12 || *day < 1 {
+		return "Проверьте день и месяц рождения"
+	}
+	maxDays := []int{31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
+	if *day > maxDays[*month-1] {
+		return "Такой даты рождения не существует"
+	}
+	if year != nil && (*year < 1940 || *year > time.Now().Year()) {
+		return "Проверьте год рождения"
+	}
+	if year != nil && *month == 2 && *day == 29 && (*year%400 != 0 && (*year%100 == 0 || *year%4 != 0)) {
+		return "В указанном году нет 29 февраля"
+	}
+	return ""
 }
 
 func resumePublishHandler(w http.ResponseWriter, r *http.Request) {

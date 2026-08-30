@@ -210,6 +210,9 @@ func (s *Service) Attempts(ctx context.Context, test, user int64, admin bool) ([
 	}
 	return s.repo.ListAttempts(ctx, test, user, admin)
 }
+func (s *Service) SetAttemptResumeVisibility(ctx context.Context, attempt, user int64, visible bool) error {
+	return s.repo.SetAttemptResumeVisibility(ctx, attempt, user, visible)
+}
 func (s *Service) Statistics(ctx context.Context, test int64) (*domain.Statistics, error) {
 	return s.repo.Statistics(ctx, test)
 }
