@@ -13,7 +13,7 @@ BEGIN
     VALUES (
       CASE WHEN n < 28 THEN companies[1+((n-4)%array_length(companies,1))] ELSE names[1+((n-28)%array_length(names,1))] END,
       n||'@'||n||'.ru', '__DEMO_PASSWORD_HASH__', TRUE,
-      CASE WHEN n >= 28 THEN '/static/profile-3-avatar.png' ELSE '' END
+      ''
     )
     ON CONFLICT(email) DO UPDATE SET password_hash=EXCLUDED.password_hash;
   END LOOP;
@@ -109,4 +109,11 @@ BEGIN
     SELECT entity_id,i.id,row_number() over() FROM dictionary_items i JOIN dictionaries d ON d.id=i.dictionary_id
     WHERE d.alias='work_format' AND i.active=TRUE ORDER BY i.id LIMIT 2 ON CONFLICT DO NOTHING;
   END LOOP;
+
+  UPDATE users u
+  SET avatar_url = ''
+  FROM resumes r
+  WHERE r.user_id = u.id
+    AND r.id NOT IN (1, 1428)
+    AND u.avatar_url = '/static/profile-3-avatar.png';
 END $demo$;
