@@ -123,6 +123,7 @@ func main() {
 	registerEmployeeTestingRoutes()
 	registerClientExchangeRoutes()
 	registerAccountingCompanyRoutes()
+	registerHelpRoutes()
 	testRepo := testrepository.New(db)
 	testService := testservice.New(testRepo)
 	testHandler := testhandler.New(testService, func(r *http.Request) (int64, error) {
@@ -220,6 +221,9 @@ func prepareDatabase() error {
 	if err := prepareAccountingCompanyDatabase(ctx); err != nil {
 		return err
 	}
+	if err := prepareHelpDatabase(ctx); err != nil {
+		return err
+	}
 	if strings.EqualFold(strings.TrimSpace(os.Getenv("SEED_DEMO_DATA")), "false") {
 		return nil
 	}
@@ -261,10 +265,10 @@ func servePage(filename string) http.HandlerFunc {
 			}
 			content = []byte(strings.Replace(string(content), "</head>", `<link rel="stylesheet" href="/static/layout-safety.css"><link rel="stylesheet" href="/static/site-header.css?v=2"><link rel="stylesheet" href="/static/site-background.css?v=1"><link rel="stylesheet" href="/static/accounting-company-responsive.css?v=1"><script src="/static/site-errors.js?v=1"></script></head>`, 1))
 			if filepath.Base(filename) == "profile.html" {
-				content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/profile-avatar.js?v=1"></script><script src="/static/profile-client-exchange.js?v=1"></script><script src="/static/profile-accounting-company.js?v=1"></script></body>`, 1))
+				content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/profile-avatar.js?v=1"></script><script src="/static/profile-client-exchange.js?v=1"></script><script src="/static/profile-accounting-company.js?v=1"></script><script src="/static/profile-help.js?v=1"></script></body>`, 1))
 			}
 			if filepath.Base(filename) == "admin.html" {
-				content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/admin-client-exchange.js?v=1"></script><script src="/static/admin-accounting-company.js?v=1"></script></body>`, 1))
+				content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/admin-client-exchange.js?v=1"></script><script src="/static/admin-accounting-company.js?v=1"></script><script src="/static/admin-help.js?v=1"></script></body>`, 1))
 			}
 			if filepath.Base(filename) == "accounting-company-view.html" {
 				content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/accounting-company-reviews.js?v=2"></script></body>`, 1))

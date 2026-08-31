@@ -90,6 +90,7 @@ type publicResumeView struct {
 	Languages            []publicResumeLanguage   `json:"languages"`
 	Cities               []resumeFinanceCity      `json:"cities"`
 	WorkFormats          []resumeFinanceOption    `json:"work_formats"`
+	Help                 publicResumeHelp         `json:"help"`
 }
 
 func publicResumeHandler(w http.ResponseWriter, r *http.Request) {
@@ -184,6 +185,9 @@ func loadPublicResume(r *http.Request, id int64) (*publicResumeView, error) {
 		return nil, err
 	}
 	if err = loadPublicResumePreferences(r, view); err != nil {
+		return nil, err
+	}
+	if err = loadPublicResumeHelp(r.Context(), view); err != nil {
 		return nil, err
 	}
 	return view, nil

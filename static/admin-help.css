@@ -1,0 +1,30 @@
+.help-admin-page{display:flex;flex-direction:column;gap:16px}
+.help-admin-toolbar{display:flex;justify-content:space-between;gap:14px;align-items:center;padding:18px;border:1px solid #dfe8f5;border-radius:14px;background:#fff;box-shadow:0 8px 24px rgba(32,71,135,.06)}
+.help-admin-toolbar h2{margin:0 0 6px;font-size:20px;color:#071541}
+.help-admin-toolbar p{margin:0;color:#6d7da1;font-size:12px;line-height:1.5}
+.help-admin-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+.help-topic-card{position:relative;display:flex;flex-direction:column;gap:12px;min-height:190px;padding:18px;border:1px solid #dfe8f5;border-radius:14px;background:#fff;box-shadow:0 8px 24px rgba(32,71,135,.06)}
+.help-topic-card.inactive{opacity:.58}
+.help-topic-card header{display:flex;gap:12px;align-items:flex-start}
+.help-topic-icon{width:42px;height:42px;display:grid;place-items:center;border-radius:12px;background:#eef4ff;color:#1559f6;font-size:22px;font-weight:800;overflow:hidden}
+.help-topic-icon img{width:100%;height:100%;object-fit:cover}
+.help-topic-card h3{margin:0;color:#071541;font-size:16px}
+.help-topic-card small{display:block;margin-top:4px;color:#6d7da1;font-size:11px}
+.help-topic-card p{margin:0;color:#536488;font-size:12px;line-height:1.55}
+.help-topic-card footer{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.help-topic-order{padding:5px 8px;border-radius:999px;background:#f2f6fd;color:#536488;font-size:11px;font-weight:700}
+.help-topic-actions{display:flex;gap:6px}
+.help-topic-actions button{height:31px;padding:0 10px;border:1px solid #dfe8f5;border-radius:8px;background:#fff;color:#1559f6;font:700 11px Inter;cursor:pointer}
+.help-topic-actions .delete{color:#d63b4d}
+.help-admin-empty{padding:34px;border:1px dashed #cbd8ea;border-radius:14px;background:#fff;text-align:center;color:#6d7da1}
+.help-topic-modal{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:18px;background:rgba(7,21,65,.42)}
+.help-topic-modal form{width:min(620px,100%);display:grid;gap:14px;padding:22px;border-radius:16px;background:#fff;box-shadow:0 24px 80px rgba(7,21,65,.24)}
+.help-topic-modal h2{margin:0;color:#071541;font-size:22px}
+.help-topic-modal label{display:grid;gap:7px;color:#536488;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.03em}
+.help-topic-modal input,.help-topic-modal textarea{width:100%;border:1px solid #dfe8f5;border-radius:10px;padding:11px 12px;color:#071541;font:500 13px Inter,Arial;background:#f8fbff}
+.help-topic-modal textarea{min-height:98px;resize:vertical}
+.help-topic-modal .row{display:grid;grid-template-columns:1fr 130px;gap:12px}
+.help-topic-modal .active-line{display:flex;align-items:center;gap:10px;text-transform:none;letter-spacing:0;font-size:13px;color:#071541}
+.help-topic-modal .active-line input{width:18px;height:18px}
+.help-topic-modal .actions{display:flex;justify-content:flex-end;gap:10px;margin-top:6px}
+@media(max-width:640px){.help-admin-toolbar,.help-topic-modal .row{grid-template-columns:1fr;display:grid}.help-admin-toolbar{align-items:stretch}.help-admin-grid{grid-template-columns:1fr}}

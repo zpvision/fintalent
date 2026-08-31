@@ -1,0 +1,38 @@
+.resume-help-public{margin:22px 0;border-color:#cfe6dd;background:linear-gradient(135deg,#ffffff 0%,#f2fbf8 100%)}
+.resume-help-public .resume-card-head{align-items:flex-start}
+.resume-help-public .resume-card-head>i{background:#e4f8f0;color:#0f9f73}
+.resume-help-top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center}
+.resume-help-public h2{margin:0}
+.resume-help-stats{display:flex;gap:10px;flex-wrap:wrap}
+.resume-help-stat{border:1px solid #d9eee7;border-radius:12px;background:#fff;padding:10px 13px;color:#071541;text-align:left;cursor:pointer;box-shadow:0 8px 20px rgba(32,71,135,.05)}
+.resume-help-stat small{display:block;color:#6d7da1;font-size:11px}
+.resume-help-stat b{display:block;margin-top:3px;font-size:17px}
+.resume-help-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:16px}
+.resume-help-card{display:flex;gap:10px;align-items:flex-start;min-height:88px;padding:13px;border:1px solid #dfe8f5;border-radius:12px;background:#fff}
+.resume-help-card i{width:36px;height:36px;display:grid;place-items:center;flex:0 0 36px;border-radius:10px;background:#eef4ff;color:#1559f6;font-style:normal;font-size:20px;overflow:hidden}
+.resume-help-card img{width:100%;height:100%;object-fit:cover}
+.resume-help-card b{display:block;color:#071541;font-size:13px}
+.resume-help-card small{display:block;margin-top:4px;color:#6d7da1;font-size:10px;line-height:1.35}
+.resume-help-cta{margin-top:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px;border-radius:14px;background:#071541;color:#fff}
+.resume-help-cta span{font-size:12px;line-height:1.45;color:#dce8ff}
+.resume-help-cta button,.resume-help-cta a{height:40px;padding:0 16px;border:0;border-radius:10px;background:#19aa82;color:#fff;font:800 12px Inter;text-decoration:none;cursor:pointer;white-space:nowrap}
+.resume-help-modal{position:fixed;inset:0;z-index:90;display:grid;place-items:center;padding:18px;background:rgba(7,21,65,.48)}
+.resume-help-dialog{width:min(680px,100%);max-height:min(760px,92vh);overflow:auto;padding:22px;border-radius:18px;background:#fff;box-shadow:0 24px 90px rgba(7,21,65,.28)}
+.resume-help-dialog header{display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:16px}
+.resume-help-dialog h2{margin:0;color:#071541;font-size:22px}
+.resume-help-dialog p{margin:6px 0 0;color:#6d7da1;font-size:12px;line-height:1.5}
+.resume-help-dialog .close{width:34px;height:34px;border:1px solid #dfe8f5;border-radius:9px;background:#fff;color:#536488;cursor:pointer}
+.resume-help-choice{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-bottom:14px}
+.resume-help-choice button{min-height:70px;padding:12px;border:1px solid #dfe8f5;border-radius:12px;background:#f8fbff;text-align:left;color:#071541;font:700 12px Inter;cursor:pointer}
+.resume-help-choice button.selected{border-color:#19aa82;background:#edf9f5}
+.resume-help-dialog textarea{width:100%;min-height:130px;border:1px solid #dfe8f5;border-radius:12px;padding:13px;color:#071541;font:500 13px Inter;resize:vertical;background:#f8fbff}
+.resume-help-dialog footer{display:flex;justify-content:flex-end;gap:10px;margin-top:14px}
+.resume-help-dialog footer button,.resume-help-dialog footer a{height:40px;display:inline-flex;align-items:center;padding:0 16px;border-radius:10px;border:1px solid #dfe8f5;background:#fff;color:#1559f6;font:800 12px Inter;text-decoration:none;cursor:pointer}
+.resume-help-dialog footer .primary{border:0;background:#1559f6;color:#fff}
+.resume-help-review-list{display:grid;gap:12px}
+.resume-help-review{display:grid;grid-template-columns:42px 1fr;gap:12px;padding:14px;border:1px solid #dfe8f5;border-radius:12px;background:#f8fbff}
+.resume-help-review img{width:42px;height:42px;border-radius:50%;object-fit:cover}
+.resume-help-review b{color:#071541;font-size:13px}
+.resume-help-review small{display:block;margin-top:3px;color:#6d7da1;font-size:11px}
+.resume-help-review p{grid-column:2;margin:2px 0 0;color:#33435f}
+@media(max-width:680px){.resume-help-top{grid-template-columns:1fr}.resume-help-cta{align-items:stretch;flex-direction:column}.resume-help-cta button,.resume-help-cta a{width:100%}.resume-help-review p{grid-column:1 / -1}}
