@@ -8,8 +8,12 @@
 git clone https://github.com/zpvision/fintalent.git
 cd fintalent
 cp .env.example .env
+npm ci
+npm run build
 go build -o fintalent .
 ```
+
+`npm run build` собирает legacy-бандл Editor.js и React/Vite frontend в `static/react/`. Без этого шага Go безопасно вернёт старые HTML-страницы для уже мигрированных маршрутов, но React-версия в production включена не будет. Для аварийного отката React-маршрутов без новой сборки установите `REACT_FRONTEND=false` и перезапустите приложение.
 
 Обязательные настройки `.env` для сервера:
 
@@ -24,7 +28,7 @@ SEED_DEMO_DATA=true
 SYNC_GEOGRAPHY=false
 ```
 
-Если PostgreSQL расположен локально и SSL для локального подключения отключён, используйте `sslmode=disable`. После презентации можно установить `SEED_DEMO_DATA=false`.
+Используйте только удалённую облачную PostgreSQL. Локальная БД и `localhost` не поддерживаются рабочим процессом проекта. Режим SSL укажите согласно требованиям облачного провайдера. После презентации можно установить `SEED_DEMO_DATA=false`.
 
 ## 2. Systemd
 

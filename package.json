@@ -5,7 +5,9 @@
   "private": true,
   "scripts": {
     "build:publication-editor": "esbuild frontend/publication-editor-editorjs.js --bundle --minify --format=iife --target=es2020 --outfile=static/vendor/publication-editor-editorjs.js",
-    "build": "npm run build:publication-editor"
+    "build:react": "vite build --config frontend/vite.config.js",
+    "dev:react": "vite --config frontend/vite.config.js",
+    "build": "npm run build:publication-editor && npm run build:react"
   },
   "repository": {
     "type": "git",
@@ -26,9 +28,14 @@
     "@editorjs/marker": "^1.4.0",
     "@editorjs/quote": "^2.7.6",
     "@editorjs/table": "^2.4.5",
-    "@editorjs/underline": "^1.2.1"
+    "@editorjs/underline": "^1.2.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-router-dom": "^7.0.0"
   },
   "devDependencies": {
-    "esbuild": "^0.28.1"
+    "@vitejs/plugin-react": "^5.0.0",
+    "esbuild": "^0.28.1",
+    "vite": "^7.0.0"
   }
 }

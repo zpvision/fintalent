@@ -69,9 +69,9 @@ func preparePublicationDemo(ctx context.Context) error {
 }
 
 func registerPublicationRoutes() {
-	http.HandleFunc("/publications", servePage("static/publications.html"))
+	http.HandleFunc("/publications", serveFrontendPage("static/publications.html"))
 	http.HandleFunc("/publications/create", servePage("static/publication-editor.html"))
-	http.HandleFunc("/publications/saved", servePage("static/publications.html"))
+	http.HandleFunc("/publications/saved", serveFrontendPage("static/publications.html"))
 	http.HandleFunc("/publications/analytics", servePage("static/publication-analytics.html"))
 	http.HandleFunc("/publications/", publicationPage)
 	http.HandleFunc("/api/publications", publicationsAPI)

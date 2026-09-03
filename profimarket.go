@@ -254,7 +254,7 @@ func prepareProfiMarketDemo(ctx context.Context) error {
 }
 
 func registerProfiMarketRoutes() {
-	http.HandleFunc("/profimarket", servePage("static/profimarket.html"))
+	http.HandleFunc("/profimarket", serveFrontendPage("static/profimarket.html"))
 	http.HandleFunc("/profimarket/create", servePage("static/profimarket-create.html"))
 	http.HandleFunc("/profimarket/regulation/edit", servePage("static/profimarket-regulation-edit.html"))
 	http.HandleFunc("/profimarket/my", servePage("static/profimarket-my.html"))

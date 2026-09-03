@@ -1,10 +1,10 @@
 # CODEX_CONTEXT — быстрая карта FinTalent
 
-Актуально на 2026-08-31. Это не changelog и не полный каталог API. Постоянные правила разработки находятся в корневом `AGENTS.md`.
+Актуально на 2026-09-02. Это не changelog и не полный каталог API. Постоянные правила разработки находятся в корневом `AGENTS.md`.
 
 ## Текущее устройство
 
-FinTalent — один Go-процесс и одна PostgreSQL БД. `main.go` открывает глобальный `*sql.DB`, готовит схему/demo data, регистрирует страницы и API в `http.DefaultServeMux`, затем раздаёт статический MPA frontend из `static/`. Сервер следует запускать из корня репозитория из-за относительных путей.
+FinTalent — один Go-процесс и одна PostgreSQL БД. `main.go` открывает глобальный `*sql.DB`, готовит схему/demo data, регистрирует страницы и API в `http.DefaultServeMux`, затем раздаёт гибридный frontend: уже перенесённые React-маршруты и legacy HTML из `static/`. Сервер следует запускать из корня репозитория из-за относительных путей.
 
 Архитектура переходная:
 
@@ -13,7 +13,9 @@ FinTalent — один Go-процесс и одна PostgreSQL БД. `main.go` 
 - клиентская биржа и бухгалтерские компании выделены в `internal/clientexchange` и `internal/accountingcompany`, но используют общие user/admin resolvers через корневые adapter-файлы;
 - новые модули не должны автоматически становиться поводом мигрировать старые.
 
-Frontend — отдельные HTML/CSS/vanilla JS-файлы, не SPA. Общая шапка внедряется `site-header.js`, общий перехват неожиданных fetch/browser ошибок — `site-errors.js`, выборы переиспользуют `searchable-select`, geography и duty picker. Публикационный редактор — единственный npm/esbuild bundle; исходник в `frontend/`, результат в `static/vendor/`.
+Frontend поэтапно переносится на React 19/Vite/React Router без редизайна. React-приложение находится в `frontend/src`, собирается в игнорируемый `static/react/`, а Go выдаёт его только для отмеченных маршрутов. Сейчас перенесены `/`, `/login`, `/register`, каталоги `/vacancies`, `/resumes`, `/marketplace`, `/accounting-companies`, `/profimarket`, публичные карточки `/vacancies/view`, `/resume/view/:id`, `/accounting-companies/view`, а также списки `/publications` и `/publications/saved`; остальные страницы остаются legacy. Если build отсутствует или задано `REACT_FRONTEND=false`, Go безопасно возвращает соответствующий legacy HTML. Полная карта и правила перехода находятся в `docs/REACT_MIGRATION.md`.
+
+Legacy frontend остаётся набором HTML/CSS/vanilla JS-файлов. Общая шапка в legacy внедряется `site-header.js`, общий перехват неожиданных fetch/browser ошибок — `site-errors.js`, выборы переиспользуют `searchable-select`, geography и duty picker. `npm run build` собирает и публикационный Editor.js bundle, и React; `npm run dev:react` запускает Vite с proxy на Go.
 
 ## Основные модули и связи
 
@@ -31,6 +33,8 @@ Frontend — отдельные HTML/CSS/vanilla JS-файлы, не SPA. Общ
 
 ## БД и запуск схемы
 
+Во всех локальных запусках, тестах и проверках проекта используется только удалённая облачная PostgreSQL из `DATABASE_URL` в локальном `.env`. Локальную PostgreSQL использовать нельзя; приложение завершает запуск, если `DATABASE_URL` не задан, и локального DB fallback нет. Полную строку подключения, логин и пароль запрещено переносить в документацию, исходный код, логи или Git; `.env` остаётся локальным секретом.
+
 Миграционного runner с журналом версий нет. `prepareDatabase()` вызывается на каждом старте и последовательно запускает inline idempotent DDL и явно подключённые embedded SQL-файлы. Поэтому наличие файла в `migrations/` не гарантирует исполнения. При добавлении схемы обязательны три связи: `//go:embed` → выполнение в `prepare<Module>Database()` → вызов из `prepareDatabase()`.
 
 Исторические `001_schema.sql`/`002_dictionaries.sql` и некоторые следующие файлы отражают схему, но ранние части также создаются inline в Go. Номера `011`, `012`, `040`, `041` повторяются. Не пытаться нормализовать историю в рамках feature-задачи. Demo seed включён по умолчанию и отключается `SEED_DEMO_DATA=false`; синхронизация географии отдельно зависит от `SYNC_GEOGRAPHY`.
@@ -43,10 +47,10 @@ Frontend — отдельные HTML/CSS/vanilla JS-файлы, не SPA. Общ
 - `docs/openapi.yaml` описывает преимущественно testing API, а не весь продукт.
 - Большинство удалений бизнес-сущностей мягкие: status/deleted_at. Перед физическим удалением справочника нужно проверять ссылки.
 - Error response обычно `{"error": ...}`, но в историческом коде есть несколько локальных JSON helpers; переиспользовать helper текущего слоя.
-- Общая шапка заменяет первый прямой `<header>` в body. Страница без ожидаемой структуры не получит общий header автоматически.
+- Общая шапка legacy заменяет первый прямой `<header>` в body. В React тот же DOM и поведение реализует `SiteHeader` внутри общего layout.
 - `site-errors.js` monkey-patch-ит `window.fetch`; локальные fetch wrappers работают поверх него. Не устанавливать ещё один глобальный patch.
 - Многие страницы имеют собственные большие CSS-файлы и дополнительные polish/fix/responsive layers. Сначала выяснить фактический порядок `<link>`, затем менять самый релевантный слой; не сливать их попутно.
-- Внешние Google Fonts используются страницами напрямую. Приложение в остальном не имеет frontend runtime framework.
+- Внешние Google Fonts используются страницами напрямую. React-страницы сначала подключают существующие page CSS без изменения дизайна; консолидация допускается только после визуального сравнения.
 
 ## Активные и незавершённые части
 

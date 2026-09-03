@@ -31,7 +31,7 @@ type publicDictionaryItem struct {
 
 func registerResumeRoutes() {
 	http.HandleFunc("/resume/create", servePage("static/resume-create.html"))
-	http.HandleFunc("/resume/view/", servePage("static/resume-view.html"))
+	http.HandleFunc("/resume/view/", serveFrontendPage("static/resume-view.html"))
 	http.HandleFunc("/api/public/resumes/", publicResumeHandler)
 	http.HandleFunc("/api/resumes/", resumeKnowledgeActionHandler)
 	http.HandleFunc("/api/public/dictionaries/", publicDictionaryHandler)

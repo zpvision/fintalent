@@ -9,8 +9,8 @@ FinTalent — русскоязычная платформа для бухгал�
 - Backend: Go 1.26, `net/http`, `http.DefaultServeMux`, `database/sql`.
 - БД: PostgreSQL через `pgx/v5/stdlib`, ручной SQL, без ORM/migration CLI.
 - Auth: DB-сессии, cookie `fintalent_session`, bcrypt; отдельная admin-сессия.
-- Frontend: статический MPA на HTML/CSS/vanilla JS, без шаблонизатора/SPA-фреймворка.
-- Frontend-сборка только для Editor.js: esbuild, `frontend/publication-editor-editorjs.js` → `static/vendor/publication-editor-editorjs.js`.
+- Frontend: поэтапная гибридная миграция с legacy HTML/CSS/vanilla JS на React 19 + Vite + React Router; внешний вид и публичные URL сохраняются.
+- Frontend-сборка: `npm run build` собирает Editor.js через esbuild и React в `static/react/`; `npm run dev:react` запускает Vite с proxy на Go.
 - Тесты: `go test`; часть integration-тестов требует `DATABASE_URL`.
 
 ## Структура
@@ -21,8 +21,8 @@ FinTalent — русскоязычная платформа для бухгал�
 - `internal/vacancymodule/` — domain/dto/matching/repository/service/handler вакансий.
 - `internal/clientexchange/`, `internal/accountingcompany/` — feature-пакеты; корневые `*_module.go` связывают их с user/admin resolvers.
 - `migrations/` — идемпотентные SQL-схемы/demo seed; файл сам не исполняется.
-- `static/` — страницы, CSS/JS, общие browser-компоненты, изображения, vendor bundle.
-- `frontend/` — исходник Editor.js; `data/` — ОКВЭД; `docs/` — OpenAPI тестов и Codex-контекст.
+- `static/` — legacy-страницы, CSS/JS, общие browser-компоненты, изображения и собранные frontend assets; `static/react/` генерируется Vite и не коммитится.
+- `frontend/` — React/Vite-приложение и исходник Editor.js; `data/` — ОКВЭД; `docs/` — OpenAPI тестов, Codex-контекст и карта React-миграции.
 
 ## Архитектура
 
@@ -41,15 +41,18 @@ Routes регистрируются на `http.DefaultServeMux`; internal-пак
 
 ## Frontend
 
-- Страница — связка `static/<feature>.html/.css/.js`. Сохраняй порядок зависимостей/cache-busting `?v=N`.
-- Переиспользуй `site-header`, `site-errors`, `fintalent-theme`, `layout-safety`, `searchable-select`, `geography`, `duty-picker`, `catalog`, profile sidebar/buttons/avatar и `*-components.js`.
+- Миграция идёт по маршрутам согласно `docs/REACT_MIGRATION.md`: не удаляй legacy HTML/CSS/JS, пока React-версия не перенесена и не проверена. Go `serveFrontendPage` автоматически возвращает legacy при отсутствии React build; `REACT_FRONTEND=false` принудительно включает legacy.
+- Для React сохраняй существующие DOM-структуру и CSS-классы, подключай page CSS через `usePageStyles`, запросы делай через `src/api/client.js` с `credentials: "include"`, общие layout — через React-компоненты. Не меняй URL, auth-модель и дизайн.
+- Для legacy страница остаётся связкой `static/<feature>.html/.css/.js`; сохраняй порядок зависимостей/cache-busting `?v=N` и переиспользуй `site-header`, `site-errors`, `fintalent-theme`, `layout-safety`, `searchable-select`, `geography`, `duty-picker`, `catalog`, profile sidebar/buttons/avatar и `*-components.js`.
 - `site-errors.js` глобально оборачивает `fetch`; не создавай второй global patch. Ожидаемые validation errors можно показывать локально.
-- Пользовательский текст вставляй через `textContent`/escape helper, не напрямую в `innerHTML`.
+- Пользовательский текст в legacy вставляй через `textContent`/escape helper, не напрямую в `innerHTML`; в React используй обычный JSX, не `dangerouslySetInnerHTML` без обязательной санитизации.
 - Не правь `static/vendor/publication-editor-editorjs.js`: меняй `frontend/...`, затем `npm run build`.
-- Не добавляй framework и не превращай MPA в SPA без указания.
+- После frontend-изменений запускай `npm run build`; крупные страницы визуально сравнивай со старой версией на 375, 768, 1024 и 1440 px.
 
 ## PostgreSQL и миграции
 
+- Для локальной разработки, запуска приложения, тестов и любых проверок используй только удалённую облачную PostgreSQL, заданную через `DATABASE_URL` в локальном `.env`. Не запускай и не используй локальный PostgreSQL; приложение намеренно не имеет локального DB fallback.
+- Строка подключения содержит секреты: не добавляй её в документацию, код, логи или Git. В документации указывай только имя переменной `DATABASE_URL`; `.env` должен оставаться локальным и игнорироваться Git.
 - `prepareDatabase()` применяет схему при каждом старте; таблицы версий нет. SQL обязан быть повторяемым: `IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`, безопасные `DO $$`, `ON CONFLICT`.
 - Новый файл: очередной номер + имя. Номера `011`, `012`, `040`, `041` уже повторяются — проверяй полное имя.
 - Миграция не запускается автоматически. Нужна цепочка: `//go:embed` → Exec в `prepare<Module>Database()` → вызов из `prepareDatabase()` по зависимостям.

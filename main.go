@@ -61,10 +61,7 @@ func main() {
 	loadLocalEnv(".env")
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
-		if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production") {
-			log.Fatal("DATABASE_URL обязателен в production")
-		}
-		databaseURL = "postgres://postgres:postgres@localhost:5432/fintalent?sslmode=disable"
+		log.Fatal("DATABASE_URL удалённой облачной PostgreSQL обязателен")
 	}
 	var err error
 	db, err = sql.Open("pgx", databaseURL)
@@ -87,23 +84,23 @@ func main() {
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 		fs.ServeHTTP(w, r)
 	})))
-	http.HandleFunc("/", servePage("static/index.html"))
-	http.HandleFunc("/register", servePage("static/register.html"))
-	http.HandleFunc("/login", servePage("static/login.html"))
+	http.HandleFunc("/", serveFrontendRoot("static/index.html"))
+	http.HandleFunc("/register", serveFrontendPage("static/register.html"))
+	http.HandleFunc("/login", serveFrontendPage("static/login.html"))
 	http.HandleFunc("/profile", servePage("static/profile.html"))
 	http.HandleFunc("/tests", servePage("static/tests.html"))
 	http.HandleFunc("/tests/create", servePage("static/test-create.html"))
 	http.HandleFunc("/tests/take", servePage("static/test-take.html"))
 	http.HandleFunc("/vacancies/create", servePage("static/vacancy-create.html"))
-	http.HandleFunc("/vacancies/view", servePage("static/vacancy-view.html"))
-	http.HandleFunc("/vacancies", servePage("static/vacancies.html"))
+	http.HandleFunc("/vacancies/view", serveFrontendPage("static/vacancy-view.html"))
+	http.HandleFunc("/vacancies", serveFrontendPage("static/vacancies.html"))
 	http.HandleFunc("/client-exchange", servePage("static/client-exchange.html"))
 	http.HandleFunc("/client-exchange/create", servePage("static/client-exchange-create.html"))
-	http.HandleFunc("/accounting-companies", servePage("static/accounting-companies.html"))
+	http.HandleFunc("/accounting-companies", serveFrontendPage("static/accounting-companies.html"))
 	http.HandleFunc("/accounting-companies/create", servePage("static/accounting-company-create.html"))
-	http.HandleFunc("/accounting-companies/view", servePage("static/accounting-company-view.html"))
+	http.HandleFunc("/accounting-companies/view", serveFrontendPage("static/accounting-company-view.html"))
 	http.HandleFunc("/accounting-companies/passport", servePage("static/accounting-company-passport.html"))
-	http.HandleFunc("/resumes", servePage("static/resumes.html"))
+	http.HandleFunc("/resumes", serveFrontendPage("static/resumes.html"))
 	http.HandleFunc("/docs/openapi.yaml", servePage("docs/openapi.yaml"))
 	http.HandleFunc("/api/register", registerUser)
 	http.HandleFunc("/api/login", loginUser)

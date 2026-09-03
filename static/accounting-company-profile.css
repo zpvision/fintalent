@@ -78,7 +78,7 @@ body{background:#fbfcff;color:#070d4a}
 .ac-profile-tariffs{grid-column:span 1}
 .ac-profile-tariff-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px}
 .ac-profile-tariff{position:relative;min-height:295px;padding:26px 26px 22px;border:1px solid #e0e5f1;border-radius:8px;background:#fff}
-.ac-profile-tariff.popular{border-color:#cdbbff;box-shadow:0 16px 38px rgba(104,47,255,.1)}
+.ac-profile-tariff.popular{display:block;border-color:#cdbbff;box-shadow:0 16px 38px rgba(104,47,255,.1)}
 .ac-profile-tariff em{position:absolute;top:-11px;left:50%;transform:translateX(-50%);padding:5px 15px;border-radius:14px;background:#d9ccff;color:#682fff;font-style:normal;font-size:11px;font-weight:900}
 .ac-profile-tariff h3{margin:0;color:#07105b;font-size:18px}
 .ac-profile-tariff p{margin:12px 0 18px;color:#4c5988;font-size:12px;font-weight:700}

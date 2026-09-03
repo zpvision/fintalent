@@ -1,0 +1,69 @@
+#root {
+  min-height: 100vh;
+}
+
+.pmh-layout svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.pmh-card {
+  min-width: 0;
+}
+
+.pmh-card h3,
+.pmh-card p {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 600px) {
+  .pmh-cards {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+.hero-visual {
+  width: 56%;
+  right: 0;
+  overflow: hidden;
+  border-radius: 18px 0 0 18px;
+}
+
+.hero-visual img {
+  transform: translateX(7%) scale(1.18);
+  transform-origin: 52% 52%;
+  object-position: center 32%;
+}
+
+.hero-speed-card {
+  left: 12px;
+  width: 124px;
+  padding: 11px 11px 8px;
+}
+
+.hero-speed-card span {
+  font-size: 7px;
+  line-height: 1.45;
+}
+
+.hero-promo-card {
+  right: 8px;
+  width: 176px;
+  padding: 12px;
+}
+
+.catalog-card-icon {
+  position: relative;
+  overflow: hidden;
+}
+
+.catalog-card-icon img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
