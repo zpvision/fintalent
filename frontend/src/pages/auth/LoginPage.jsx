@@ -1,9 +1,12 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { apiClient } from '../../api/client'
+import { useAuth } from '../../context/AuthContext'
 import AuthLayout, { AuthFeature, AuthSwitchLink } from '../../layouts/AuthLayout'
+import { navigateInApp } from '../../navigation'
 
 export default function LoginPage() {
+  const { refresh } = useAuth()
   const [searchParams] = useSearchParams()
   const [showPassword, setShowPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -17,8 +20,9 @@ export default function LoginPage() {
     setSubmitting(true)
     try {
       await apiClient.post('/api/login', new FormData(form), { redirectOnUnauthorized: false })
+      await refresh()
       const next = searchParams.get('next')
-      window.location.assign(next?.startsWith('/') && !next.startsWith('//') ? next : '/')
+      navigateInApp(next?.startsWith('/') && !next.startsWith('//') ? next : '/')
     } catch (requestError) {
       setError(requestError.message || 'Не удалось войти')
       setSubmitting(false)

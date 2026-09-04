@@ -263,7 +263,7 @@ func publicationPage(w http.ResponseWriter, r *http.Request) {
 	if strings.HasSuffix(tail, "/edit") {
 		idText := strings.TrimSuffix(tail, "/edit")
 		if _, err := strconv.ParseInt(idText, 10, 64); err == nil {
-			servePage("static/publication-editor.html")(w, r)
+			serveFrontendPage("static/publication-editor.html")(w, r)
 			return
 		}
 	}

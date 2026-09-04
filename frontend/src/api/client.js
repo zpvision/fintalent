@@ -1,3 +1,5 @@
+import { navigateInApp } from '../navigation'
+
 export class ApiError extends Error {
   constructor(message, status, payload) {
     super(message)
@@ -49,7 +51,7 @@ export async function apiRequest(path, options = {}) {
   if (!response.ok) {
     if (response.status === 401 && redirectOnUnauthorized && window.location.pathname !== '/login') {
       const next = `${window.location.pathname}${window.location.search}`
-      window.location.assign(`/login?next=${encodeURIComponent(next)}`)
+      navigateInApp(`/login?next=${encodeURIComponent(next)}`)
     }
     throw new ApiError(
       responseMessage(payload, `Ошибка запроса (${response.status})`),

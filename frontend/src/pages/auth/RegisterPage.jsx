@@ -1,8 +1,11 @@
 import { useState } from 'react'
 import { apiClient } from '../../api/client'
 import AuthLayout, { AuthFeature, AuthSwitchLink } from '../../layouts/AuthLayout'
+import { useAuth } from '../../context/AuthContext'
+import { navigateInApp } from '../../navigation'
 
 export default function RegisterPage() {
+  const { refresh } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -15,7 +18,8 @@ export default function RegisterPage() {
     setSubmitting(true)
     try {
       await apiClient.post('/api/register', new FormData(form), { redirectOnUnauthorized: false })
-      window.location.assign('/')
+      await refresh()
+      navigateInApp('/')
     } catch (requestError) {
       setError(requestError.message || 'Не удалось зарегистрироваться')
       setSubmitting(false)

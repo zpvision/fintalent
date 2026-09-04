@@ -47,7 +47,6 @@ function HomeSearch() {
 export default function HomePage() {
   usePageStyles([
     '/static/hero-typing.css?v=1',
-    '/static/hero-rotator.css?v=2',
     '/static/client-exchange-hero-slide.css?v=5',
     '/static/profimarket-hero.css?v=1',
     '/static/geography.css',

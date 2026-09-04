@@ -95,7 +95,7 @@ export default function ProfiMarketPage() {
   const [error, setError] = useState('')
   const popularRef = useRef(null)
 
-  usePageStyles(['/static/profimarket.css?v=1', '/static/profimarket-regulation.css?v=12', '/static/profimarket-home.css?v=1'])
+  usePageStyles(['/static/profimarket.css?v=1', '/static/profimarket-regulation.css?v=12', '/static/profimarket-home.css?v=2'])
   useDocumentPage({ title: 'ПрофиМаркет — FinTalent' })
 
   useEffect(() => {

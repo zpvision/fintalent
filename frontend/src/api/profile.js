@@ -1,0 +1,16 @@
+import { apiClient } from './client'
+
+export const getMyVacancies = options => apiClient.get('/api/v1/vacancies', options)
+export const unpublishMyVacancy = (id, options) => apiClient.post(`/api/v1/vacancies/${encodeURIComponent(id)}/unpublish`, null, options)
+export const deleteMyVacancy = (id, options) => apiClient.delete(`/api/v1/vacancies/${encodeURIComponent(id)}`, options)
+export const updateProfileName = (fullName, options) => apiClient.post('/api/profile/name', { full_name: fullName }, options)
+export const updateProfilePassword = (currentPassword, newPassword, options) => apiClient.post('/api/profile/password', { current_password: currentPassword, new_password: newPassword }, options)
+export const getHelpRequests = (scope = 'incoming', options) => apiClient.get(`/api/v1/help/requests?scope=${encodeURIComponent(scope)}`, options)
+export const runHelpRequestAction = (id, action, options) => apiClient.post(`/api/v1/help/requests/${encodeURIComponent(id)}/${action}`, null, options)
+export const getHelpNotifications = options => apiClient.get('/api/v1/help/notifications', options)
+export const getProfileClientItems = (kind, options) => apiClient.get(`/api/client-exchange/my/${encodeURIComponent(kind)}`, options)
+export const getProfileClientNotifications = options => apiClient.get('/api/client-exchange/notifications', options)
+export const markProfileClientNotificationsRead = options => apiClient.post('/api/client-exchange/notifications', null, options)
+export const runClientListingAction = (id, action, options) => apiClient.post(`/api/client-exchange/listings/${encodeURIComponent(id)}/${action}`, null, options)
+export const deleteClientListing = (id, options) => apiClient.delete(`/api/client-exchange/listings/${encodeURIComponent(id)}`, options)
+export const runClientResponseAction = (id, action, options) => apiClient.post(`/api/client-exchange/responses/${encodeURIComponent(id)}/${action}`, null, options)

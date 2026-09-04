@@ -1,13 +1,19 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"io"
 	"math"
 	"net/http"
 	"net/mail"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -37,6 +43,33 @@ type employeeInput struct {
 type employeeBulkInput struct {
 	Employees []employeeInput `json:"employees"`
 }
+type finKoperImportInput struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+type finKoperSignInResponse struct {
+	Data struct {
+		AccessToken string `json:"accesstoken"`
+	} `json:"data"`
+	ErrorMessage string `json:"errormessage"`
+}
+type finKoperCompaniesResponse struct {
+	Data []struct {
+		ID string `json:"id"`
+	} `json:"data"`
+	ErrorMessage string `json:"errormessage"`
+}
+type finKoperCompanyUsersResponse struct {
+	Data struct {
+		Users []struct {
+			Email     string `json:"email"`
+			FirstName string `json:"firstname"`
+			LastName  string `json:"lastname"`
+			DeleteAt  int64  `json:"deleteat"`
+		} `json:"users"`
+	} `json:"data"`
+	ErrorMessage string `json:"errormessage"`
+}
 type invitationInput struct {
 	TestID      int64   `json:"test_id"`
 	EmployeeIDs []int64 `json:"employee_ids"`
@@ -51,8 +84,10 @@ func registerEmployeeTestingRoutes() {
 	if _, err := db.Exec(employeeTestingMigration); err != nil {
 		panic(err)
 	}
-	http.HandleFunc("/employee-test", servePage("static/employee-test.html"))
+	http.HandleFunc("/employee-test", serveFrontendPage("static/employee-test.html"))
 	http.HandleFunc("/api/employee-testing/employees", employeeTestingEmployees)
+	http.HandleFunc("/api/employee-testing/employees/", employeeTestingEmployee)
+	http.HandleFunc("/api/employee-testing/import/finkoper", employeeTestingImportFinKoper)
 	http.HandleFunc("/api/employee-testing/tests", employeeTestingTests)
 	http.HandleFunc("/api/employee-testing/invitations", employeeTestingInvitations)
 	http.HandleFunc("/api/employee-testing/results", employeeTestingResults)
@@ -74,6 +109,151 @@ func decodeJSONBody(w http.ResponseWriter, r *http.Request, value any) bool {
 		return false
 	}
 	return true
+}
+
+const (
+	finKoperSignInURL    = "https://api.finkoper.com/api/v1/users/signin"
+	finKoperCompaniesURL = "https://api.finkoper.com/api/v1/companys"
+	finKoperUsersURL     = "https://api.finkoper.com/api/v2/users/company/"
+)
+
+var finKoperHTTPClient = &http.Client{Timeout: 20 * time.Second}
+
+type finKoperHTTPError struct {
+	status int
+}
+
+func (e finKoperHTTPError) Error() string { return "FinKoper вернул ошибку" }
+
+func requestFinKoper(ctx context.Context, method, endpoint, token string, body any, response any) error {
+	var reader io.Reader
+	if body != nil {
+		payload, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		reader = bytes.NewReader(payload)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, reader)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Accept", "application/json")
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	res, err := finKoperHTTPClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		_, _ = io.Copy(io.Discard, io.LimitReader(res.Body, 4096))
+		return finKoperHTTPError{status: res.StatusCode}
+	}
+	decoder := json.NewDecoder(io.LimitReader(res.Body, 5<<20))
+	if err = decoder.Decode(response); err != nil {
+		return errors.New("некорректный ответ FinKoper")
+	}
+	return nil
+}
+
+func employeeTestingImportFinKoper(w http.ResponseWriter, r *http.Request) {
+	u, err := userFromRequest(r)
+	if err != nil {
+		jsonError(w, http.StatusUnauthorized, "Требуется авторизация")
+		return
+	}
+	if r.Method != http.MethodPost {
+		jsonError(w, http.StatusMethodNotAllowed, "Метод не поддерживается")
+		return
+	}
+	var in finKoperImportInput
+	if !decodeJSONBody(w, r, &in) {
+		return
+	}
+	in.Email = strings.ToLower(strings.TrimSpace(in.Email))
+	if _, parseErr := mail.ParseAddress(in.Email); parseErr != nil || in.Password == "" || len(in.Password) > 1024 {
+		jsonError(w, http.StatusBadRequest, "Введите корректные логин и пароль FinKoper")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
+	defer cancel()
+	var signIn finKoperSignInResponse
+	err = requestFinKoper(ctx, http.MethodPost, finKoperSignInURL, "", map[string]string{"email": in.Email, "password": in.Password}, &signIn)
+	in.Password = ""
+	if err != nil || signIn.Data.AccessToken == "" {
+		var upstreamErr finKoperHTTPError
+		if errors.As(err, &upstreamErr) && (upstreamErr.status == http.StatusUnauthorized || upstreamErr.status == http.StatusForbidden) {
+			jsonError(w, http.StatusUnauthorized, "FinKoper не принял логин или пароль")
+		} else {
+			jsonError(w, http.StatusBadGateway, "Не удалось авторизоваться в FinKoper")
+		}
+		return
+	}
+	accessToken := signIn.Data.AccessToken
+	defer func() { accessToken = "" }()
+
+	var companies finKoperCompaniesResponse
+	if err = requestFinKoper(ctx, http.MethodGet, finKoperCompaniesURL, accessToken, nil, &companies); err != nil {
+		jsonError(w, http.StatusBadGateway, "Не удалось получить компании из FinKoper")
+		return
+	}
+	if len(companies.Data) == 0 {
+		jsonError(w, http.StatusNotFound, "В FinKoper не найдено доступных компаний")
+		return
+	}
+
+	employeesByEmail := make(map[string]employeeInput)
+	for _, company := range companies.Data {
+		companyID := strings.TrimSpace(company.ID)
+		if companyID == "" {
+			continue
+		}
+		var companyUsers finKoperCompanyUsersResponse
+		endpoint := finKoperUsersURL + url.PathEscape(companyID)
+		if err = requestFinKoper(ctx, http.MethodGet, endpoint, accessToken, nil, &companyUsers); err != nil {
+			jsonError(w, http.StatusBadGateway, "Не удалось получить сотрудников компании из FinKoper")
+			return
+		}
+		for _, externalUser := range companyUsers.Data.Users {
+			email := strings.ToLower(strings.TrimSpace(externalUser.Email))
+			name := strings.TrimSpace(strings.TrimSpace(externalUser.FirstName) + " " + strings.TrimSpace(externalUser.LastName))
+			if externalUser.DeleteAt != 0 || name == "" {
+				continue
+			}
+			if _, parseErr := mail.ParseAddress(email); parseErr != nil {
+				continue
+			}
+			employeesByEmail[email] = employeeInput{FullName: name, Email: email}
+		}
+	}
+	if len(employeesByEmail) == 0 {
+		jsonError(w, http.StatusNotFound, "В компаниях FinKoper не найдено сотрудников с e-mail")
+		return
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, "Не удалось сохранить сотрудников")
+		return
+	}
+	defer tx.Rollback()
+	for _, employee := range employeesByEmail {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO company_test_employees(owner_user_id,full_name,email) VALUES($1,$2,$3) ON CONFLICT(owner_user_id,email) DO UPDATE SET full_name=EXCLUDED.full_name`, u.ID, employee.FullName, employee.Email); err != nil {
+			jsonError(w, http.StatusInternalServerError, "Не удалось сохранить сотрудников")
+			return
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		jsonError(w, http.StatusInternalServerError, "Не удалось сохранить сотрудников")
+		return
+	}
+	jsonResponse(w, http.StatusOK, map[string]any{"imported": len(employeesByEmail), "companies": len(companies.Data)})
 }
 
 func employeeTestingEmployees(w http.ResponseWriter, r *http.Request) {
@@ -143,6 +323,64 @@ func employeeTestingEmployees(w http.ResponseWriter, r *http.Request) {
 	default:
 		jsonError(w, 405, "Метод не поддерживается")
 	}
+}
+
+func employeeTestingEmployee(w http.ResponseWriter, r *http.Request) {
+	u, err := userFromRequest(r)
+	if err != nil {
+		jsonError(w, http.StatusUnauthorized, "Требуется авторизация")
+		return
+	}
+	if r.Method != http.MethodDelete {
+		jsonError(w, http.StatusMethodNotAllowed, "Метод не поддерживается")
+		return
+	}
+	idText := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/employee-testing/employees/"), "/")
+	employeeID, err := strconv.ParseInt(idText, 10, 64)
+	if err != nil || employeeID < 1 {
+		jsonError(w, http.StatusNotFound, "Сотрудник не найден")
+		return
+	}
+	tx, err := db.BeginTx(r.Context(), nil)
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, "Не удалось удалить сотрудника")
+		return
+	}
+	defer tx.Rollback()
+	rows, err := tx.QueryContext(r.Context(), `SELECT attempt_id FROM company_test_invitations WHERE employee_id=$1 AND owner_user_id=$2 AND attempt_id IS NOT NULL FOR UPDATE`, employeeID, u.ID)
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, "Не удалось удалить результаты сотрудника")
+		return
+	}
+	attemptIDs := make([]int64, 0)
+	for rows.Next() {
+		var attemptID int64
+		if rows.Scan(&attemptID) == nil {
+			attemptIDs = append(attemptIDs, attemptID)
+		}
+	}
+	rows.Close()
+	result, err := tx.ExecContext(r.Context(), `DELETE FROM company_test_employees WHERE id=$1 AND owner_user_id=$2`, employeeID, u.ID)
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, "Не удалось удалить сотрудника")
+		return
+	}
+	deleted, _ := result.RowsAffected()
+	if deleted == 0 {
+		jsonError(w, http.StatusNotFound, "Сотрудник не найден")
+		return
+	}
+	for _, attemptID := range attemptIDs {
+		if _, err = tx.ExecContext(r.Context(), `DELETE FROM test_attempts WHERE id=$1`, attemptID); err != nil {
+			jsonError(w, http.StatusInternalServerError, "Не удалось удалить результаты сотрудника")
+			return
+		}
+	}
+	if err = tx.Commit(); err != nil {
+		jsonError(w, http.StatusInternalServerError, "Не удалось удалить сотрудника")
+		return
+	}
+	jsonResponse(w, http.StatusOK, map[string]any{"deleted": true, "deleted_results": len(attemptIDs)})
 }
 
 func employeeTestingTests(w http.ResponseWriter, r *http.Request) {

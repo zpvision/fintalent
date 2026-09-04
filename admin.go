@@ -181,8 +181,8 @@ func prepareAdminDatabase(ctx context.Context) error {
 }
 
 func registerAdminRoutes() {
-	http.HandleFunc("/admin", servePage("static/admin.html"))
-	http.HandleFunc("/admin/", servePage("static/admin.html"))
+	http.HandleFunc("/admin", serveFrontendPage("static/admin.html"))
+	http.HandleFunc("/admin/", serveFrontendPage("static/admin.html"))
 	http.HandleFunc("/api/admin/login", adminLogin)
 	http.HandleFunc("/api/admin/logout", adminLogout)
 	http.HandleFunc("/api/admin/session", adminSession)

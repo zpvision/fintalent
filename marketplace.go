@@ -352,7 +352,7 @@ func seedQuestion(ctx context.Context, tx *sql.Tx, versionID int64, position str
 
 func registerMarketplaceRoutes() {
 	http.HandleFunc("/marketplace", serveFrontendPage("static/marketplace.html"))
-	http.HandleFunc("/marketplace/create-test", servePage("static/marketplace-create-test.html"))
+	http.HandleFunc("/marketplace/create-test", serveFrontendPage("static/marketplace-create-test.html"))
 	http.HandleFunc("/api/marketplace/tests", marketplaceTests)
 	http.HandleFunc("/api/marketplace/test-reviews", marketplaceTestReviews)
 }

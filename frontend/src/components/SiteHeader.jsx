@@ -8,7 +8,7 @@ const navigation = [
   { href: '/marketplace', label: 'Тесты', paths: ['/marketplace', '/tests'] },
   { href: '/profimarket', label: 'ПрофиМаркет', paths: ['/profimarket'] },
   { href: '/publications', label: 'Публикации', paths: ['/publications'] },
-  { href: '/client-exchange', label: 'Клиентская биржа', paths: ['/client-exchange'], legacy: true },
+  { href: '/client-exchange', label: 'Клиентская биржа', paths: ['/client-exchange'] },
   { href: '/accounting-companies', label: 'Сообщества', paths: ['/accounting-companies'] },
 ]
 
@@ -18,7 +18,7 @@ function pathIsActive(pathname, paths) {
 
 export default function SiteHeader() {
   const { pathname } = useLocation()
-  const { user } = useAuth()
+  const { user, loading } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
   const name = user?.full_name || user?.email || 'Профиль'
   const initial = name.trim().charAt(0).toUpperCase()
@@ -51,10 +51,12 @@ export default function SiteHeader() {
       </nav>
       <div className="ft-account">
         {user ? (
-          <a className="ft-profile" href="/profile">
+          <Link className="ft-profile" to="/profile">
             <i>{initial}</i>
             <span><small>Личный кабинет</small><b>{name}</b></span>
-          </a>
+          </Link>
+        ) : loading ? (
+          <span className="ft-auth-loading" aria-label="Проверяем авторизацию" />
         ) : (
           <>
             <Link className="ft-login" to="/login">Войти</Link>

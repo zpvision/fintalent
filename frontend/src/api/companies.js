@@ -38,3 +38,27 @@ export function createAccountingCompanyReview(id, payload, options) {
     ...options,
   })
 }
+
+export function getMyAccountingCompany(options) {
+  return apiClient.get('/api/accounting-companies/my', options)
+}
+
+export function createAccountingCompany(payload, options) {
+  return apiClient.post('/api/accounting-companies', payload, options)
+}
+
+export function updateAccountingCompany(id, payload, options) {
+  return apiClient.put(`/api/accounting-companies/${encodeURIComponent(id)}`, payload, options)
+}
+
+export function publishAccountingCompany(id, options) {
+  return apiClient.post(`/api/accounting-companies/${encodeURIComponent(id)}/publish`, null, options)
+}
+
+export function uploadAccountingCompanyImage(id, kind, file, options) {
+  const body = new FormData()
+  body.append('company_id', id)
+  body.append('kind', kind)
+  body.append('file', file)
+  return apiClient.post('/api/accounting-companies/upload', body, options)
+}

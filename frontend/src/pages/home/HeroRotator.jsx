@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import useTypingWords from '../../hooks/useTypingWords'
+import '../../../../static/hero-rotator.css'
 
 const roleWords = ['бухгалтеров', 'финансистов', 'руководителей', 'директоров']
 const testingWords = ['сотрудников', 'по собственным тестам', 'с понятным результатом']

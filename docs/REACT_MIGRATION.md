@@ -27,17 +27,17 @@ Frontend переносится с HTML/CSS/vanilla JS на React поэтапн
 | Главная | `/` | `index.html`, `auth.js`, `hero-*`, `home-showcase.js` | `pages/home`, `HomePage` | React |
 | Авторизация | `/login`, `/register` | `login.*`, `register.*` | `pages/auth`, `AuthLayout` | React |
 | Каталоги | `/vacancies`, `/resumes` | `vacancies.html`, `resumes.html`, `catalog.js` | `pages/catalog`, `CatalogPage` | React |
-| Вакансии | `/vacancies/create`, `/vacancies/view` | `vacancy-create.*`, `vacancy-view.*` | `pages/vacancies`, `features/vacancies` | публичная карточка React; создание legacy |
-| Резюме | `/resume/create`, `/resume/view/:id` | `resume-create.*`, `resume-view.*` | `pages/resumes`, `features/resumes` | публичная карточка React; создание legacy |
-| Профиль | `/profile` | `profile.*` и profile feature scripts | `pages/profile`, `UserLayout` | legacy |
-| Тесты | `/tests`, `/tests/create`, `/tests/take` | `tests.*`, `test-create.*`, `test-take.*` | `features/tests` | legacy |
-| Тестирование сотрудников | `/employee-test` | `employee-test.*` | `features/employeeTesting` | legacy |
-| Маркетплейс тестов | `/marketplace`, `/marketplace/create-test` | `marketplace.*`, `marketplace-create-test.*` | `pages/marketplace`, `features/marketplace` | каталог React; создание legacy |
-| Клиентская биржа | `/client-exchange`, `/client-exchange/create` | `client-exchange.*` | `features/clientExchange` | legacy |
-| Компании | `/accounting-companies`, `/accounting-companies/create`, `/accounting-companies/view`, `/accounting-companies/passport` | `accounting-company-*` | `pages/companies`, `features/companies` | каталог и публичная карточка React; создание/паспорт legacy |
-| Публикации | `/publications*` | `publications.*`, editor/view/analytics | `pages/publications`, `features/publications` | список/сохранённые React; статья/editor/analytics legacy и SEO-sensitive |
-| ПрофиМаркет | `/profimarket*` | `profimarket-*` | `pages/profimarket`, `features/profimarket` | каталог React; карточка/кабинет/редакторы legacy |
-| Админка | `/admin*` | `admin.*` и admin feature scripts | `pages/admin`, `AdminLayout` | legacy |
+| Вакансии | `/vacancies/create`, `/vacancies/view` | `vacancy-create.*`, `vacancy-view.*` | `pages/vacancies`, `features/vacancies` | React |
+| Резюме | `/resume/create`, `/resume/view/:id` | `resume-create.*`, `resume-view.*` | `pages/resumes`, `features/resumes` | оба маршрута отдаются через React; мастер создания временно использует legacy compatibility-controller внутри React host |
+| Профиль | `/profile` | `profile.*` и profile feature scripts сохранены для fallback | `pages/profile`, `UserLayout`, `api/profile.js` | React: постоянное меню, обзор, вакансии, настройки, ПрофиМаркет, компания, клиентская биржа и помощь коллегам; legacy-контроллеры больше не подключаются React-маршрутом |
+| Тесты | `/tests`, `/tests/create`, `/tests/take` | `tests.*`, `test-create.*`, `test-take.*` | `pages/tests`, `features/tests` | React |
+| Тестирование сотрудников | `/employee-test` | `employee-test.*` | `pages/tests`, `features/employeeTesting` | React |
+| Маркетплейс тестов | `/marketplace`, `/marketplace/create-test` | `marketplace.*`, `marketplace-create-test.*` | `pages/marketplace`, `features/marketplace` | React |
+| Клиентская биржа | `/client-exchange`, `/client-exchange/create` | `client-exchange.*` | `pages/clientExchange`, `features/clientExchange` | React |
+| Компании | `/accounting-companies`, `/accounting-companies/create`, `/accounting-companies/view`, `/accounting-companies/passport` | `accounting-company-*` | `pages/companies`, `features/companies` | React |
+| Публикации | `/publications*` | `publications.*`, editor/view/analytics | `pages/publications`, `features/publications` | список/сохранённые/аналитика и editor React-host; публичная статья legacy и SEO-sensitive; editor controller временно compatibility |
+| ПрофиМаркет | `/profimarket*` | `profimarket-*` | `pages/profimarket`, `features/profimarket` | все маршруты отдаются через React; редактор регламентов временно использует legacy compatibility-controller внутри React host |
+| Админка | `/admin*` | `admin.*` и admin feature scripts | `pages/admin`, `AdminLayout` | маршрут и оболочка React; feature scripts временно работают как compatibility-controller |
 
 ## Целевая структура
 
