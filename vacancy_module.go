@@ -10,7 +10,7 @@ import (
 	vacancyservice "FinTalent/internal/vacancymodule/service"
 )
 
-//go:embed migrations/005_vacancy_module.sql migrations/006_vacancy_per_answer_importance.sql migrations/007_dictionary_vacancy_importance.sql migrations/008_dictionary_single_choice_and_compact_blocks.sql migrations/009_dictionary_vacancy_title.sql migrations/010_duties.sql migrations/011_vacancy_finance.sql migrations/012_resume_experience.sql migrations/019_resume_education.sql migrations/020_kpi_dictionary_icons.sql migrations/021_resume_work_preferences.sql migrations/038_vacancy_contractor_types.sql migrations/043_resume_birthdate_zodiac.sql migrations/044_test_result_resume_visibility.sql
+//go:embed migrations/005_vacancy_module.sql migrations/006_vacancy_per_answer_importance.sql migrations/007_dictionary_vacancy_importance.sql migrations/008_dictionary_single_choice_and_compact_blocks.sql migrations/009_dictionary_vacancy_title.sql migrations/010_duties.sql migrations/011_vacancy_finance.sql migrations/012_resume_experience.sql migrations/019_resume_education.sql migrations/020_kpi_dictionary_icons.sql migrations/021_resume_work_preferences.sql migrations/038_vacancy_contractor_types.sql migrations/043_resume_birthdate_zodiac.sql migrations/044_test_result_resume_visibility.sql migrations/046_dictionary_icon_defaults.sql
 var vacancyMigrationFS embed.FS
 
 func prepareVacancyModuleDatabase(ctx context.Context) error {
@@ -119,6 +119,14 @@ func prepareVacancyModuleDatabase(ctx context.Context) error {
 		return err
 	}
 	schema, err = vacancyMigrationFS.ReadFile("migrations/044_test_result_resume_visibility.sql")
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, string(schema))
+	if err != nil {
+		return err
+	}
+	schema, err = vacancyMigrationFS.ReadFile("migrations/046_dictionary_icon_defaults.sql")
 	if err != nil {
 		return err
 	}

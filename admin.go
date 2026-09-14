@@ -114,10 +114,6 @@ func prepareAdminDatabase(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	_, err = db.ExecContext(ctx, `UPDATE dictionaries SET icon='/api/assets/dictionary-icon/' || id || '.svg' WHERE BTRIM(COALESCE(icon,''))=''`)
-	if err != nil {
-		return err
-	}
 	for _, seed := range append(initialDictionaries, publicationDictionaries...) {
 		var id int64
 		err = db.QueryRowContext(ctx, `SELECT id FROM dictionaries WHERE alias=$1`, seed.alias).Scan(&id)
@@ -139,37 +135,6 @@ func prepareAdminDatabase(ctx context.Context) error {
 				}
 			}
 		}
-	}
-	_, err = db.ExecContext(ctx, `UPDATE dictionary_items AS i
-		SET icon = CASE d.alias
-			WHEN 'position' THEN '/static/icons/positions/position-' || LPAD(i.sort_order::text, 2, '0') || '.svg'
-			WHEN 'accounting_areas' THEN '/api/assets/accounting-area-icon/' || i.sort_order || '.png'
-		END
-		FROM dictionaries AS d
-		WHERE d.id = i.dictionary_id
-			AND (i.icon = '' OR (d.alias = 'position' AND i.icon LIKE '/api/assets/position-icon/%'))
-			AND d.alias IN ('position', 'accounting_areas')`)
-	if err != nil {
-		return err
-	}
-	_, err = db.ExecContext(ctx, `UPDATE dictionary_items AS i
-		SET icon = '/static/icons/dictionaries/' || d.alias || '-' || i.id || '.svg'
-		FROM dictionaries AS d
-		WHERE d.id = i.dictionary_id
-			AND BTRIM(COALESCE(i.icon, '')) = ''
-			AND i.id IN (
-				14,15,16,17,18,19,
-				20,21,22,23,24,25,26,27,28,29,30,31,32,
-				33,34,35,36,37,
-				56,57,58,59,60,61,
-				62,63,64,65,66,
-				67,68,69,70,71,
-				72,73,74,75,76,
-				77,78,79,80,
-				81,82,83
-			)`)
-	if err != nil {
-		return err
 	}
 	if err = prepareApplicantSurveyDatabase(ctx); err != nil {
 		return err

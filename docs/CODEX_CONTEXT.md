@@ -21,6 +21,7 @@ Legacy frontend остаётся набором HTML/CSS/vanilla JS-файлов
 
 - Users/sessions — основа ownership во всех кабинетах. Admin использует отдельную сессию и `ADMIN_LOGIN`/`ADMIN_PASSWORD`.
 - Dictionaries/surveys — метаданные анкет вакансий и резюме. Универсальные `dictionaries`/`dictionary_items`, block settings, importance и icons используются обоими конструкторами; duties, ОКВЭД, geography и test categories — специализированные справочники.
+- Стандартные иконки ответов задаёт `046_dictionary_icon_defaults.sql` через `prepareVacancyModuleDatabase()`: сопоставление по alias справочника и значению ответа, без зависимости от ID или сортировки. Файлы находятся в `static/icons/`; загруженные иконки в `static/uploads/` нужно сохранять при деплое.
 - Resume — профиль пользователя с требованиями/знаниями, опытом, образованием, языками, финансовыми и рабочими предпочтениями. В опубликованный resume агрегируются результаты тестов с настраиваемой видимостью.
 - Vacancy — сохраняет требования из тех же категорий справочников, обязанности и выбранные тесты. `internal/vacancymodule/matching` сравнивает требования вакансии с категориями resume; публичная выдача находится отдельно в `vacancy_public.go`.
 - Tests — версии тестов, вопросы/ответы, попытки, scoring, публикация и admin moderation. Его используют marketplace, вакансии, resume knowledge и employee testing; не создавать локальные копии модели теста.

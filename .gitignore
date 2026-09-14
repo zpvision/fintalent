@@ -1,6 +1,8 @@
 .idea/
 .env
 .local-backups/
+.codex-run/
+test-results/
 *.exe
 *.log
 tmp/
