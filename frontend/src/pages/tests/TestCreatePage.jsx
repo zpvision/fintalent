@@ -5,13 +5,13 @@ import { useDocumentPage } from '../../hooks/useDocumentPage'
 import usePageStyles from '../../hooks/usePageStyles'
 import UserLayout from '../../layouts/UserLayout'
 
-const styles = ['/static/profile.css', '/static/test-editor.css', '/static/test-create-profile.css', '/static/profile-logo.css', '/static/profile-sidebar-v2.css', '/static/profile-buttons.css', '/static/test-correct.css', '/static/test-drag.css', '/static/fintalent-theme.css', '/static/test-create-fix.css', '/static/test-create-blue.css', '/static/test-create-readable.css', '/static/test-info-center.css', '/static/test-answers-section.css', '/static/test-question-clarity.css', '/static/test-question-tools.css', '/static/test-preview.css?v=2', '/static/test-editor-ux.css', '/static/test-sidebar-sticky.css']
+const styles = ['/static/profile.css', '/static/test-editor.css', '/static/test-create-profile.css', '/static/profile-logo.css', '/static/profile-sidebar-v2.css', '/static/profile-buttons.css', '/static/test-correct.css', '/static/test-drag.css', '/static/fintalent-theme.css', '/static/test-create-fix.css', '/static/test-create-blue.css', '/static/test-create-readable.css', '/static/test-info-center.css', '/static/test-answers-section.css', '/static/test-question-clarity.css', '/static/test-question-tools.css?v=2', '/static/test-preview.css?v=2', '/static/test-editor-ux.css', '/static/test-sidebar-sticky.css']
 const stepNames = ['Информация', 'Вопросы', 'Предпросмотр', 'Публикация']
-const blankTest = () => ({ title: '', description: '', category: '', difficulty: 'medium', visibility: 'public', is_free: true, price: 0, version: 1, status: 'draft' })
+const blankTest = () => ({ title: '', description: '', category: '', difficulty: 'medium', visibility: 'public', is_free: true, shuffle_answers: false, price: 0, version: 1, status: 'draft' })
 const makeAnswer = (answer = '', is_correct = false) => ({ answer, is_correct, key: crypto.randomUUID() })
 const blankQuestion = () => ({ id: 0, key: crypto.randomUUID(), question: '', question_type: 'single_choice', explanation: '', points: 1, settings: { shuffle_answers: false }, answers: [makeAnswer('', true), makeAnswer()] })
 const prepareQuestion = q => ({ ...q, key: crypto.randomUUID(), answers: (q.answers || []).map(a => ({ ...a, key: crypto.randomUUID() })) })
-const infoPayload = t => ({ title: t.title.trim(), description: (t.description || '').trim(), category: t.category, difficulty: t.difficulty, visibility: t.visibility || 'public', is_free: t.is_free, price: t.is_free ? 0 : Number(t.price || 0), passing_percent: 60 })
+const infoPayload = t => ({ title: t.title.trim(), description: (t.description || '').trim(), category: t.category, difficulty: t.difficulty, visibility: t.visibility || 'public', is_free: t.is_free, shuffle_answers: !!t.shuffle_answers, price: t.is_free ? 0 : Number(t.price || 0), passing_percent: 60 })
 
 function moveItem(items, from, to) {
   if (from === to || from < 0 || to < 0 || from >= items.length || to >= items.length) return items
@@ -94,7 +94,7 @@ function Question({ value, index, set, remove, invalid = {} }) {
     <div className="question-head"><b className="number" title="Перетащите, чтобы изменить порядок вопросов">{index + 1}</b><span className="question-type-label">Тип вопроса</span><select className="type" aria-label={`Тип вопроса ${index + 1}`} value={value.question_type} onChange={e => changeType(e.target.value)}><option value="single_choice">Один вариант</option><option value="multiple_choice">Несколько вариантов</option><option value="boolean">Да / Нет</option><option value="text">Текст</option></select><button type="button" className="remove" title="Удалить" aria-label={`Удалить вопрос ${index + 1}`} onClick={remove}>×</button></div>
     <label className="question-field"><span className="question-field-title"><i>?</i> Вопрос</span><textarea className={`question-text${invalid.question ? ' invalid-field' : ''}`} rows="3" placeholder="Введите текст вопроса" value={value.question} onChange={e => change('question', e.target.value)} /></label>
     <div className={`answers-section${invalid.answers ? ' invalid-section' : ''}`}>
-      <div className="answer-caption">Варианты ответов<label className="shuffle-setting"><i>⇄</i><span><b>Перемешивать варианты</b><small>Это поможет защититься от запоминания</small></span><input className="shuffle-answers" type="checkbox" checked={!!value.settings?.shuffle_answers} onChange={e => change('settings', { ...value.settings, shuffle_answers: e.target.checked })} /><em /></label></div>
+      <div className="answer-caption">Варианты ответов</div>
       <div className="answers" {...answerOrder}>{!text && value.answers.map((a, i) => <div className="answer-row" key={a.key} draggable={false}>
         <b className="drag-handle" title="Перетащите, чтобы изменить порядок">☰ {i + 1}.</b>
         <input className={`answer-text${invalid.empty?.includes(a.key) ? ' invalid-field' : ''}`} placeholder="Вариант ответа" aria-label={`Вариант ответа ${i + 1}`} value={a.answer} readOnly={boolean} onChange={e => change('answers', value.answers.map((item, n) => n === i ? { ...item, answer: e.target.value } : item))} />
@@ -176,7 +176,7 @@ export default function TestCreatePage() {
       throw Error('Заполните поля, выделенные красным')
     }
     for (const [index, q] of questions.entries()) {
-      const body = { id: q.id || 0, question: q.question.trim(), question_type: q.question_type, explanation: (q.explanation || '').trim(), points: Number(q.points), settings: q.settings || { shuffle_answers: false }, sort_order: index + 1, answers: q.answers.map((a, i) => ({ answer: a.answer.trim(), is_correct: !!a.is_correct, sort_order: i + 1 })) }
+      const body = { id: q.id || 0, question: q.question.trim(), question_type: q.question_type, explanation: (q.explanation || '').trim(), points: Number(q.points), settings: { ...q.settings, shuffle_answers: !!test.shuffle_answers }, sort_order: index + 1, answers: q.answers.map((a, i) => ({ answer: a.answer.trim(), is_correct: !!a.is_correct, sort_order: i + 1 })) }
       if (q.id) await updateQuestion(q.id, body)
       else { const value = await createQuestion(testId, body); setQuestions(items => items.map(item => item.key === q.key ? { ...item, id: value.id } : item)) }
     }
@@ -229,6 +229,7 @@ export default function TestCreatePage() {
           <label>Описание теста<textarea id="description" rows="5" placeholder="Какие знания проверяет тест" value={test.description || ''} onChange={e => field('description', e.target.value)} /></label>
           <label>Категория<select id="category" required value={test.category || ''} onChange={e => field('category', e.target.value)}><option value="">Выберите категорию</option>{categories.map(x => <option key={x.id} value={x.name}>{x.name}</option>)}{test.category && !categories.some(item => item.name === test.category) && <option value={test.category}>{test.category} (архивная)</option>}</select></label>
           <label>Уровень сложности<select id="difficulty" value={test.difficulty} onChange={e => field('difficulty', e.target.value)}><option value="easy">Лёгкая</option><option value="medium">Средняя</option><option value="hard">Сложная</option></select></label>
+          <label className="shuffle-setting test-shuffle-setting"><i aria-hidden="true">⇄</i><span><b>Перемешивать варианты</b><small id="shuffle-answers-hint">Для всех вопросов теста при каждом прохождении</small></span><input id="shuffle-answers" type="checkbox" aria-describedby="shuffle-answers-hint" checked={!!test.shuffle_answers} onChange={e => field('shuffle_answers', e.target.checked)} /><em aria-hidden="true" /></label>
           <div className="price"><label><input type="checkbox" id="is-free" checked={test.is_free} onChange={e => field('is_free', e.target.checked)} /> Бесплатный тест</label><label id="price-label" className={test.is_free ? 'hidden' : ''}>Стоимость, ₽<input type="number" id="price" min="1" step="1" value={test.price || ''} onChange={e => field('price', Number(e.target.value))} /></label></div>
         </section>
       </section>

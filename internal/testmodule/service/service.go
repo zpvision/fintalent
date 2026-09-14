@@ -89,7 +89,11 @@ func (s *Service) ForkDraft(ctx context.Context, id, user int64) error {
 	return s.repo.ForkDraft(ctx, id, user)
 }
 func (s *Service) Start(ctx context.Context, test, user int64) (*domain.Attempt, error) {
-	return s.repo.StartAttempt(ctx, test, user)
+	a, err := s.repo.StartAttempt(ctx, test, user)
+	if err != nil {
+		return nil, err
+	}
+	return s.Attempt(ctx, a.ID, user, false)
 }
 func (s *Service) SaveAnswer(ctx context.Context, attempt, user int64, in dto.SubmitAnswer) error {
 	a, err := s.repo.GetAttempt(ctx, attempt)

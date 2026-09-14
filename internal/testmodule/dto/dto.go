@@ -7,6 +7,7 @@ type CreateTest struct {
 	Difficulty       string  `json:"difficulty"`
 	Visibility       string  `json:"visibility"`
 	IsFree           bool    `json:"is_free"`
+	ShuffleAnswers   *bool   `json:"shuffle_answers"`
 	Price            float64 `json:"price"`
 	PassingPercent   float64 `json:"passing_percent"`
 	TimeLimitSeconds *int    `json:"time_limit_seconds"`

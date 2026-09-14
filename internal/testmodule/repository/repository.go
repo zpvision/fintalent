@@ -46,7 +46,7 @@ type Postgres struct{ db *sql.DB }
 func New(db *sql.DB) *Postgres { return &Postgres{db: db} }
 
 const testSelect = `SELECT t.id,t.author_id,u.full_name,v.title,v.description,t.slug,t.category,t.difficulty,t.status,t.visibility,
-	t.price,t.currency,t.is_free,t.current_version,t.passing_percent,t.time_limit_seconds,
+	t.price,t.currency,t.is_free,v.version,t.passing_percent,t.time_limit_seconds,v.shuffle_answers,
 	(SELECT COUNT(*) FROM test_questions q WHERE q.test_version_id=v.id),COALESCE(s.attempts_count,0),COALESCE(s.average_percent,0),t.created_at,t.updated_at
 	FROM tests t JOIN users u ON u.id=t.author_id JOIN test_versions v ON v.test_id=t.id AND v.version=t.current_version
 	LEFT JOIN test_statistics s ON s.test_id=t.id `
@@ -54,7 +54,7 @@ const testSelect = `SELECT t.id,t.author_id,u.full_name,v.title,v.description,t.
 func scanTest(scanner interface{ Scan(...any) error }) (*domain.Test, error) {
 	var t domain.Test
 	var limit sql.NullInt64
-	err := scanner.Scan(&t.ID, &t.AuthorID, &t.AuthorName, &t.Title, &t.Description, &t.Slug, &t.Category, &t.Difficulty, &t.Status, &t.Visibility, &t.Price, &t.Currency, &t.IsFree, &t.Version, &t.PassingPercent, &limit, &t.QuestionCount, &t.AttemptsCount, &t.AveragePercent, &t.CreatedAt, &t.UpdatedAt)
+	err := scanner.Scan(&t.ID, &t.AuthorID, &t.AuthorName, &t.Title, &t.Description, &t.Slug, &t.Category, &t.Difficulty, &t.Status, &t.Visibility, &t.Price, &t.Currency, &t.IsFree, &t.Version, &t.PassingPercent, &limit, &t.ShuffleAnswers, &t.QuestionCount, &t.AttemptsCount, &t.AveragePercent, &t.CreatedAt, &t.UpdatedAt)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}
@@ -151,6 +151,11 @@ func (p *Postgres) loadQuestions(ctx context.Context, t *domain.Test, includeCor
 			return nil, err
 		}
 		_ = json.Unmarshal(settings, &q.Settings)
+		// Retain the question-level response for cached legacy clients.
+		if q.Settings == nil {
+			q.Settings = make(map[string]any)
+		}
+		q.Settings["shuffle_answers"] = t.ShuffleAnswers
 		aRows, err := p.db.QueryContext(ctx, `SELECT id,question_id,answer,is_correct,sort_order FROM test_answers WHERE question_id=$1 ORDER BY sort_order,id`, q.ID)
 		if err != nil {
 			return nil, err
@@ -183,7 +188,7 @@ func (p *Postgres) Create(ctx context.Context, author int64, in dto.CreateTest, 
 	if err != nil {
 		return nil, err
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO test_versions(test_id,version,title,description,created_by) VALUES($1,1,$2,$3,$4)`, id, strings.TrimSpace(in.Title), strings.TrimSpace(in.Description), author)
+	_, err = tx.ExecContext(ctx, `INSERT INTO test_versions(test_id,version,title,description,created_by,shuffle_answers) VALUES($1,1,$2,$3,$4,COALESCE($5,FALSE))`, id, strings.TrimSpace(in.Title), strings.TrimSpace(in.Description), author, in.ShuffleAnswers)
 	if err == nil {
 		_, err = tx.ExecContext(ctx, `INSERT INTO test_statistics(test_id) VALUES($1)`, id)
 	}
@@ -197,7 +202,12 @@ func (p *Postgres) Create(ctx context.Context, author int64, in dto.CreateTest, 
 }
 
 func (p *Postgres) Update(ctx context.Context, id, user int64, in dto.UpdateTest) error {
-	res, err := p.db.ExecContext(ctx, `UPDATE tests t SET category=$1::varchar,category_id=(SELECT id FROM test_categories WHERE name=$1::text AND active=TRUE),difficulty=$2,visibility=$3,price=$4,is_free=$5,passing_percent=$6,time_limit_seconds=$7,updated_at=NOW() FROM test_versions v WHERE t.id=$8 AND t.author_id=$9 AND t.status='draft' AND v.test_id=t.id AND v.version=t.current_version`, in.Category, in.Difficulty, in.Visibility, in.Price, in.IsFree, in.PassingPercent, in.TimeLimitSeconds, id, user)
+	tx, err := p.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	res, err := tx.ExecContext(ctx, `UPDATE tests t SET category=$1::varchar,category_id=(SELECT id FROM test_categories WHERE name=$1::text AND active=TRUE),difficulty=$2,visibility=$3,price=$4,is_free=$5,passing_percent=$6,time_limit_seconds=$7,updated_at=NOW() FROM test_versions v WHERE t.id=$8 AND t.author_id=$9 AND t.status='draft' AND v.test_id=t.id AND v.version=t.current_version`, in.Category, in.Difficulty, in.Visibility, in.Price, in.IsFree, in.PassingPercent, in.TimeLimitSeconds, id, user)
 	if err != nil {
 		return err
 	}
@@ -205,8 +215,11 @@ func (p *Postgres) Update(ctx context.Context, id, user int64, in dto.UpdateTest
 	if n == 0 {
 		return ErrForbidden
 	}
-	_, err = p.db.ExecContext(ctx, `UPDATE test_versions v SET title=$1,description=$2,updated_at=NOW() FROM tests t WHERE t.id=$3 AND t.author_id=$4 AND v.test_id=t.id AND v.version=t.current_version`, strings.TrimSpace(in.Title), strings.TrimSpace(in.Description), id, user)
-	return err
+	_, err = tx.ExecContext(ctx, `UPDATE test_versions v SET title=$1,description=$2,shuffle_answers=COALESCE($5,v.shuffle_answers),updated_at=NOW() FROM tests t WHERE t.id=$3 AND t.author_id=$4 AND v.test_id=t.id AND v.version=t.current_version`, strings.TrimSpace(in.Title), strings.TrimSpace(in.Description), id, user, in.ShuffleAnswers)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 func (p *Postgres) SoftDelete(ctx context.Context, id, user int64, admin bool) error {
 	q := `UPDATE tests SET status='deleted',deleted_at=NOW(),updated_at=NOW() WHERE id=$1`
@@ -382,7 +395,7 @@ func (p *Postgres) ForkDraft(ctx context.Context, id, user int64) error {
 		return ErrForbidden
 	}
 	newVersion = oldVersion + 1
-	err = tx.QueryRowContext(ctx, `INSERT INTO test_versions(test_id,version,title,description,changelog,created_by) SELECT test_id,$1,title,description,'Черновик на основе версии '||version,$2 FROM test_versions WHERE id=$3 RETURNING id`, newVersion, user, oldVersionID).Scan(&newVersionID)
+	err = tx.QueryRowContext(ctx, `INSERT INTO test_versions(test_id,version,title,description,changelog,created_by,shuffle_answers) SELECT test_id,$1,title,description,'Черновик на основе версии '||version,$2,shuffle_answers FROM test_versions WHERE id=$3 RETURNING id`, newVersion, user, oldVersionID).Scan(&newVersionID)
 	if err != nil {
 		return err
 	}
@@ -435,7 +448,7 @@ func (p *Postgres) GetAttempt(ctx context.Context, id int64) (*domain.Attempt, e
 	var a domain.Attempt
 	var finished sql.NullTime
 	var passed sql.NullBool
-	err := p.db.QueryRowContext(ctx, `SELECT a.id,a.test_id,a.test_version_id,a.user_id,u.full_name,v.title,a.score,a.max_score,a.percent,a.passed,a.started_at,a.finished_at,a.duration_seconds,a.status FROM test_attempts a JOIN users u ON u.id=a.user_id JOIN test_versions v ON v.id=a.test_version_id WHERE a.id=$1`, id).Scan(&a.ID, &a.TestID, &a.TestVersionID, &a.UserID, &a.UserName, &a.TestTitle, &a.Score, &a.MaxScore, &a.Percent, &passed, &a.StartedAt, &finished, &a.DurationSeconds, &a.Status)
+	err := p.db.QueryRowContext(ctx, `SELECT a.id,a.test_id,a.test_version_id,a.user_id,u.full_name,v.title,a.score,a.max_score,a.percent,a.passed,a.started_at,a.finished_at,a.duration_seconds,a.status,v.shuffle_answers FROM test_attempts a JOIN users u ON u.id=a.user_id JOIN test_versions v ON v.id=a.test_version_id WHERE a.id=$1`, id).Scan(&a.ID, &a.TestID, &a.TestVersionID, &a.UserID, &a.UserName, &a.TestTitle, &a.Score, &a.MaxScore, &a.Percent, &passed, &a.StartedAt, &finished, &a.DurationSeconds, &a.Status, &a.ShuffleAnswers)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}
@@ -487,6 +500,10 @@ func (p *Postgres) GetAttempt(ctx context.Context, id int64) (*domain.Attempt, e
 			return nil, err
 		}
 		_ = json.Unmarshal(settings, &q.Settings)
+		if q.Settings == nil {
+			q.Settings = make(map[string]any)
+		}
+		q.Settings["shuffle_answers"] = a.ShuffleAnswers
 		aRows, queryErr := p.db.QueryContext(ctx, `SELECT id,question_id,answer,is_correct,sort_order FROM test_answers WHERE question_id=$1 ORDER BY sort_order,id`, q.ID)
 		if queryErr != nil {
 			return nil, queryErr
@@ -502,6 +519,7 @@ func (p *Postgres) GetAttempt(ctx context.Context, id int64) (*domain.Attempt, e
 		aRows.Close()
 		a.Questions = append(a.Questions, q)
 	}
+	domain.PrepareAnswerOrder(a.Questions, a.ID, a.ShuffleAnswers)
 	return &a, qRows.Err()
 }
 func (p *Postgres) SaveAttemptAnswer(ctx context.Context, attempt int64, in dto.SubmitAnswer) error {

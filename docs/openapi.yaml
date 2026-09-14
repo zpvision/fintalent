@@ -73,7 +73,7 @@ paths:
       tags: [Attempts]
       summary: Начать попытку
       parameters: [{$ref: '#/components/parameters/TestId'}]
-      responses: {'201': {description: Попытка начата}}
+      responses: {'201': {description: 'Попытка начата; questions содержит вопросы закреплённой версии с вариантами в порядке прохождения, без признака правильного ответа.'}}
     get:
       tags: [Attempts]
       summary: Прохождения авторского теста
@@ -140,6 +140,7 @@ components:
         difficulty: {type: string, enum: [easy, medium, hard]}
         visibility: {type: string, enum: [private, public, marketplace]}
         is_free: {type: boolean}
+        shuffle_answers: {type: boolean, description: 'Перемешивать варианты во всех вопросах. По умолчанию false; при обновлении отсутствие поля сохраняет текущий выбор. Настройка закреплена за версией теста.'}
         price: {type: number}
         passing_percent: {type: number, minimum: 0, maximum: 100}
         time_limit_seconds: {type: integer, nullable: true}
@@ -152,7 +153,7 @@ components:
         explanation: {type: string}
         points: {type: number}
         sort_order: {type: integer}
-        settings: {type: object, additionalProperties: true}
+        settings: {type: object, additionalProperties: true, description: 'shuffle_answers в настройках вопроса устарел: перемешиванием управляет поле теста.'}
         answers: {type: array, items: {$ref: '#/components/schemas/AnswerInput'}}
     AnswerInput:
       type: object

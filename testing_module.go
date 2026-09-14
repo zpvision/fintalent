@@ -14,6 +14,9 @@ var attemptTimingMigrationSQL string
 //go:embed migrations/026_resume_test_knowledge.sql
 var resumeTestKnowledgeMigrationSQL string
 
+//go:embed migrations/047_test_shuffle_answers.sql
+var testShuffleAnswersMigrationSQL string
+
 func prepareTestingDatabase(ctx context.Context) error {
 	if _, err := db.ExecContext(ctx, testingMigrationSQL); err != nil {
 		return err
@@ -23,5 +26,9 @@ func prepareTestingDatabase(ctx context.Context) error {
 		return err
 	}
 	_, err = db.ExecContext(ctx, resumeTestKnowledgeMigrationSQL)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, testShuffleAnswersMigrationSQL)
 	return err
 }

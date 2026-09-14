@@ -16,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"FinTalent/internal/testmodule/domain"
 )
 
 const employeeTestingMigration = `
@@ -529,36 +531,56 @@ func employeeTestInfo(w http.ResponseWriter, r *http.Request, token string) {
 	var attempt sql.NullInt64
 	var attemptStarted sql.NullTime
 	var limit, questionCount int
-	if db.QueryRowContext(r.Context(), `SELECT i.id,i.test_id,i.test_version_id,e.full_name,v.title,i.status,i.attempt_id,i.started_at,COALESCE(t.time_limit_seconds,0),(SELECT COUNT(*) FROM test_questions q WHERE q.test_version_id=i.test_version_id) FROM company_test_invitations i JOIN company_test_employees e ON e.id=i.employee_id JOIN test_versions v ON v.id=i.test_version_id JOIN tests t ON t.id=i.test_id WHERE i.token=$1 AND i.status<>'revoked'`, token).Scan(&id, &testID, &versionID, &employee, &title, &status, &attempt, &attemptStarted, &limit, &questionCount) != nil {
+	var shuffleAnswers bool
+	if db.QueryRowContext(r.Context(), `SELECT i.id,i.test_id,i.test_version_id,e.full_name,v.title,i.status,i.attempt_id,i.started_at,COALESCE(t.time_limit_seconds,0),(SELECT COUNT(*) FROM test_questions q WHERE q.test_version_id=i.test_version_id),v.shuffle_answers FROM company_test_invitations i JOIN company_test_employees e ON e.id=i.employee_id JOIN test_versions v ON v.id=i.test_version_id JOIN tests t ON t.id=i.test_id WHERE i.token=$1 AND i.status<>'revoked'`, token).Scan(&id, &testID, &versionID, &employee, &title, &status, &attempt, &attemptStarted, &limit, &questionCount, &shuffleAnswers) != nil {
 		jsonError(w, 404, "Ссылка недействительна")
 		return
 	}
 	questions := []map[string]any{}
 	answeredQuestionIDs := []int64{}
 	if attempt.Valid {
-		rows, _ := db.QueryContext(r.Context(), `SELECT q.id,q.question,q.question_type,q.points FROM test_questions q WHERE q.test_version_id=$1 ORDER BY q.sort_order,q.id`, versionID)
-		if rows != nil {
-			defer rows.Close()
-			for rows.Next() {
-				var qid int64
-				var question, typ string
-				var points float64
-				if rows.Scan(&qid, &question, &typ, &points) == nil {
-					answers := []map[string]any{}
-					arows, _ := db.QueryContext(r.Context(), `SELECT id,answer FROM test_answers WHERE question_id=$1 ORDER BY sort_order,id`, qid)
-					if arows != nil {
-						for arows.Next() {
-							var aid int64
-							var answer string
-							if arows.Scan(&aid, &answer) == nil {
-								answers = append(answers, map[string]any{"id": aid, "answer": answer})
-							}
-						}
-						arows.Close()
-					}
-					questions = append(questions, map[string]any{"id": qid, "question": question, "question_type": typ, "points": points, "answers": answers})
-				}
+		rows, err := db.QueryContext(r.Context(), `SELECT q.id,q.question,q.question_type,q.points FROM test_questions q WHERE q.test_version_id=$1 ORDER BY q.sort_order,q.id`, versionID)
+		if err != nil {
+			jsonError(w, 500, "Не удалось загрузить вопросы теста")
+			return
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var q domain.Question
+			if err = rows.Scan(&q.ID, &q.Question, &q.Type, &q.Points); err != nil {
+				jsonError(w, 500, "Не удалось загрузить вопросы теста")
+				return
 			}
+			arows, err := db.QueryContext(r.Context(), `SELECT id,answer FROM test_answers WHERE question_id=$1 ORDER BY sort_order,id`, q.ID)
+			if err != nil {
+				jsonError(w, 500, "Не удалось загрузить варианты ответа")
+				return
+			}
+			for arows.Next() {
+				var a domain.Answer
+				if err = arows.Scan(&a.ID, &a.Answer); err != nil {
+					arows.Close()
+					jsonError(w, 500, "Не удалось загрузить варианты ответа")
+					return
+				}
+				q.Answers = append(q.Answers, a)
+			}
+			err = arows.Err()
+			arows.Close()
+			if err != nil {
+				jsonError(w, 500, "Не удалось загрузить варианты ответа")
+				return
+			}
+			domain.PrepareAnswerOrder([]domain.Question{q}, attempt.Int64, shuffleAnswers)
+			answers := []map[string]any{}
+			for _, a := range q.Answers {
+				answers = append(answers, map[string]any{"id": a.ID, "answer": a.Answer})
+			}
+			questions = append(questions, map[string]any{"id": q.ID, "question": q.Question, "question_type": q.Type, "points": q.Points, "answers": answers})
+		}
+		if rows.Err() != nil {
+			jsonError(w, 500, "Не удалось загрузить вопросы теста")
+			return
 		}
 		answeredRows, answeredErr := db.QueryContext(r.Context(), `SELECT DISTINCT question_id FROM test_attempt_answers WHERE attempt_id=$1 ORDER BY question_id`, attempt.Int64)
 		if answeredErr == nil {

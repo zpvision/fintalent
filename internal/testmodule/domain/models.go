@@ -31,6 +31,7 @@ type Test struct {
 	Price            float64    `json:"price"`
 	Currency         string     `json:"currency"`
 	IsFree           bool       `json:"is_free"`
+	ShuffleAnswers   bool       `json:"shuffle_answers"`
 	Version          int        `json:"version"`
 	PassingPercent   float64    `json:"passing_percent"`
 	TimeLimitSeconds *int       `json:"time_limit_seconds,omitempty"`
@@ -79,6 +80,7 @@ type Attempt struct {
 	UserID          int64           `json:"user_id"`
 	UserName        string          `json:"user_name,omitempty"`
 	TestTitle       string          `json:"test_title,omitempty"`
+	ShuffleAnswers  bool            `json:"shuffle_answers"`
 	Score           float64         `json:"score"`
 	MaxScore        float64         `json:"max_score"`
 	Percent         float64         `json:"percent"`
