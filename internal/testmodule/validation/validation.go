@@ -31,8 +31,8 @@ func Question(input dto.CreateQuestion) error {
 	if len([]rune(strings.TrimSpace(input.Question))) < 3 {
 		return errors.New("укажите текст вопроса")
 	}
-	if input.Points <= 0 {
-		return errors.New("баллы должны быть больше нуля")
+	if input.Points < 0 {
+		return errors.New("баллы не могут быть отрицательными")
 	}
 	switch input.QuestionType {
 	case domain.QuestionSingle, domain.QuestionMultiple, domain.QuestionBoolean:

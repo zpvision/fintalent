@@ -9,7 +9,7 @@ const styles = ['/static/profile.css', '/static/test-editor.css', '/static/test-
 const stepNames = ['Информация', 'Вопросы', 'Предпросмотр', 'Публикация']
 const blankTest = () => ({ title: '', description: '', category: '', difficulty: 'medium', visibility: 'public', is_free: true, shuffle_answers: false, price: 0, version: 1, status: 'draft' })
 const makeAnswer = (answer = '', is_correct = false) => ({ answer, is_correct, key: crypto.randomUUID() })
-const blankQuestion = () => ({ id: 0, key: crypto.randomUUID(), question: '', question_type: 'single_choice', explanation: '', points: 1, settings: { shuffle_answers: false }, answers: [makeAnswer('', true), makeAnswer()] })
+const blankQuestion = () => ({ id: 0, key: crypto.randomUUID(), question: '', question_type: 'single_choice', explanation: '', points: 0, settings: { shuffle_answers: false }, answers: [makeAnswer('', true), makeAnswer()] })
 const prepareQuestion = q => ({ ...q, key: crypto.randomUUID(), answers: (q.answers || []).map(a => ({ ...a, key: crypto.randomUUID() })) })
 const infoPayload = t => ({ title: t.title.trim(), description: (t.description || '').trim(), category: t.category, difficulty: t.difficulty, visibility: t.visibility || 'public', is_free: t.is_free, shuffle_answers: !!t.shuffle_answers, price: t.is_free ? 0 : Number(t.price || 0), passing_percent: 60 })
 
@@ -106,7 +106,7 @@ function Question({ value, index, set, remove, invalid = {} }) {
         {multiple && <small>Выберите все правильные варианты. Для выбора нескольких удерживайте Ctrl.</small>}
       </>}</div>
     </div>
-    <div className="grid"><label>Баллы за ответ<input className="points" type="number" min="0.1" step="0.1" value={value.points} onChange={e => change('points', e.target.value)} /></label><label>Пояснение<input className="explanation" placeholder="Показывается после завершения" value={value.explanation || ''} onChange={e => change('explanation', e.target.value)} /></label></div>
+    <div className="grid"><label>Баллы за ответ<input className="points" type="number" min="0" step="0.1" value={value.points} onChange={e => change('points', e.target.value)} /></label><label>Пояснение<input className="explanation" placeholder="Показывается после завершения" value={value.explanation || ''} onChange={e => change('explanation', e.target.value)} /></label></div>
   </article>
 }
 

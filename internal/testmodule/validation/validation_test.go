@@ -17,6 +17,14 @@ func TestQuestionTypes(t *testing.T) {
 		if err := Question(tc); err != nil {
 			t.Errorf("valid %s question rejected: %v", tc.QuestionType, err)
 		}
+		tc.Points = 0
+		if err := Question(tc); err != nil {
+			t.Errorf("zero-point %s question rejected: %v", tc.QuestionType, err)
+		}
+		tc.Points = -0.1
+		if err := Question(tc); err == nil {
+			t.Errorf("negative-point %s question accepted", tc.QuestionType)
+		}
 	}
 }
 

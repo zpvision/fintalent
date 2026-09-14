@@ -151,7 +151,7 @@ components:
         question: {type: string}
         question_type: {type: string, enum: [single_choice, multiple_choice, boolean, text]}
         explanation: {type: string}
-        points: {type: number}
+        points: {type: number, minimum: 0, default: 0}
         sort_order: {type: integer}
         settings: {type: object, additionalProperties: true, description: 'shuffle_answers в настройках вопроса устарел: перемешиванием управляет поле теста.'}
         answers: {type: array, items: {$ref: '#/components/schemas/AnswerInput'}}
