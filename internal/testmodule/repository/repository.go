@@ -32,7 +32,7 @@ type Repository interface {
 	DeleteAnswer(context.Context, int64, int64) error
 	Publish(context.Context, int64, int64) error
 	ForkDraft(context.Context, int64, int64) error
-	StartAttempt(context.Context, int64, int64) (*domain.Attempt, error)
+	StartAttempt(context.Context, int64, int64, int64) (*domain.Attempt, error)
 	GetAttempt(context.Context, int64) (*domain.Attempt, error)
 	SaveAttemptAnswer(context.Context, int64, dto.SubmitAnswer) error
 	FinishAttempt(context.Context, int64, float64, float64, float64, bool, []domain.AttemptAnswer) error
@@ -436,9 +436,15 @@ func (p *Postgres) ForkDraft(ctx context.Context, id, user int64) error {
 	return tx.Commit()
 }
 
-func (p *Postgres) StartAttempt(ctx context.Context, testID, user int64) (*domain.Attempt, error) {
+func (p *Postgres) StartAttempt(ctx context.Context, testID, user, vacancyID int64) (*domain.Attempt, error) {
 	var a domain.Attempt
-	err := p.db.QueryRowContext(ctx, `INSERT INTO test_attempts(test_id,test_version_id,user_id,max_score) SELECT t.id,v.id,$2,COALESCE((SELECT SUM(points) FROM test_questions WHERE test_version_id=v.id),0) FROM tests t JOIN test_versions v ON v.test_id=t.id AND v.version=t.current_version WHERE t.id=$1 AND t.status='published' AND (t.visibility IN ('public','marketplace') OR t.author_id=$2) RETURNING id,test_id,test_version_id,user_id,max_score,started_at,status`, testID, user).Scan(&a.ID, &a.TestID, &a.TestVersionID, &a.UserID, &a.MaxScore, &a.StartedAt, &a.Status)
+	err := p.db.QueryRowContext(ctx, `INSERT INTO test_attempts(test_id,test_version_id,user_id,max_score,context)
+		SELECT t.id,v.id,$2,COALESCE((SELECT SUM(points) FROM test_questions WHERE test_version_id=v.id),0),
+			CASE WHEN $3>0 THEN jsonb_build_object('vacancy_id',$3) ELSE '{}'::jsonb END
+		FROM tests t JOIN test_versions v ON v.test_id=t.id AND v.version=t.current_version
+		WHERE t.id=$1 AND t.status='published' AND (t.visibility IN ('public','marketplace') OR t.author_id=$2)
+		AND ($3=0 OR EXISTS(SELECT 1 FROM vacancy_tests vt JOIN vacancies vacancy ON vacancy.id=vt.vacancy_external_id WHERE vt.vacancy_external_id=$3 AND vt.test_id=t.id AND vacancy.status='published' AND vacancy.deleted_at IS NULL))
+		RETURNING id,test_id,test_version_id,user_id,max_score,started_at,status`, testID, user, vacancyID).Scan(&a.ID, &a.TestID, &a.TestVersionID, &a.UserID, &a.MaxScore, &a.StartedAt, &a.Status)
 	if err == sql.ErrNoRows {
 		return nil, ErrForbidden
 	}

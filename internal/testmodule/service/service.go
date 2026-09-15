@@ -88,8 +88,8 @@ func (s *Service) Publish(ctx context.Context, id, user int64) error {
 func (s *Service) ForkDraft(ctx context.Context, id, user int64) error {
 	return s.repo.ForkDraft(ctx, id, user)
 }
-func (s *Service) Start(ctx context.Context, test, user int64) (*domain.Attempt, error) {
-	a, err := s.repo.StartAttempt(ctx, test, user)
+func (s *Service) Start(ctx context.Context, test, user, vacancy int64) (*domain.Attempt, error) {
+	a, err := s.repo.StartAttempt(ctx, test, user, vacancy)
 	if err != nil {
 		return nil, err
 	}

@@ -33,6 +33,9 @@ type SubmitAnswer struct {
 	SelectedAnswerIDs []int64 `json:"selected_answer_ids"`
 	TextAnswer        string  `json:"text_answer"`
 }
+type StartAttempt struct {
+	VacancyID int64 `json:"vacancy_id"`
+}
 type ModerateTest struct {
 	Action string `json:"action"`
 	Reason string `json:"reason"`

@@ -19,7 +19,7 @@ export const createInvitations = (testId, employeeIds, options) =>
   apiClient.post('/api/employee-testing/invitations', { test_id: testId, employee_ids: employeeIds }, options)
 export const getTest = (id, options) => apiClient.get(`/api/tests/${encodeURIComponent(id)}`, options)
 export const getTestReviews = (id, options) => apiClient.get(`/api/marketplace/test-reviews?test_id=${encodeURIComponent(id)}`, { redirectOnUnauthorized: false, ...options })
-export const startTestAttempt = (id, options) => apiClient.post(`/api/tests/${encodeURIComponent(id)}/attempts`, null, options)
+export const startTestAttempt = (id, vacancyId, options) => apiClient.post(`/api/tests/${encodeURIComponent(id)}/attempts`, vacancyId ? { vacancy_id: vacancyId } : {}, options)
 export const getTestAttempt = (id, options) => apiClient.get(`/api/attempts/${encodeURIComponent(id)}`, options)
 export const saveTestAnswer = (id, body, options) => apiClient.post(`/api/attempts/${encodeURIComponent(id)}/answers`, body, options)
 export const finishTestAttempt = (id, options) => apiClient.post(`/api/attempts/${encodeURIComponent(id)}/finish`, null, options)

@@ -236,10 +236,12 @@ function TestHero({ test, count, vacancyId }) {
 
 function Applications({ vacancy }) {
   const stats = vacancy.applications || { total: 0, passed: 0, not_passed: 0 }
+  const candidates = vacancy.candidates || []
   return (
     <section className="vacancy-side-card vacancy-applications sticky">
       <h2>Отклики и результаты</h2><p>Прозрачная статистика по вакансии</p>
       <div className="application-stats"><span><b>{Number(stats.total) || 0}</b><small>всего откликов</small></span><span><b>{Number(stats.passed) || 0}</b><small>прошли тест</small></span><span><b>{Number(stats.not_passed) || 0}</b><small>не прошли тест</small></span></div>
+      {vacancy.is_owner && <div className="vacancy-candidates"><h3>Кандидаты</h3>{candidates.length ? candidates.map(candidate => <article key={candidate.user_id}><div><b>{candidate.name}</b><small>{candidate.completed_tests} из {candidate.required_tests} тестов завершено</small></div><span className={candidate.passed ? 'passed' : ''}>{candidate.passed ? 'Пройдено' : candidate.completed_tests ? `${Math.round(Number(candidate.average_percent) || 0)}%` : 'Проходит'}</span></article>) : <p>Пока никто не начал тестирование по этой вакансии.</p>}</div>}
     </section>
   )
 }
@@ -344,7 +346,7 @@ export default function VacancyViewPage() {
   const [mapAddress, setMapAddress] = useState('')
   const names = useMemo(() => vacancy ? positionNames(vacancy) : [], [vacancy])
 
-  usePageStyles(['/static/vacancy-view.css?v=23', '/static/vacancy-contractors.css?v=1'])
+  usePageStyles(['/static/vacancy-view.css?v=24', '/static/vacancy-contractors.css?v=1'])
   useDocumentPage({ title: vacancy ? `${names.join(', ')} — FinTalent` : 'Вакансия — FinTalent' })
 
   useEffect(() => {

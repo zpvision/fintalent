@@ -59,8 +59,20 @@ type publicVacancyApplicationStats struct {
 	NotPassed int `json:"not_passed"`
 }
 
+type publicVacancyCandidate struct {
+	UserID         int64      `json:"user_id"`
+	Name           string     `json:"name"`
+	CompletedTests int        `json:"completed_tests"`
+	RequiredTests  int        `json:"required_tests"`
+	AveragePercent float64    `json:"average_percent"`
+	Passed         bool       `json:"passed"`
+	LastFinishedAt *time.Time `json:"last_finished_at,omitempty"`
+}
+
 type publicVacancyView struct {
 	ID                            int64                         `json:"id"`
+	OwnerID                       int64                         `json:"-"`
+	IsOwner                       bool                          `json:"is_owner"`
 	Description                   string                        `json:"description"`
 	SalaryFrom                    *float64                      `json:"salary_from"`
 	SalaryTo                      *float64                      `json:"salary_to"`
@@ -76,6 +88,7 @@ type publicVacancyView struct {
 	Duties                        []publicVacancyDutyGroup      `json:"duties"`
 	Tests                         []publicVacancyTest           `json:"tests"`
 	Applications                  publicVacancyApplicationStats `json:"applications"`
+	Candidates                    []publicVacancyCandidate      `json:"candidates,omitempty"`
 }
 
 func registerPublicVacancyRoutes() {
@@ -108,10 +121,10 @@ func publicVacancy(w http.ResponseWriter, r *http.Request) {
 func loadPublicVacancy(r *http.Request, id int64) (*publicVacancyView, error) {
 	view := &publicVacancyView{Blocks: []publicVacancyBlock{}, Duties: []publicVacancyDutyGroup{}, Tests: []publicVacancyTest{}}
 	var salaryFrom, salaryTo sql.NullFloat64
-	err := db.QueryRowContext(r.Context(), `SELECT v.id,v.description,v.salary_from,v.salary_to,v.salary_tax_mode,v.currency,v.city,v.address,v.accepts_individual_entrepreneur,v.accepts_self_employed,u.full_name,v.published_at
+	err := db.QueryRowContext(r.Context(), `SELECT v.id,v.user_id,v.description,v.salary_from,v.salary_to,v.salary_tax_mode,v.currency,v.city,v.address,v.accepts_individual_entrepreneur,v.accepts_self_employed,u.full_name,v.published_at
 		FROM vacancies v JOIN users u ON u.id=v.user_id
 		WHERE v.id=$1 AND v.status='published' AND v.deleted_at IS NULL`, id).
-		Scan(&view.ID, &view.Description, &salaryFrom, &salaryTo, &view.SalaryTaxMode, &view.Currency, &view.City, &view.Address, &view.AcceptsIndividualEntrepreneur, &view.AcceptsSelfEmployed, &view.OwnerName, &view.PublishedAt)
+		Scan(&view.ID, &view.OwnerID, &view.Description, &salaryFrom, &salaryTo, &view.SalaryTaxMode, &view.Currency, &view.City, &view.Address, &view.AcceptsIndividualEntrepreneur, &view.AcceptsSelfEmployed, &view.OwnerName, &view.PublishedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -132,6 +145,12 @@ func loadPublicVacancy(r *http.Request, id int64) (*publicVacancyView, error) {
 	}
 	if err = loadPublicVacancyApplicationStats(r, view); err != nil {
 		return nil, err
+	}
+	if user, userErr := userFromRequest(r); userErr == nil && user.ID == view.OwnerID {
+		view.IsOwner = true
+		if err = loadPublicVacancyCandidates(r, view); err != nil {
+			return nil, err
+		}
 	}
 	return view, nil
 }
@@ -229,7 +248,8 @@ func loadPublicVacancyApplicationStats(r *http.Request, view *publicVacancyView)
 			SELECT DISTINCT test_id FROM vacancy_tests WHERE vacancy_external_id=$1
 		), candidates AS (
 			SELECT a.user_id,COUNT(DISTINCT a.test_id) FILTER(WHERE a.status='finished' AND a.passed=TRUE) passed_count
-			FROM test_attempts a JOIN required_tests rt ON rt.test_id=a.test_id GROUP BY a.user_id
+			FROM test_attempts a JOIN required_tests rt ON rt.test_id=a.test_id
+			WHERE a.context @> jsonb_build_object('vacancy_id',$1::bigint) GROUP BY a.user_id
 		), totals AS (
 			SELECT COUNT(*)::int total,
 				COUNT(*) FILTER(WHERE passed_count=(SELECT COUNT(*) FROM required_tests))::int passed
@@ -237,4 +257,40 @@ func loadPublicVacancyApplicationStats(r *http.Request, view *publicVacancyView)
 		)
 		SELECT total,passed,total-passed FROM totals`, view.ID).
 		Scan(&view.Applications.Total, &view.Applications.Passed, &view.Applications.NotPassed)
+}
+
+func loadPublicVacancyCandidates(r *http.Request, view *publicVacancyView) error {
+	rows, err := db.QueryContext(r.Context(), `WITH required_tests AS (
+			SELECT DISTINCT test_id FROM vacancy_tests WHERE vacancy_external_id=$1
+		), latest AS (
+			SELECT DISTINCT ON (a.user_id,a.test_id) a.user_id,a.test_id,a.percent,a.passed,a.status,a.finished_at
+			FROM test_attempts a JOIN required_tests rt ON rt.test_id=a.test_id
+			WHERE a.context @> jsonb_build_object('vacancy_id',$1::bigint)
+			ORDER BY a.user_id,a.test_id,a.started_at DESC
+		)
+		SELECT l.user_id,u.full_name,
+			COUNT(*) FILTER(WHERE l.status='finished')::int,
+			(SELECT COUNT(*) FROM required_tests)::int,
+			COALESCE(AVG(l.percent) FILTER(WHERE l.status='finished'),0),
+			COUNT(*) FILTER(WHERE l.status='finished' AND l.passed=TRUE)=(SELECT COUNT(*) FROM required_tests),
+			MAX(l.finished_at)
+		FROM latest l JOIN users u ON u.id=l.user_id
+		GROUP BY l.user_id,u.full_name ORDER BY MAX(COALESCE(l.finished_at,NOW())) DESC`, view.ID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	view.Candidates = []publicVacancyCandidate{}
+	for rows.Next() {
+		var candidate publicVacancyCandidate
+		var finished sql.NullTime
+		if err = rows.Scan(&candidate.UserID, &candidate.Name, &candidate.CompletedTests, &candidate.RequiredTests, &candidate.AveragePercent, &candidate.Passed, &finished); err != nil {
+			return err
+		}
+		if finished.Valid {
+			candidate.LastFinishedAt = &finished.Time
+		}
+		view.Candidates = append(view.Candidates, candidate)
+	}
+	return rows.Err()
 }

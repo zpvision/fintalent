@@ -13,7 +13,7 @@ type startRepository struct {
 	attempt domain.Attempt
 }
 
-func (r *startRepository) StartAttempt(context.Context, int64, int64) (*domain.Attempt, error) {
+func (r *startRepository) StartAttempt(context.Context, int64, int64, int64) (*domain.Attempt, error) {
 	return &domain.Attempt{ID: r.attempt.ID}, nil
 }
 
@@ -25,7 +25,7 @@ func TestStartReturnsAttemptQuestionsWithoutCorrectAnswers(t *testing.T) {
 	r := &startRepository{attempt: domain.Attempt{ID: 42, UserID: 7, TestVersionID: 3, Status: "started", ShuffleAnswers: true,
 		Questions: []domain.Question{{ID: 11, Answers: []domain.Answer{{ID: 2}, {ID: 1, IsCorrect: true}}}},
 	}}
-	a, err := New(r).Start(context.Background(), 1, 7)
+	a, err := New(r).Start(context.Background(), 1, 7, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

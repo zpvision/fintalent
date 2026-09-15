@@ -172,7 +172,11 @@ func (h *Handler) testRoutes(w http.ResponseWriter, r *http.Request) {
 	}
 	if action == "attempts" {
 		if r.Method == http.MethodPost {
-			v, e := h.service.Start(r.Context(), id, uid)
+			var input dto.StartAttempt
+			if r.ContentLength != 0 && !decode(w, r, &input) {
+				return
+			}
+			v, e := h.service.Start(r.Context(), id, uid, input.VacancyID)
 			if e != nil {
 				handleErr(w, e)
 				return
