@@ -4,8 +4,9 @@ import { createQuestion, createTest, deleteQuestion, forkTestDraft, getTest, get
 import { useDocumentPage } from '../../hooks/useDocumentPage'
 import usePageStyles from '../../hooks/usePageStyles'
 import UserLayout from '../../layouts/UserLayout'
+import PublishSuccessModal from '../../components/PublishSuccessModal'
 
-const styles = ['/static/profile.css', '/static/test-editor.css', '/static/test-create-profile.css', '/static/profile-logo.css', '/static/profile-sidebar-v2.css', '/static/profile-buttons.css', '/static/test-correct.css', '/static/test-drag.css', '/static/fintalent-theme.css', '/static/test-create-fix.css', '/static/test-create-blue.css', '/static/test-create-readable.css', '/static/test-info-center.css', '/static/test-answers-section.css', '/static/test-question-clarity.css', '/static/test-question-tools.css?v=2', '/static/test-preview.css?v=2', '/static/test-editor-ux.css', '/static/test-sidebar-sticky.css']
+const styles = ['/static/profile.css', '/static/test-editor.css', '/static/test-create-profile.css', '/static/profile-logo.css', '/static/profile-sidebar-v2.css', '/static/profile-buttons.css', '/static/test-correct.css', '/static/test-drag.css', '/static/fintalent-theme.css', '/static/test-create-fix.css', '/static/test-create-blue.css', '/static/test-create-readable.css', '/static/test-info-center.css', '/static/test-answers-section.css', '/static/test-question-clarity.css', '/static/test-question-tools.css?v=2', '/static/test-preview.css?v=2', '/static/test-editor-ux.css', '/static/test-sidebar-sticky.css', '/static/vacancy-publish-success.css?v=1']
 const stepNames = ['Информация', 'Вопросы', 'Предпросмотр', 'Публикация']
 const blankTest = () => ({ title: '', description: '', category: '', difficulty: 'medium', visibility: 'public', is_free: true, shuffle_answers: false, price: 0, version: 1, status: 'draft' })
 const makeAnswer = (answer = '', is_correct = false) => ({ answer, is_correct, key: crypto.randomUUID() })
@@ -117,7 +118,7 @@ export default function TestCreatePage() {
   const [id, setId] = useState(initialId), [step, setStep] = useState(1), [maxStep, setMaxStep] = useState(1)
   const [categories, setCategories] = useState([]), [test, setTest] = useState(blankTest)
   const [questions, setQuestions] = useState(() => [blankQuestion()]), [invalid, setInvalid] = useState({})
-  const [error, setError] = useState(''), [busy, setBusy] = useState(false)
+  const [error, setError] = useState(''), [busy, setBusy] = useState(false), [published, setPublished] = useState(false)
   const pendingScroll = useRef(null)
   const moveQuestion = (from, to) => setQuestions(items => moveItem(items, from, to))
   const questionOrder = useOrdering('.question', '.number', ['question-dragging', 'question-drop-before', 'question-drop-after'], moveQuestion)
@@ -209,7 +210,7 @@ export default function TestCreatePage() {
       const testId = await saveInfo()
       await saveQuestions(testId)
       if (marketplace) await updateTest(testId, { ...infoPayload(test), visibility: 'marketplace' })
-      await publishTest(testId); location.assign('/tests')
+      await publishTest(testId); setPublished(true)
     } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
   const points = questions.reduce((sum, q) => sum + (Number(q.points) || 0), 0)
@@ -254,5 +255,5 @@ export default function TestCreatePage() {
       <section className="editor-help"><h3>Нужна помощь?</h3><p>Используйте разные типы вопросов, чтобы точнее оценить знания кандидата.</p><a href="#">Открыть руководство →</a></section>
     </aside></div>
     <footer className="editor-footer"><button id="prev" className={`outline${step === 1 || step === 4 ? ' hidden' : ''}`} disabled={busy} onClick={() => navigate(step - 1)}>← Назад</button><span /><button id="next" className={step === 4 ? 'hidden' : ''} disabled={busy} onClick={() => navigate(step + 1, true)}>Продолжить →</button></footer>
-  </div></main></UserLayout>
+  </div></main>{published && <PublishSuccessModal eyebrow="ТЕСТ ОПУБЛИКОВАН" title="Всё получилось!" description="Тест опубликован и готов к прохождению." wishTitle="Пусть тест помогает находить сильных специалистов" wishText="Желаем точных результатов и полезной обратной связи!" primaryHref="/tests" primaryText="Перейти к моим тестам" onClose={() => setPublished(false)} />}</UserLayout>
 }

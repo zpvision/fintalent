@@ -15,13 +15,15 @@ function loadScript(src, ready) {
 
 export default function ResumeCreatePage() {
   useDocumentPage({ title: 'Создание резюме — FinTalent' })
-  usePageStyles(['/static/resume-create.css?v=2', '/static/wizard-step-progress.css?v=4'])
+  usePageStyles(['/static/resume-create.css?v=2', '/static/wizard-step-progress.css?v=4', '/static/vacancy-publish-success.css?v=1'])
   const [error, setError] = useState('')
   useEffect(() => {
     let cancelled = false
     const loaded = []
     async function start() {
       try {
+        const success = await loadScript('/static/resume-publish-success.js?v=1', () => window.showResumePublishedModal)
+        if (success) loaded.push(success)
         const picker = await loadScript('/static/duty-picker.js?v=4', () => window.DutyPicker)
         if (picker) loaded.push(picker)
         if (cancelled) return
