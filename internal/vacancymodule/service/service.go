@@ -225,13 +225,6 @@ func (s *Service) Publish(ctx context.Context, id, user int64) error {
 	if len(v.Requirements) == 0 {
 		return errors.New("заполните требования к вакансии")
 	}
-	duties, err := s.repo.VacancyDuties(ctx, id)
-	if err != nil {
-		return err
-	}
-	if len(duties) == 0 {
-		return errors.New("выберите хотя бы одну обязанность")
-	}
 	return s.repo.SetStatus(ctx, id, user, "published")
 }
 
