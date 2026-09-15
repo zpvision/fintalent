@@ -216,8 +216,11 @@ func (s *Service) Publish(ctx context.Context, id, user int64) error {
 	if err != nil {
 		return err
 	}
+	if v.Status == "published" {
+		return nil
+	}
 	if v.Status != "draft" {
-		return errors.New("вакансия уже опубликована")
+		return errors.New("вакансия недоступна для публикации")
 	}
 	if len(v.Requirements) == 0 || len(v.SelectedTestIDs) == 0 {
 		return errors.New("заполните требования и выберите тест")
