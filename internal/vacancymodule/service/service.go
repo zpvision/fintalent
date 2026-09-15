@@ -222,8 +222,8 @@ func (s *Service) Publish(ctx context.Context, id, user int64) error {
 	if v.Status != "draft" {
 		return errors.New("вакансия недоступна для публикации")
 	}
-	if len(v.Requirements) == 0 || len(v.SelectedTestIDs) == 0 {
-		return errors.New("заполните требования и выберите тест")
+	if len(v.Requirements) == 0 {
+		return errors.New("заполните требования к вакансии")
 	}
 	duties, err := s.repo.VacancyDuties(ctx, id)
 	if err != nil {
