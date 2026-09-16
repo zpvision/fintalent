@@ -350,7 +350,7 @@ func resumeDuties(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		rows, queryErr := db.QueryContext(r.Context(), `SELECT d.id,d.category_id,c.name,d.name,d.description,d.sort_order,d.is_active,d.created_at,d.updated_at FROM resumes x JOIN resume_duties rd ON rd.resume_id=x.id JOIN duties d ON d.id=rd.duty_id JOIN duty_categories c ON c.id=d.category_id WHERE x.user_id=$1 AND x.deleted_at IS NULL ORDER BY c.sort_order,d.sort_order,d.id`, u.ID)
 		if queryErr != nil {
-			writeJSON(w, 500, "Не удалось загрузить обязанности резюме")
+			writeJSON(w, 500, "Не удалось загрузить обязанности профиля")
 			return
 		}
 		defer rows.Close()
@@ -358,7 +358,7 @@ func resumeDuties(w http.ResponseWriter, r *http.Request) {
 		for rows.Next() {
 			var item duty
 			if queryErr = rows.Scan(&item.ID, &item.CategoryID, &item.CategoryName, &item.Name, &item.Description, &item.SortOrder, &item.IsActive, &item.CreatedAt, &item.UpdatedAt); queryErr != nil {
-				writeJSON(w, 500, "Не удалось загрузить обязанности резюме")
+				writeJSON(w, 500, "Не удалось загрузить обязанности профиля")
 				return
 			}
 			items = append(items, item)
@@ -389,7 +389,7 @@ func resumeDuties(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err = tx.ExecContext(r.Context(), `SELECT pg_advisory_xact_lock(704000000000000000::bigint + $1::bigint)`, resumeID); err != nil {
-		writeJSON(w, 500, "Не удалось заблокировать сохранение обязанностей резюме")
+		writeJSON(w, 500, "Не удалось заблокировать сохранение обязанностей профиля")
 		return
 	}
 	if _, err = tx.ExecContext(r.Context(), `DELETE FROM resume_duties WHERE resume_id=$1`, resumeID); err != nil {
@@ -411,7 +411,7 @@ func resumeDuties(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 500, "Не удалось сохранить обязанности")
 		return
 	}
-	writeJSON(w, 200, "Обязанности резюме сохранены")
+	writeJSON(w, 200, "Обязанности профиля сохранены")
 }
 
 func duplicateIDs(ids []int64) bool {

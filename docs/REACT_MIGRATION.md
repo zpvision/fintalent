@@ -13,7 +13,7 @@ Frontend переносится с HTML/CSS/vanilla JS на React поэтапн
 - `site-header.js` — общая публичная шапка и загрузка `/api/me`;
 - `site-errors.js` — глобальный перехват ошибок `fetch`;
 - `profile.js` — каркас личного кабинета;
-- `catalog.js` — общий список вакансий и резюме;
+- `catalog.js` — общий список вакансий и профилей специалистов;
 - `duty-picker.js`, `searchable-select.js`, `geography.js` — повторно используемые элементы форм;
 - `profimarket-components.js` — компоненты карточек ПрофиМаркета;
 - Go-функция `servePage` — чтение HTML и внедрение общих CSS/JS.
@@ -28,7 +28,7 @@ Frontend переносится с HTML/CSS/vanilla JS на React поэтапн
 | Авторизация | `/login`, `/register` | `login.*`, `register.*` | `pages/auth`, `AuthLayout` | React |
 | Каталоги | `/vacancies`, `/resumes` | `vacancies.html`, `resumes.html`, `catalog.js` | `pages/catalog`, `CatalogPage` | React |
 | Вакансии | `/vacancies/create`, `/vacancies/view` | `vacancy-create.*`, `vacancy-view.*` | `pages/vacancies`, `features/vacancies` | React |
-| Резюме | `/resume/create`, `/resume/view/:id` | `resume-create.*`, `resume-view.*` | `pages/resumes`, `features/resumes` | оба маршрута отдаются через React; мастер создания временно использует legacy compatibility-controller внутри React host |
+| Профили | `/resume/create`, `/resume/view/:id` | `resume-create.*`, `resume-view.*` | `pages/resumes`, `features/resumes` | оба маршрута отдаются через React; мастер заполнения временно использует legacy compatibility-controller внутри React host |
 | Профиль | `/profile` | `profile.*` и profile feature scripts сохранены для fallback | `pages/profile`, `UserLayout`, `api/profile.js` | React: постоянное меню, обзор, вакансии, настройки, ПрофиМаркет, компания, клиентская биржа и помощь коллегам; legacy-контроллеры больше не подключаются React-маршрутом |
 | Тесты | `/tests`, `/tests/create`, `/tests/take` | `tests.*`, `test-create.*`, `test-take.*` | `pages/tests`, `features/tests` | React |
 | Тестирование сотрудников | `/employee-test` | `employee-test.*` | `pages/tests`, `features/employeeTesting` | React |

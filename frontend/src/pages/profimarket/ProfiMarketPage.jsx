@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { getProfiMarketMeta, getProfiMarketSolutions } from '../../api/profimarket'
 import Icon from '../../components/Icon'
 import { useDocumentPage } from '../../hooks/useDocumentPage'
@@ -41,9 +42,9 @@ function Sidebar({ selectType }) {
         <a href="/profimarket/my?tab=favorites"><Icon name="heart" /> Избранное</a>
         <a href="/profimarket/my?tab=purchases"><Icon name="bag" /> Мои покупки</a>
         <a href="/profimarket/my"><Icon name="folder" /> Мои решения</a>
-        <a href="/profimarket/create"><Icon name="users" /> Стать автором</a>
+        <Link to="/profimarket/create"><Icon name="users" /> Стать автором</Link>
       </div>
-      <section className="pmh-author-cta"><i><Icon name="sparkles" /></i><h3>Есть свои наработки?</h3><p>Размещайте решения на ПрофиМаркете и зарабатывайте на своём опыте</p><a href="/profimarket/create">Стать автором</a></section>
+      <section className="pmh-author-cta"><i><Icon name="sparkles" /></i><h3>Есть свои наработки?</h3><p>Размещайте решения на ПрофиМаркете и зарабатывайте на своём опыте</p><Link to="/profimarket/create">Стать автором</Link></section>
     </aside>
   )
 }

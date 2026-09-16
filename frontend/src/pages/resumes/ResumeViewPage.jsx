@@ -80,7 +80,7 @@ function Sidebar({ data, knowledgeAvailable }) {
   const [active, setActive] = useState('#overview')
   const hasHelp = Boolean(data.help?.topics?.length)
   const links = [
-    { href: '#overview', icon: '▤', label: 'Обзор резюме' },
+    { href: '#overview', icon: '▤', label: 'Обзор профиля' },
     ...(hasHelp ? [{ href: '#help', icon: '🤝', label: 'Могу помочь' }] : []),
     { href: '#skills', icon: '◇', label: 'Навыки и компетенции' },
     { href: '#experience', icon: '▣', label: 'Опыт работы' },
@@ -155,7 +155,7 @@ function ResumeHero({ data, title }) {
         {data.available_immediately || data.is_owner ? (
           <div className="resume-hero-controls">
             {data.available_immediately ? <span className="resume-ready-control"><i>✓</i><span><small>Готовность к работе</small><b>Может выйти сразу</b></span></span> : null}
-            {data.is_owner ? <a className="resume-owner-edit" href="/resume/create" title="Редактировать резюме" aria-label="Редактировать резюме"><span>✎</span></a> : null}
+            {data.is_owner ? <a className="resume-owner-edit" href="/resume/create" title="Редактировать профиль" aria-label="Редактировать профиль"><span>✎</span></a> : null}
           </div>
         ) : null}
         <div className="resume-avatar-wrap"><img className="resume-avatar" src={data.avatar || '/static/profile-3-avatar.png'} alt={data.name} /><i className="resume-online" /></div>
@@ -341,7 +341,7 @@ function KnowledgeResult({ item, data, onToggle, busy }) {
     <article className={`knowledge-result ${item.passed ? 'knowledge-passed' : 'knowledge-completed'}`}>
       <header><span>{item.category || 'Профессиональные знания'}</span><i>{item.passed ? 'Тест пройден' : 'Результат сохранён'}</i></header>
       <h3>{item.title}</h3>
-      <div className="knowledge-score"><div className="knowledge-ring" style={{ '--score': percent }}><strong>{percent}%</strong></div><div><b>{knowledgeLevel(percent)}</b><small>{item.passed ? 'Проходной балл набран' : 'Тест завершён, результат отображается в резюме'}</small></div></div>
+      <div className="knowledge-score"><div className="knowledge-ring" style={{ '--score': percent }}><strong>{percent}%</strong></div><div><b>{knowledgeLevel(percent)}</b><small>{item.passed ? 'Проходной балл набран' : 'Тест завершён, результат отображается в профиле'}</small></div></div>
       <div className="knowledge-confirmers"><span className="knowledge-avatars">{people.slice(0, 3).map((person, index) => person.avatar ? <img style={{ '--i': index }} src={person.avatar} alt={person.name} title={person.name} key={person.id ?? person.name} /> : <i style={{ '--i': index }} title={person.name} key={person.id ?? person.name}>{initials(person.name)}</i>)}{item.confirmations > 3 ? <b>+{item.confirmations - 3}</b> : null}</span><small>{item.confirmations ? `${item.confirmations} ${item.confirmations === 1 ? 'подтверждение' : 'подтверждений'}` : 'Пока без подтверждений'}</small></div>
       <footer><span><i>✓</i> {new Date(item.finished_at).toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })}</span>{data.can_confirm ? <button className={item.confirmed_by_me ? 'confirmed' : ''} disabled={busy} onClick={() => onToggle(item)}>{item.confirmed_by_me ? '✓ Знания подтверждены' : 'Подтвердить знания'}</button> : null}</footer>
     </article>
@@ -418,7 +418,7 @@ export default function ResumeViewPage() {
     '/static/resume-zodiac.css?v=2',
     '/static/resume-help-public.css?v=1',
   ])
-  useDocumentPage({ title: resume ? `${resume.name} — ${title} | FinTalent` : 'Резюме — FinTalent' })
+  useDocumentPage({ title: resume ? `${resume.name} — ${title} | FinTalent` : 'Профиль — FinTalent' })
 
   const reloadKnowledge = useCallback(async () => {
     const value = await getResumeKnowledge(resumeId)
@@ -429,7 +429,7 @@ export default function ResumeViewPage() {
     const controller = new AbortController()
     if (!resumeId) {
       setStatus('error')
-      setError('Некорректная ссылка на резюме')
+      setError('Некорректная ссылка на профиль')
       return () => controller.abort()
     }
     setStatus('loading')
@@ -443,7 +443,7 @@ export default function ResumeViewPage() {
       setStatus('ready')
     }).catch((requestError) => {
       if (requestError.name !== 'AbortError') {
-        setError(requestError.message || 'Не удалось загрузить резюме')
+        setError(requestError.message || 'Не удалось загрузить профиль')
         setStatus('error')
       }
     })
@@ -453,7 +453,7 @@ export default function ResumeViewPage() {
   return (
     <PublicLayout>
       {status === 'loading' ? <div className="resume-view-shell"><aside className="resume-view-sidebar" /><main className="resume-view-main"><div id="resume-view-content" className="resume-view-content"><div className="resume-view-loading"><i /><b>Собираем профессиональный профиль…</b></div></div></main></div> : null}
-      {status === 'error' ? <div className="resume-view-shell"><aside className="resume-view-sidebar" /><main className="resume-view-main"><div id="resume-view-content" className="resume-view-content"><div className="resume-view-error"><h2>Резюме недоступно</h2><p>{error}</p><a href="/">Вернуться на главную</a></div></div></main></div> : null}
+      {status === 'error' ? <div className="resume-view-shell"><aside className="resume-view-sidebar" /><main className="resume-view-main"><div id="resume-view-content" className="resume-view-content"><div className="resume-view-error"><h2>Профиль недоступен</h2><p>{error}</p><a href="/">Вернуться на главную</a></div></div></main></div> : null}
       {status === 'ready' && resume ? <ResumePageContent data={resume} knowledge={knowledge} resumeId={resumeId} reloadKnowledge={reloadKnowledge} /> : null}
     </PublicLayout>
   )

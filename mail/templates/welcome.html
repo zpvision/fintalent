@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+
+  <title>Добро пожаловать в FinTalent</title>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #f4f7fb;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      color: #172033;
+    }
+
+    table {
+      border-spacing: 0;
+      border-collapse: collapse;
+    }
+
+    img {
+      border: 0;
+      display: block;
+      max-width: 100%;
+    }
+
+    a {
+      text-decoration: none;
+    }
+
+    @media only screen and (max-width: 640px) {
+      .container {
+        width: 100% !important;
+      }
+
+      .content {
+        padding-left: 22px !important;
+        padding-right: 22px !important;
+      }
+
+      .hero-title {
+        font-size: 30px !important;
+        line-height: 36px !important;
+      }
+
+      .feature-column {
+        display: block !important;
+        width: 100% !important;
+        padding: 0 0 12px 0 !important;
+      }
+    }
+  </style>
+</head>
+
+<body style="margin:0;padding:0;background:#f4f7fb;">
+
+  <!-- PREHEADER -->
+  <div style="
+    display:none;
+    max-height:0;
+    overflow:hidden;
+    opacity:0;
+    color:transparent;
+  ">
+    Вы зарегистрировались в FinTalent. Рассказываем, какие возможности теперь доступны.
+  </div>
+
+  <table width="100%" role="presentation" style="background:#f4f7fb;">
+    <tr>
+      <td align="center" style="padding:36px 14px;">
+
+        <table
+          width="640"
+          class="container"
+          role="presentation"
+          style="width:640px;max-width:640px;"
+        >
+
+          <!-- LOGO -->
+          <tr>
+            <td align="center" style="padding-bottom:22px;">
+              <a href="https://fintalent.ru" style="display:inline-block;">
+                <img src="cid:fintalent-logo" width="180" alt="FinTalent" style="display:block;width:180px;height:auto;">
+              </a>
+            </td>
+          </tr>
+
+          <!-- MAIN -->
+          <tr>
+            <td
+              style="
+                background:#ffffff;
+                border-radius:26px;
+                overflow:hidden;
+                border:1px solid #e8edf5;
+                box-shadow:0 14px 45px rgba(30,41,59,0.07);
+              "
+            >
+
+              <!-- HERO -->
+              <table width="100%" role="presentation">
+                <tr>
+                  <td
+                    class="content"
+                    align="center"
+                    style="
+                      padding:54px 52px 46px 52px;
+                      background:linear-gradient(135deg,#f5f9ff 0%,#f7f5ff 52%,#f2fbf8 100%);
+                    "
+                  >
+
+                    <div style="
+                      display:inline-block;
+                      padding:8px 14px;
+                      border-radius:30px;
+                      background:#ffffff;
+                      border:1px solid #e4eaf4;
+                      color:#53627c;
+                      font-size:13px;
+                      line-height:17px;
+                      font-weight:600;
+                    ">
+                      Добро пожаловать в профессиональное сообщество
+                    </div>
+
+                    <div
+                      class="hero-title"
+                      style="
+                        margin-top:23px;
+                        font-size:38px;
+                        line-height:45px;
+                        font-weight:800;
+                        letter-spacing:-1.3px;
+                        color:#172033;
+                      "
+                    >
+                      {{.UserName}}, рады видеть вас<br>
+                      в FinTalent 👋
+                    </div>
+
+                    <div style="
+                      max-width:510px;
+                      margin:18px auto 0 auto;
+                      font-size:17px;
+                      line-height:27px;
+                      color:#66748c;
+                    ">
+                      Регистрация успешно завершена.
+                      Теперь вам доступно пространство, где бухгалтеры,
+                      финансисты, аудиторы, руководители и другие специалисты
+                      могут находить друг друга, подтверждать свою экспертизу,
+                      делиться знаниями и развивать профессиональные связи.
+                    </div>
+
+                    <table role="presentation">
+                      <tr>
+                        <td align="center" style="padding-top:29px;">
+                          <a
+                            href="{{.ProfileURL}}"
+                            style="
+                              display:inline-block;
+                              background:#3167e3;
+                              color:#ffffff;
+                              font-size:16px;
+                              line-height:20px;
+                              font-weight:700;
+                              padding:15px 28px;
+                              border-radius:13px;
+                              box-shadow:0 9px 22px rgba(49,103,227,0.22);
+                            "
+                          >
+                            Начать знакомство с FinTalent →
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+
+                  </td>
+                </tr>
+              </table>
+
+              <!-- INTRO -->
+              <table width="100%" role="presentation">
+                <tr>
+                  <td
+                    class="content"
+                    style="padding:42px 48px 18px 48px;"
+                  >
+                    <div style="
+                      font-size:24px;
+                      line-height:31px;
+                      font-weight:800;
+                      color:#172033;
+                      letter-spacing:-0.5px;
+                    ">
+                      FinTalent — это больше, чем вакансии и резюме
+                    </div>
+
+                    <div style="
+                      margin-top:11px;
+                      font-size:15px;
+                      line-height:24px;
+                      color:#6c788c;
+                    ">
+                      Мы создаём единую профессиональную среду,
+                      в которой важны не только должность и стаж,
+                      но и реальные знания, опыт и репутация специалиста.
+                    </div>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- PROFILE CARD -->
+              <table width="100%" role="presentation">
+                <tr>
+                  <td class="content" style="padding:18px 48px 0 48px;">
+
+                    <table
+                      width="100%"
+                      role="presentation"
+                      style="
+                        background:#f7f9ff;
+                        border:1px solid #e8edfa;
+                        border-radius:19px;
+                      "
+                    >
+                      <tr>
+                        <td style="padding:25px 26px;">
+
+                          <table width="100%" role="presentation">
+                            <tr>
+                              <td width="54" valign="top">
+                                <div style="
+                                  width:44px;
+                                  height:44px;
+                                  line-height:44px;
+                                  text-align:center;
+                                  border-radius:13px;
+                                  background:#e7efff;
+                                  font-size:21px;
+                                ">
+                                  👤
+                                </div>
+                              </td>
+
+                              <td valign="top">
+                                <div style="
+                                  font-size:17px;
+                                  line-height:23px;
+                                  font-weight:750;
+                                  color:#1f2a44;
+                                ">
+                                  Ваш профессиональный профиль
+                                </div>
+
+                                <div style="
+                                  margin-top:6px;
+                                  font-size:14px;
+                                  line-height:22px;
+                                  color:#67758e;
+                                ">
+                                  Это не просто резюме. Покажите свой опыт,
+                                  специализации, навыки, результаты тестов,
+                                  публикации и направления, в которых вы готовы
+                                  помочь или проконсультировать других.
+                                </div>
+
+                              </td>
+                            </tr>
+                          </table>
+
+                        </td>
+                      </tr>
+                    </table>
+
+                  </td>
+                </tr>
+              </table>
+
+              <!-- TESTS -->
+              <table width="100%" role="presentation">
+                <tr>
+                  <td class="content" style="padding:14px 48px 0 48px;">
+
+                    <table
+                      width="100%"
+                      role="presentation"
+                      style="
+                        background:#f6fbf8;
+                        border:1px solid #e4f1e9;
+                        border-radius:19px;
+                      "
+                    >
+                      <tr>
+                        <td style="padding:25px 26px;">
+
+                          <table width="100%" role="presentation">
+                            <tr>
+                              <td width="54" valign="top">
+                                <div style="
+                                  width:44px;
+                                  height:44px;
+                                  line-height:44px;
+                                  text-align:center;
+                                  border-radius:13px;
+                                  background:#e4f7ec;
+                                  font-size:21px;
+                                ">
+                                  ✓
+                                </div>
+                              </td>
+
+                              <td valign="top">
+                                <div style="
+                                  font-size:17px;
+                                  line-height:23px;
+                                  font-weight:750;
+                                  color:#1f2a44;
+                                ">
+                                  Подтверждайте знания, а не просто указывайте их
+                                </div>
+
+                                <div style="
+                                  margin-top:6px;
+                                  font-size:14px;
+                                  line-height:22px;
+                                  color:#67758e;
+                                ">
+                                  В FinTalent можно проходить профессиональные тесты
+                                  и подтверждать компетенции. Работодатель получает
+                                  больше информации о кандидате ещё до первого общения,
+                                  а специалист формирует подтверждённую профессиональную репутацию.
+                                </div>
+
+                              </td>
+                            </tr>
+                          </table>
+
+                        </td>
+                      </tr>
+                    </table>
+
+                  </td>
+                </tr>
+              </table>
+
+              <!-- JOBS -->
+              <table width="100%" role="presentation">
+                <tr>
+                  <td class="content" style="padding:14px 48px 0 48px;">
+
+                    <table
+                      width="100%"
+                      role="presentation"
+                      style="
+                        background:#fff9f3;
+                        border:1px solid #f6eadb;
+                        border-radius:19px;
+                      "
+                    >
+                      <tr>
+                        <td style="padding:25px 26px;">
+
+                          <table width="100%" role="presentation">
+                            <tr>
+                              <td width="54" valign="top">
+                                <div style="
+                                  width:44px;
+                                  height:44px;
+                                  line-height:44px;
+                                  text-align:center;
+                                  border-radius:13px;
+                                  background:#fff0dd;
+                                  font-size:21px;
+                                ">
+                                  💼
+                                </div>
+                              </td>
+
+                              <td valign="top">
+                                <div style="
+                                  font-size:17px;
+                                  line-height:23px;
+                                  font-weight:750;
+                                  color:#1f2a44;
+                                ">
+                                  Ищите работу или сильных специалистов
+                                </div>
+
+                                <div style="
+                                  margin-top:6px;
+                                  font-size:14px;
+                                  line-height:22px;
+                                  color:#67758e;
+                                ">
+                                  Система учитывает навыки, опыт и требования вакансии,
+                                  чтобы показывать степень совпадения кандидата и работодателя.
+                                  А для некоторых вакансий отклик начинается
+                                  с небольшого профессионального тестирования.
+                                </div>
+
+                              </td>
+                            </tr>
+                          </table>
+
+                        </td>
+                      </tr>
+                    </table>
+
+                  </td>
+                </tr>
+              </table>
+
+              <!-- OTHER POSSIBILITIES -->
+              <table width="100%" role="presentation">
+                <tr>
+                  <td
+                    class="content"
+                    style="padding:39px 48px 10px 48px;"
+                  >
+
+                    <div style="
+                      font-size:21px;
+                      line-height:28px;
+                      font-weight:800;
+                      color:#172033;
+                    ">
+                      И это далеко не всё
+                    </div>
+
+                    <div style="
+                      margin-top:7px;
+                      font-size:14px;
+                      line-height:22px;
+                      color:#738097;
+                    ">
+                      FinTalent постепенно объединяет разные стороны профессиональной жизни.
+                    </div>
+
+                  </td>
+                </tr>
+              </table>
+
+              <!-- GRID -->
+              <table width="100%" role="presentation">
+                <tr>
+                  <td class="content" style="padding:14px 48px 0 48px;">
+
+                    <table width="100%" role="presentation">
+                      <tr>
+
+                        <td
+                          class="feature-column"
+                          width="50%"
+                          valign="top"
+                          style="padding-right:7px;"
+                        >
+                          <table
+                            width="100%"
+                            role="presentation"
+                            style="
+                              border:1px solid #edf0f5;
+                              border-radius:17px;
+                              background:#ffffff;
+                            "
+                          >
+                            <tr>
+                              <td style="padding:21px;">
+                                <div style="font-size:23px;">🏢</div>
+
+                                <div style="
+                                  margin-top:12px;
+                                  font-size:15px;
+                                  line-height:21px;
+                                  font-weight:700;
+                                  color:#1f2a44;
+                                ">
+                                  Бухгалтерские компании
+                                </div>
+
+                                <div style="
+                                  margin-top:5px;
+                                  font-size:13px;
+                                  line-height:20px;
+                                  color:#748198;
+                                ">
+                                  Изучайте компании, их специализации,
+                                  услуги, компетенции и команду.
+                                </div>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+
+                        <td
+                          class="feature-column"
+                          width="50%"
+                          valign="top"
+                          style="padding-left:7px;"
+                        >
+                          <table
+                            width="100%"
+                            role="presentation"
+                            style="
+                              border:1px solid #edf0f5;
+                              border-radius:17px;
+                              background:#ffffff;
+                            "
+                          >
+                            <tr>
+                              <td style="padding:21px;">
+                                <div style="font-size:23px;">✍️</div>
+
+                                <div style="
+                                  margin-top:12px;
+                                  font-size:15px;
+                                  line-height:21px;
+                                  font-weight:700;
+                                  color:#1f2a44;
+                                ">
+                                  Публикации
+                                </div>
+
+                                <div style="
+                                  margin-top:5px;
+                                  font-size:13px;
+                                  line-height:20px;
+                                  color:#748198;
+                                ">
+                                  Делитесь опытом и знаниями,
+                                  формируя свою профессиональную репутацию.
+                                </div>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+
+                      </tr>
+                    </table>
+
+                  </td>
+                </tr>
+
+                <tr>
+                  <td class="content" style="padding:14px 48px 0 48px;">
+
+                    <table width="100%" role="presentation">
+                      <tr>
+
+                        <td
+                          class="feature-column"
+                          width="50%"
+                          valign="top"
+                          style="padding-right:7px;"
+                        >
+                          <table
+                            width="100%"
+                            role="presentation"
+                            style="
+                              border:1px solid #edf0f5;
+                              border-radius:17px;
+                              background:#ffffff;
+                            "
+                          >
+                            <tr>
+                              <td style="padding:21px;">
+                                <div style="font-size:23px;">🤝</div>
+
+                                <div style="
+                                  margin-top:12px;
+                                  font-size:15px;
+                                  line-height:21px;
+                                  font-weight:700;
+                                  color:#1f2a44;
+                                ">
+                                  Помощь коллег
+                                </div>
+
+                                <div style="
+                                  margin-top:5px;
+                                  font-size:13px;
+                                  line-height:20px;
+                                  color:#748198;
+                                ">
+                                  Найдите эксперта по ВЭД, маркетплейсам,
+                                  отраслевому учёту и другим сложным вопросам.
+                                </div>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+
+                        <td
+                          class="feature-column"
+                          width="50%"
+                          valign="top"
+                          style="padding-left:7px;"
+                        >
+                          <table
+                            width="100%"
+                            role="presentation"
+                            style="
+                              border:1px solid #edf0f5;
+                              border-radius:17px;
+                              background:#ffffff;
+                            "
+                          >
+                            <tr>
+                              <td style="padding:21px;">
+                                <div style="font-size:23px;">👥</div>
+
+                                <div style="
+                                  margin-top:12px;
+                                  font-size:15px;
+                                  line-height:21px;
+                                  font-weight:700;
+                                  color:#1f2a44;
+                                ">
+                                  Клубы и сообщества
+                                </div>
+
+                                <div style="
+                                  margin-top:5px;
+                                  font-size:13px;
+                                  line-height:20px;
+                                  color:#748198;
+                                ">
+                                  Находите профессиональные клубы,
+                                  школы и сообщества в одном месте.
+                                </div>
+                              </td>
+                            </tr>
+                          </table>
+                        </td>
+
+                      </tr>
+                    </table>
+
+                  </td>
+                </tr>
+
+              </table>
+
+              <!-- PHILOSOPHY -->
+              <table width="100%" role="presentation">
+                <tr>
+                  <td
+                    class="content"
+                    style="padding:36px 48px 0 48px;"
+                  >
+
+                    <table
+                      width="100%"
+                      role="presentation"
+                      style="
+                        background:linear-gradient(135deg,#263f82 0%,#415ec6 100%);
+                        border-radius:20px;
+                      "
+                    >
+                      <tr>
+                        <td style="padding:30px 30px;">
+
+                          <div style="
+                            font-size:19px;
+                            line-height:26px;
+                            font-weight:750;
+                            color:#ffffff;
+                          ">
+                            Наша идея проста
+                          </div>
+
+                          <div style="
+                            margin-top:9px;
+                            font-size:14px;
+                            line-height:23px;
+                            color:#dce5ff;
+                          ">
+                            Сделать место, где профессиональная ценность человека
+                            определяется не красивым резюме, а знаниями, опытом,
+                            репутацией и реальной экспертизой.
+                          </div>
+
+                        </td>
+                      </tr>
+                    </table>
+
+                  </td>
+                </tr>
+              </table>
+
+              <!-- START -->
+              <table width="100%" role="presentation">
+                <tr>
+                  <td
+                    class="content"
+                    align="center"
+                    style="padding:42px 48px 48px 48px;"
+                  >
+
+                    <div style="
+                      font-size:22px;
+                      line-height:29px;
+                      font-weight:800;
+                      color:#172033;
+                    ">
+                      С чего начать?
+                    </div>
+
+                    <div style="
+                      max-width:430px;
+                      margin:9px auto 0 auto;
+                      font-size:14px;
+                      line-height:22px;
+                      color:#748198;
+                    ">
+                      Заполните профиль и расскажите,
+                      чем вы занимаетесь и в каких направлениях сильны.
+                      Это поможет другим участникам быстрее вас найти.
+                    </div>
+
+                    <table role="presentation">
+                      <tr>
+                        <td align="center" style="padding-top:23px;">
+                          <a
+                            href="{{.ProfileURL}}"
+                            style="
+                              display:inline-block;
+                              background:#3167e3;
+                              color:#ffffff;
+                              font-size:16px;
+                              line-height:20px;
+                              font-weight:700;
+                              padding:15px 30px;
+                              border-radius:13px;
+                            "
+                          >
+                            Заполнить профиль →
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <div style="
+                      margin-top:15px;
+                      font-size:12px;
+                      line-height:18px;
+                      color:#9aa5b6;
+                    ">
+                      Это займёт всего несколько минут
+                    </div>
+
+                  </td>
+                </tr>
+              </table>
+
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td
+              align="center"
+              style="
+                padding:27px 25px 10px 25px;
+                font-size:12px;
+                line-height:19px;
+                color:#99a4b5;
+              "
+            >
+              <div style="
+                font-size:14px;
+                font-weight:750;
+                color:#657187;
+                margin-bottom:7px;
+              ">
+                FinTalent
+              </div>
+
+              Профессиональная среда для бухгалтеров,
+              финансистов, аудиторов, экспертов и компаний.
+
+              <div style="margin-top:9px;">
+                <a
+                  href="https://fintalent.ru"
+                  style="color:#657187;"
+                >
+                  fintalent.ru
+                </a>
+              </div>
+
+              <div style="
+                margin-top:17px;
+                color:#a2acbb;
+              ">
+                Вы получили это письмо, потому что зарегистрировались в FinTalent.<br>
+                Если регистрация была выполнена не вами, письмо можно проигнорировать.
+              </div>
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

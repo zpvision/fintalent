@@ -186,7 +186,7 @@ func resumeStatusHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, "Не удалось проверить резюме")
+		writeJSON(w, http.StatusInternalServerError, "Не удалось проверить профиль")
 		return
 	}
 	writeAdminJSON(w, http.StatusOK, map[string]any{
@@ -341,7 +341,7 @@ func resumeExperienceHandler(w http.ResponseWriter, r *http.Request) {
 					return
 				}
 				if _, dutyErr = tx.ExecContext(r.Context(), `INSERT INTO resume_duties(resume_id,duty_id) VALUES($1,$2) ON CONFLICT(resume_id,duty_id) DO NOTHING`, resumeID, dutyID); dutyErr != nil {
-					writeJSON(w, http.StatusInternalServerError, "Не удалось обновить обязанности резюме")
+					writeJSON(w, http.StatusInternalServerError, "Не удалось обновить обязанности профиля")
 					return
 				}
 			}
@@ -646,13 +646,13 @@ func resumeFinanceHandler(w http.ResponseWriter, r *http.Request) {
 		for rows.Next() {
 			var status resumeSearchStatus
 			if err := rows.Scan(&status.Code, &status.Name, &status.Icon); err != nil {
-				writeJSON(w, http.StatusInternalServerError, "Не удалось загрузить статусы резюме")
+				writeJSON(w, http.StatusInternalServerError, "Не удалось загрузить статусы профиля")
 				return
 			}
 			payload.Statuses = append(payload.Statuses, status)
 		}
 		if err := rows.Err(); err != nil {
-			writeJSON(w, http.StatusInternalServerError, "Не удалось загрузить статусы резюме")
+			writeJSON(w, http.StatusInternalServerError, "Не удалось загрузить статусы профиля")
 			return
 		}
 
@@ -793,11 +793,11 @@ func resumeFinanceHandler(w http.ResponseWriter, r *http.Request) {
 			)`,
 			payload.SearchStatusCode,
 		).Scan(&statusExists); err != nil {
-			writeJSON(w, http.StatusInternalServerError, "Не удалось проверить статус резюме")
+			writeJSON(w, http.StatusInternalServerError, "Не удалось проверить статус профиля")
 			return
 		}
 		if !statusExists {
-			writeJSON(w, http.StatusBadRequest, "Выберите статус резюме")
+			writeJSON(w, http.StatusBadRequest, "Выберите статус профиля")
 			return
 		}
 
@@ -933,10 +933,10 @@ func resumePublishHandler(w http.ResponseWriter, r *http.Request) {
 		userID,
 	).Scan(&salary, &status, &hasCity, &hasWorkFormat); err != nil {
 		if err == sql.ErrNoRows {
-			writeJSON(w, http.StatusBadRequest, "Сначала заполните резюме")
+			writeJSON(w, http.StatusBadRequest, "Сначала заполните профиль")
 			return
 		}
-		writeJSON(w, http.StatusInternalServerError, "Не удалось проверить резюме")
+		writeJSON(w, http.StatusInternalServerError, "Не удалось проверить профиль")
 		return
 	}
 	if !salary.Valid || salary.Float64 <= 0 || !status.Valid || status.String == "" {
@@ -960,7 +960,7 @@ func resumePublishHandler(w http.ResponseWriter, r *http.Request) {
 		userID,
 	).Scan(&resumeID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, "Не удалось опубликовать резюме")
+		writeJSON(w, http.StatusInternalServerError, "Не удалось опубликовать профиль")
 		return
 	}
 	writeAdminJSON(w, http.StatusOK, map[string]any{

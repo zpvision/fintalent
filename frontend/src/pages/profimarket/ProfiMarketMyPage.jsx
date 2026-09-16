@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { deleteProfiMarketSolution, getMyProfiMarketOrders, getMyProfiMarketPurchases, getMyProfiMarketSolutions, getProfiMarketSolution, getProfiMarketSolutions, unpublishProfiMarketSolution } from '../../api/profimarket'
 import { useDocumentPage } from '../../hooks/useDocumentPage'
 import usePageStyles from '../../hooks/usePageStyles'
@@ -57,7 +57,7 @@ export default function ProfiMarketMyPage() {
   const tabs = [['solutions', 'Мои решения'], ['purchases', 'Мои покупки'], ['orders', 'Заказы и внедрения']]
   if (tab === 'favorites') tabs.unshift(['favorites', 'Избранное'])
   return <PublicLayout><main className="pm-my-page"><div className="pm-shell">
-    <header className="pm-dashboard-head"><div><small>ЛИЧНЫЙ КАБИНЕТ</small><h1>ПрофиМаркет</h1><p>Управляйте решениями, покупками и запросами на внедрение.</p></div><a href="/profimarket/create">＋ Создать новое решение</a></header>
+    <header className="pm-dashboard-head"><div><small>ЛИЧНЫЙ КАБИНЕТ</small><h1>ПрофиМаркет</h1><p>Управляйте решениями, покупками и запросами на внедрение.</p></div><Link to="/profimarket/create">＋ Создать новое решение</Link></header>
     <nav className="pm-dashboard-tabs">{tabs.map(([key, label]) => <button className={tab === key ? 'active' : ''} key={key} onClick={() => setParams({ tab: key })}>{label}</button>)}</nav>
     <section>{loading ? <div className="pm-loading">Загружаем данные…</div> : error ? <div className="pm-loading">{error}</div> : tab === 'solutions' ? <SolutionRows items={items} reload={load} /> : tab === 'favorites' ? <Favorites items={items} /> : <Orders items={items} orders={tab === 'orders'} />}</section>
   </div></main></PublicLayout>

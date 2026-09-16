@@ -325,6 +325,9 @@ func registerUser(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, "Аккаунт создан, но не удалось выполнить вход")
 		return
 	}
+	if err := sendWelcomeEmail(fullName, emailAddress); err != nil {
+		log.Printf("Не удалось отправить приветственное письмо пользователю %d: %v", userID, err)
+	}
 	writeJSON(w, http.StatusCreated, "Аккаунт успешно создан")
 }
 

@@ -1,17 +1,49 @@
 import { useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { createProfiMarketSolution, getProfiMarketMeta, getProfiMarketSolution, publishProfiMarketSolution, updateProfiMarketSolution, uploadProfiMarketImage } from '../../api/profimarket'
 import Icon from '../../components/Icon'
 import { useDocumentPage } from '../../hooks/useDocumentPage'
 import usePageStyles from '../../hooks/usePageStyles'
 import PublicLayout from '../../layouts/PublicLayout'
 
-const blank = (type) => ({ type, title: '', short_description: '', description: '', cover_image: '', tags: [], topics: [], audiences: [], ai_features: [], platforms: [], platform_ids: [], media: [], pricing_type: 'MONTHLY', price: 0, old_price: null, trial_days: 0, delivery_type: 'MANUAL', external_url: '', sections: [], access_features: [], key_metrics: [], bonuses: [], crm_ids: [] })
+const creationPayload = (type) => ({ type, pricing_type: 'MONTHLY', delivery_type: 'MANUAL' })
+const solutionPayload = (value) => ({
+  type: value.type,
+  title: value.title || '',
+  short_description: value.short_description || '',
+  description: value.description || '',
+  cover_image: value.cover_image || '',
+  price: Number(value.price || 0),
+  old_price: value.old_price ? Number(value.old_price) : null,
+  currency: value.currency || 'RUB',
+  pricing_type: value.pricing_type || 'MONTHLY',
+  trial_days: Number(value.trial_days || 0),
+  delivery_type: value.delivery_type || 'MANUAL',
+  external_url: value.external_url || '',
+  tags: value.tags || [],
+  topics: value.topics || [],
+  audiences: value.audiences || [],
+  sections: value.sections || [],
+  access_features: value.access_features || [],
+  ai_features: (value.ai_features || []).map((item, index) => ({ ...item, sort_order: index })),
+  media: (value.media || []).map((item, index) => ({ ...item, sort_order: index })),
+  crm_ids: value.crm_ids || [],
+  platform_ids: value.platform_ids || [],
+  key_metrics: value.key_metrics || [],
+  bonuses: value.bonuses || [],
+  bonus_style: value.bonus_style || '',
+  metric_style: value.metric_style || '',
+  access_style: value.access_style || '',
+  right_block_title: value.right_block_title || '',
+  implementation_title: value.implementation_title || '',
+  implementation_subtitle: value.implementation_subtitle || '',
+  purchase_button_code: value.purchase_button_code || '',
+})
 const steps = ['Основная информация', 'Что умеет', 'Где работает', 'Демо и изображения', 'Цена и trial', 'Получение доступа', 'Предпросмотр', 'Публикация']
 const field = (event) => event.target.type === 'number' ? Number(event.target.value) : event.target.value
 
 function TypeChoice({ choose, busy }) {
-  return <div className="pm-create-shell"><div className="pm-create-head"><a href="/profimarket">← Вернуться в ПрофиМаркет</a><span><i>✓</i> Единый кабинет FinTalent</span></div><section className="pm-type-choice"><small>НОВОЕ РЕШЕНИЕ</small><h1>Что вы хотите разместить на ПрофиМаркете?</h1><p>Для каждого типа решения подготовлен отдельный профессиональный мастер.</p><div className="pm-type-grid"><button disabled={busy} className="pm-type-option regulation" onClick={() => choose('REGULATION')}><i><Icon name="workflow" /></i><h2>Регламент</h2><p>Готовый рабочий процесс, который можно внедрить в CRM.</p><strong>Выбрать регламент →</strong></button><button disabled={busy} className="pm-type-option ai" onClick={() => choose('AI_ASSISTANT')}><i><Icon name="bot" /></i><h2>ИИ-ассистент или бот</h2><p>ИИ-инструмент, бот или помощник для автоматизации работы.</p><strong>Выбрать ИИ-инструмент →</strong></button></div></section></div>
+  return <div className="pm-create-shell"><div className="pm-create-head"><Link to="/profimarket">← Вернуться в ПрофиМаркет</Link><span><i>✓</i> Единый кабинет FinTalent</span></div><section className="pm-type-choice"><small>НОВОЕ РЕШЕНИЕ</small><h1>Что вы хотите разместить на ПрофиМаркете?</h1><p>Для каждого типа решения подготовлен отдельный профессиональный мастер.</p><div className="pm-type-grid"><button disabled={busy} className="pm-type-option regulation" onClick={() => choose('REGULATION')}><i><Icon name="workflow" /></i><h2>Регламент</h2><p>Готовый рабочий процесс, который можно внедрить в CRM.</p><strong>Выбрать регламент →</strong></button><button disabled={busy} className="pm-type-option ai" onClick={() => choose('AI_ASSISTANT')}><i><Icon name="bot" /></i><h2>ИИ-ассистент или бот</h2><p>ИИ-инструмент, бот или помощник для автоматизации работы.</p><strong>Выбрать ИИ-инструмент →</strong></button></div></section></div>
 }
 
 function Basic({ value, change, upload }) {
@@ -32,15 +64,16 @@ function Media({ value, change, upload, remove }) {
 
 export default function ProfiMarketCreatePage() {
   usePageStyles(['/static/profimarket.css?v=1']); useDocumentPage({ title: 'Разместить решение — ПрофиМаркет' })
+  const navigate = useNavigate()
   const [params] = useSearchParams(), editID = params.get('id'), [solution, setSolution] = useState(null), [meta, setMeta] = useState({}), [step, setStep] = useState(0), [busy, setBusy] = useState(false), [notice, setNotice] = useState(''), [error, setError] = useState('')
-  useEffect(() => { Promise.all([getProfiMarketMeta(), editID ? getProfiMarketSolution(editID) : null]).then(([dictionary, current]) => { setMeta(dictionary); if (current?.type === 'REGULATION') window.location.replace(`/profimarket/regulation/edit?id=${current.id}`); else if (current) setSolution({ ...current, platform_ids: (current.platforms || []).map((item) => item.id), ai_features: current.ai_features || [], media: current.media || [] }) }).catch((requestError) => setError(requestError.message)) }, [editID])
+  useEffect(() => { setError(''); Promise.all([getProfiMarketMeta(), editID ? getProfiMarketSolution(editID) : null]).then(([dictionary, current]) => { setMeta(dictionary); if (current?.type === 'REGULATION') navigate(`/profimarket/regulation/edit?id=${current.id}`, { replace: true }); else if (current) { setSolution({ ...current, platform_ids: (current.platforms || []).map((item) => item.id), ai_features: current.ai_features || [], media: current.media || [] }); setBusy(false) } }).catch((requestError) => { setError(requestError.message); setBusy(false) }) }, [editID, navigate])
   const change = (name) => (event) => setSolution((value) => ({ ...value, [name]: field(event) }))
-  async function choose(type) { setBusy(true); try { const created = await createProfiMarketSolution(blank(type)); if (type === 'REGULATION') window.location.replace(`/profimarket/regulation/edit?id=${created.id}`); else window.location.replace(`/profimarket/create?id=${created.id}`) } catch (requestError) { setError(requestError.message); setBusy(false) } }
-  function payload() { return { ...blank(solution.type), ...solution, old_price: solution.old_price || null, ai_features: solution.ai_features.map((item, index) => ({ ...item, sort_order: index })), media: solution.media.map((item, index) => ({ ...item, sort_order: index })), platform_ids: solution.platform_ids } }
+  async function choose(type) { setBusy(true); setError(''); try { const created = await createProfiMarketSolution(creationPayload(type)); navigate(type === 'REGULATION' ? `/profimarket/regulation/edit?id=${created.id}` : `/profimarket/create?id=${created.id}`, { replace: true }) } catch (requestError) { setError(requestError.message); setBusy(false) } }
+  function payload() { return solutionPayload(solution) }
   async function save() { setBusy(true); try { const saved = await updateProfiMarketSolution(solution.id, payload()); setSolution({ ...saved, platform_ids: (saved.platforms || []).map((item) => item.id), ai_features: saved.ai_features || [], media: saved.media || [] }); setNotice('Черновик сохранён'); return true } catch (requestError) { setError(requestError.message); return false } finally { setBusy(false) } }
   async function move(next) { if (await save()) setStep(next) }
   async function upload(file, kind) { if (!file) return; setBusy(true); try { const data = await uploadProfiMarketImage(file); if (kind === 'cover') setSolution((value) => ({ ...value, cover_image: data.url })); else setSolution((value) => ({ ...value, media: [...value.media, { type: 'IMAGE', url: data.url, is_preview: !value.media.length }] })) } catch (requestError) { setError(requestError.message) } finally { setBusy(false) } }
-  async function publish() { if (!await save()) return; try { await publishProfiMarketSolution(solution.id); window.location.assign(`/profimarket/solution/${solution.slug}`) } catch (requestError) { setError(requestError.message) } }
+  async function publish() { if (!await save()) return; try { await publishProfiMarketSolution(solution.id); navigate(`/profimarket/solution/${solution.slug}`) } catch (requestError) { setError(requestError.message) } }
   if (error && !solution && editID) return <PublicLayout><main className="pm-create-page"><div className="pm-loading">{error}</div></main></PublicLayout>
   if (!solution) return <PublicLayout><main className="pm-create-page">{error && <div className="pm-notice bad">{error}</div>}<TypeChoice choose={choose} busy={busy} /></main></PublicLayout>
   let content
@@ -52,5 +85,5 @@ export default function ProfiMarketCreatePage() {
   else if (step === 5) content = <><header><small>ПОЛУЧЕНИЕ ДОСТУПА</small><h1>Как покупатель получит решение</h1></header><div className="pm-form-grid"><label className="pm-field">Способ подключения<select value={solution.delivery_type} onChange={change('delivery_type')}><option value="LINK">Ссылка</option><option value="MANUAL">Автор подключает вручную</option></select></label><label className="pm-field">Ссылка на инструмент<input type="url" value={solution.external_url} onChange={change('external_url')} /></label></div></>
   else if (step === 6) content = <><header><small>ПРОВЕРКА</small><h1>Посмотреть глазами покупателя</h1></header><div className="pm-preview-summary"><div><h2>{solution.title || 'Название ещё не заполнено'}</h2><p>{solution.short_description}</p><a className="pm-add" href={`/profimarket/solution/${solution.id}?preview=1`} target="_blank" rel="noreferrer">Открыть страницу покупателя ↗</a></div></div></>
   else content = <><header><small>ФИНАЛЬНЫЙ ШАГ</small><h1>Всё готово к публикации</h1></header><div className="pm-publish-box"><i><Icon name="check" /></i><div><b>Проверьте обязательные разделы</b><p>Нужны название, описание и хотя бы одна возможность.</p></div></div><button className="pm-buy" disabled={!solution.title || !solution.short_description || !solution.ai_features.length || busy} onClick={publish}>Опубликовать решение →</button></>
-  return <PublicLayout><main className="pm-create-page"><div className="pm-create-shell"><div className="pm-create-head"><a href="/profimarket/my">← Мои решения</a><span><i>✓</i><b>{notice || 'Черновик сохранён'}</b></span></div><div className="pm-editor-layout"><aside className="pm-wizard-nav"><small>ИИ-АССИСТЕНТ</small>{steps.map((label, index) => <button className={index === step ? 'active' : ''} key={label} onClick={() => move(index)}><i>{index + 1}</i>{label}</button>)}</aside><div><section className="pm-editor-card">{content}</section><footer className="pm-editor-footer"><span>{step + 1} из {steps.length} · {solution.status === 'PUBLISHED' ? 'Опубликовано' : 'Черновик'}</span>{step > 0 && <button className="secondary" onClick={() => move(step - 1)}>← Назад</button>}<button className="secondary" disabled={busy} onClick={save}>Сохранить</button>{step < steps.length - 1 && <button className="primary" disabled={busy} onClick={() => move(step + 1)}>Продолжить →</button>}</footer></div></div></div>{error && <div className="pm-notice bad">{error}</div>}</main></PublicLayout>
+  return <PublicLayout><main className="pm-create-page"><div className="pm-create-shell"><div className="pm-create-head"><Link to="/profimarket/my">← Мои решения</Link><span><i>✓</i><b>{notice || 'Черновик сохранён'}</b></span></div><div className="pm-editor-layout"><aside className="pm-wizard-nav"><small>ИИ-АССИСТЕНТ</small>{steps.map((label, index) => <button className={index === step ? 'active' : ''} key={label} onClick={() => move(index)}><i>{index + 1}</i>{label}</button>)}</aside><div><section className="pm-editor-card">{content}</section><footer className="pm-editor-footer"><span>{step + 1} из {steps.length} · {solution.status === 'PUBLISHED' ? 'Опубликовано' : 'Черновик'}</span>{step > 0 && <button className="secondary" onClick={() => move(step - 1)}>← Назад</button>}<button className="secondary" disabled={busy} onClick={save}>Сохранить</button>{step < steps.length - 1 && <button className="primary" disabled={busy} onClick={() => move(step + 1)}>Продолжить →</button>}</footer></div></div></div>{error && <div className="pm-notice bad">{error}</div>}</main></PublicLayout>
 }

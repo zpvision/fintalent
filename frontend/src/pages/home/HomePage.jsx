@@ -54,7 +54,7 @@ export default function HomePage() {
   ])
   useDocumentPage({
     title: 'FinTalent — биржа вакансий для бухгалтеров',
-    description: 'FinTalent — вакансии и резюме для бухгалтеров, финансистов, руководителей и директоров',
+    description: 'FinTalent — вакансии и профили для бухгалтеров, финансистов, руководителей и директоров',
   })
 
   return (

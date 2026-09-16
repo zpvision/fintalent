@@ -238,7 +238,7 @@ func (h *Handler) resumeDraft(w http.ResponseWriter, r *http.Request) {
 			handleError(w, err)
 			return
 		}
-		respond(w, 200, map[string]string{"message": "резюме сохранено"})
+		respond(w, 200, map[string]string{"message": "профиль сохранён"})
 	default:
 		respondError(w, 405, "метод не поддерживается")
 	}

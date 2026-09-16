@@ -45,7 +45,7 @@ func resumeKnowledgeActionHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	resumeID, err := strconv.ParseInt(parts[0], 10, 64)
 	if err != nil || resumeID <= 0 {
-		writeJSON(w, http.StatusBadRequest, "Некорректное резюме")
+		writeJSON(w, http.StatusBadRequest, "Некорректный профиль")
 		return
 	}
 	if len(parts) == 2 && r.Method == http.MethodGet {
@@ -63,7 +63,7 @@ func serveResumeKnowledge(w http.ResponseWriter, r *http.Request, resumeID int64
 	var ownerID int64
 	if err := db.QueryRowContext(r.Context(), `SELECT user_id FROM resumes WHERE id=$1 AND status='published' AND deleted_at IS NULL`, resumeID).Scan(&ownerID); err != nil {
 		if err == sql.ErrNoRows {
-			writeJSON(w, http.StatusNotFound, "Резюме не найдено")
+			writeJSON(w, http.StatusNotFound, "Профиль не найден")
 			return
 		}
 		writeJSON(w, http.StatusInternalServerError, "Не удалось загрузить знания")
@@ -133,7 +133,7 @@ func changeResumeKnowledgeConfirmation(w http.ResponseWriter, r *http.Request, r
 	}
 	var ownerID int64
 	if err = db.QueryRowContext(r.Context(), `SELECT user_id FROM resumes WHERE id=$1 AND status='published' AND deleted_at IS NULL`, resumeID).Scan(&ownerID); err != nil {
-		writeJSON(w, http.StatusNotFound, "Резюме не найдено")
+		writeJSON(w, http.StatusNotFound, "Профиль не найден")
 		return
 	}
 	if ownerID == viewer.ID {

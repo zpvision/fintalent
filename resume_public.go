@@ -100,16 +100,16 @@ func publicResumeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	id, err := strconv.ParseInt(strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/public/resumes/"), "/"), 10, 64)
 	if err != nil || id <= 0 {
-		writeJSON(w, http.StatusBadRequest, "Некорректное резюме")
+		writeJSON(w, http.StatusBadRequest, "Некорректный профиль")
 		return
 	}
 	view, err := loadPublicResume(r, id)
 	if err == sql.ErrNoRows {
-		writeJSON(w, http.StatusNotFound, "Резюме не найдено или не опубликовано")
+		writeJSON(w, http.StatusNotFound, "Профиль не найден или не опубликован")
 		return
 	}
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, "Не удалось загрузить резюме")
+		writeJSON(w, http.StatusInternalServerError, "Не удалось загрузить профиль")
 		return
 	}
 	if currentUser, authErr := userFromRequest(r); authErr == nil {

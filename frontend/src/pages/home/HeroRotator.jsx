@@ -16,7 +16,7 @@ function VacancyHero({ active, leaving }) {
         <h1 aria-label="Биржа вакансий для бухгалтеров, финансистов, руководителей и директоров">Биржа вакансий<br />для <span className="typing-role">{role}</span></h1>
         <p>Быстрый подбор персонала и лучшие вакансии<br />в сфере финансов, учёта и управления.</p>
         <div className="hero-actions">
-          <a className="action blue resume-action" href="/resume/create"><strong>▣</strong><span><b>Разместить резюме</b><small>Найдите работу мечты</small></span></a>
+          <a className="action blue resume-action" href="/resume/create"><strong>▣</strong><span><b>Разместить профиль</b><small>Найдите работу мечты</small></span></a>
           <a className="action green resume-action" href="/vacancies/create"><strong>▢</strong><span><b>Разместить вакансию</b><small>Найдите специалиста</small></span></a>
         </div>
       </div>
@@ -26,7 +26,7 @@ function VacancyHero({ active, leaving }) {
           <small>БЫСТРЫЙ ПОДБОР</small><b><strong>3</strong> дня</b><span>от публикации до первых подходящих кандидатов</span>
           <svg viewBox="0 0 142 48" role="img" aria-label="График роста"><defs><linearGradient id="speed-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#00c689" stopOpacity=".28" /><stop offset="1" stopColor="#00c689" stopOpacity="0" /></linearGradient></defs><path className="speed-area" d="M2 43 C15 41 17 31 29 34 S44 41 54 28 S70 20 79 27 S96 35 106 19 S122 24 140 5 L140 48 L2 48 Z" /><path className="speed-line" d="M2 43 C15 41 17 31 29 34 S44 41 54 28 S70 20 79 27 S96 35 106 19 S122 24 140 5" /><circle cx="140" cy="5" r="3" /></svg>
         </aside>
-        <a className="hero-promo-card" href="/resume/create"><i>✦</i><span><small>ВАШ СЛЕДУЮЩИЙ ШАГ</small><b>Создайте сильное резюме</b><em>Расскажите о своём опыте и станьте заметнее для работодателей</em><strong>Начать <u>→</u></strong></span></a>
+        <a className="hero-promo-card" href="/resume/create"><i>✦</i><span><small>ВАШ СЛЕДУЮЩИЙ ШАГ</small><b>Создайте сильный профиль</b><em>Расскажите о своём опыте и станьте заметнее для работодателей</em><strong>Начать <u>→</u></strong></span></a>
       </div>
     </section>
   )

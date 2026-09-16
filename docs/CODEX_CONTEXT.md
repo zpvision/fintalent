@@ -8,19 +8,19 @@ FinTalent — один Go-процесс и одна PostgreSQL БД. `main.go` 
 
 Архитектура переходная:
 
-- auth, admin, резюме, survey, география, публикации, ПрофиМаркет и часть marketplace находятся в корневом `package main`;
+- auth, admin, профиль специалиста (`resume`), survey, география, публикации, ПрофиМаркет и часть marketplace находятся в корневом `package main`;
 - тесты (`internal/testmodule`) и вакансии (`internal/vacancymodule`) разделены на domain/dto/repository/service/handler;
 - клиентская биржа и бухгалтерские компании выделены в `internal/clientexchange` и `internal/accountingcompany`, но используют общие user/admin resolvers через корневые adapter-файлы;
 - новые модули не должны автоматически становиться поводом мигрировать старые.
 
-Frontend поэтапно переносится на React 19/Vite/React Router без редизайна. React-приложение находится в `frontend/src`, собирается в игнорируемый `static/react/`, а Go выдаёт его для всех пользовательских и административных маршрутов. На React-маршруты переключены `/`, авторизация, `/profile`, каталоги, вакансии и резюме, `/marketplace*`, `/profimarket*`, `/client-exchange*`, `/accounting-companies*`, тестовый блок, списки/аналитика/редактор публикаций и `/admin*`. Публичные статьи `/publications/:slug` намеренно остаются серверными из-за SEO-метаданных и JSON-LD. Профиль полностью управляется React, включая меню и секции вакансий, настроек, ПрофиМаркета, компании, клиентской биржи и помощи коллегам. Мастер создания резюме, редактор регламентов, редактор публикаций и админка пока используют legacy compatibility-controller внутри React host. Если build отсутствует или задано `REACT_FRONTEND=false`, Go безопасно возвращает соответствующий legacy HTML. Полная карта и правила перехода находятся в `docs/REACT_MIGRATION.md`.
+Frontend поэтапно переносится на React 19/Vite/React Router без редизайна. React-приложение находится в `frontend/src`, собирается в игнорируемый `static/react/`, а Go выдаёт его для всех пользовательских и административных маршрутов. На React-маршруты переключены `/`, авторизация, `/profile`, каталоги, вакансии и профили специалистов, `/marketplace*`, `/profimarket*`, `/client-exchange*`, `/accounting-companies*`, тестовый блок, списки/аналитика/редактор публикаций и `/admin*`. Публичные статьи `/publications/:slug` намеренно остаются серверными из-за SEO-метаданных и JSON-LD. Профиль полностью управляется React, включая меню и секции вакансий, настроек, ПрофиМаркета, компании, клиентской биржи и помощи коллегам. Мастер заполнения профессионального профиля, редактор регламентов, редактор публикаций и админка пока используют legacy compatibility-controller внутри React host. Если build отсутствует или задано `REACT_FRONTEND=false`, Go безопасно возвращает соответствующий legacy HTML. Полная карта и правила перехода находятся в `docs/REACT_MIGRATION.md`.
 
 Legacy frontend остаётся набором HTML/CSS/vanilla JS-файлов. Общая шапка в legacy внедряется `site-header.js`, общий перехват неожиданных fetch/browser ошибок — `site-errors.js`, выборы переиспользуют `searchable-select`, geography и duty picker. `npm run build` собирает и публикационный Editor.js bundle, и React; `npm run dev:react` запускает Vite с proxy на Go.
 
 ## Основные модули и связи
 
 - Users/sessions — основа ownership во всех кабинетах. Admin использует отдельную сессию и `ADMIN_LOGIN`/`ADMIN_PASSWORD`.
-- Dictionaries/surveys — метаданные анкет вакансий и резюме. Универсальные `dictionaries`/`dictionary_items`, block settings, importance и icons используются обоими конструкторами; duties, ОКВЭД, geography и test categories — специализированные справочники.
+- Dictionaries/surveys — метаданные анкет вакансий и профилей специалистов. Универсальные `dictionaries`/`dictionary_items`, block settings, importance и icons используются обоими конструкторами; duties, ОКВЭД, geography и test categories — специализированные справочники.
 - Стандартные иконки ответов задаёт `046_dictionary_icon_defaults.sql` через `prepareVacancyModuleDatabase()`: сопоставление по alias справочника и значению ответа, без зависимости от ID или сортировки. Файлы находятся в `static/icons/`; загруженные иконки в `static/uploads/` нужно сохранять при деплое.
 - Resume — профиль пользователя с требованиями/знаниями, опытом, образованием, языками, финансовыми и рабочими предпочтениями. В опубликованный resume агрегируются результаты тестов с настраиваемой видимостью.
 - Vacancy — сохраняет требования из тех же категорий справочников, обязанности и выбранные тесты. `internal/vacancymodule/matching` сравнивает требования вакансии с категориями resume; публичная выдача находится отдельно в `vacancy_public.go`.
@@ -45,6 +45,7 @@ Legacy frontend остаётся набором HTML/CSS/vanilla JS-файлов
 
 ## Важные особенности API и UI
 
+- В пользовательских текстах сущность resume называется «Профиль». Технические имена `resume`, маршруты `/resume` и `/resumes`, API и таблицы сохраняются для совместимости.
 - Одновременно действуют `/api`, `/api/v1`, `/api/public` и `/api/admin`; это не единая новая версия API.
 - `docs/openapi.yaml` описывает преимущественно testing API, а не весь продукт.
 - Большинство удалений бизнес-сущностей мягкие: status/deleted_at. Перед физическим удалением справочника нужно проверять ссылки.
