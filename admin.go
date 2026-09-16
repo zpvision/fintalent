@@ -158,6 +158,8 @@ func registerAdminRoutes() {
 	http.HandleFunc("/api/admin/users", adminUsers)
 	http.HandleFunc("/api/admin/users/", adminUserAction)
 	http.HandleFunc("/api/admin/zodiac-signs", adminZodiacSigns)
+	http.HandleFunc("/api/admin/profimarket/platforms", adminProfiMarketPlatforms)
+	http.HandleFunc("/api/admin/profimarket/platforms/", adminProfiMarketPlatform)
 	http.HandleFunc("/api/assets/dictionary-icon/", dictionaryIconAsset)
 	registerApplicantSurveyRoutes()
 	registerVacancySurveyRoutes()

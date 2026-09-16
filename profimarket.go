@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-//go:embed migrations/027_profimarket.sql migrations/028_profimarket_demo.sql migrations/029_profimarket_card_builder.sql migrations/030_profimarket_section_images.sql migrations/031_profimarket_crm_dictionary.sql migrations/032_profimarket_feature_colors.sql migrations/033_profimarket_bonus_style.sql migrations/034_profimarket_block_styles.sql migrations/035_profimarket_right_block.sql migrations/036_profimarket_implementation.sql migrations/037_profimarket_section_appearance.sql
+//go:embed migrations/027_profimarket.sql migrations/028_profimarket_demo.sql migrations/029_profimarket_card_builder.sql migrations/030_profimarket_section_images.sql migrations/031_profimarket_crm_dictionary.sql migrations/032_profimarket_feature_colors.sql migrations/033_profimarket_bonus_style.sql migrations/034_profimarket_block_styles.sql migrations/035_profimarket_right_block.sql migrations/036_profimarket_implementation.sql migrations/037_profimarket_section_appearance.sql migrations/049_profimarket_platform_icons.sql
 var profiMarketMigrationFS embed.FS
 
 type profiMedia struct {
@@ -215,6 +215,13 @@ func prepareProfiMarketDatabase(ctx context.Context) error {
 	}
 	if _, err = db.ExecContext(ctx, string(sectionAppearance)); err != nil {
 		return fmt.Errorf("оформление групп ПрофиМаркета: %w", err)
+	}
+	platformIcons, err := profiMarketMigrationFS.ReadFile("migrations/049_profimarket_platform_icons.sql")
+	if err != nil {
+		return err
+	}
+	if _, err = db.ExecContext(ctx, string(platformIcons)); err != nil {
+		return fmt.Errorf("иконки платформ ПрофиМаркета: %w", err)
 	}
 	if err = syncProfiMarketCRMs(ctx); err != nil {
 		return fmt.Errorf("синхронизация CRM ПрофиМаркета: %w", err)
@@ -811,7 +818,7 @@ func loadProfiSolution(ctx context.Context, key string, u *user) (*profiSolution
 		}
 	}
 	loadDict(`SELECT c.id,c.code,c.name,c.description,c.icon FROM profimarket_solution_crm x JOIN profimarket_crm c ON c.id=x.crm_id WHERE x.solution_id=$1 ORDER BY c.sort_order,c.id`, &x.CRMs)
-	loadDict(`SELECT p.id,p.code,p.name,'','' FROM profimarket_solution_platforms x JOIN profimarket_platforms p ON p.id=x.platform_id WHERE x.solution_id=$1 ORDER BY p.sort_order,p.id`, &x.Platforms)
+	loadDict(`SELECT p.id,p.code,p.name,'',p.icon FROM profimarket_solution_platforms x JOIN profimarket_platforms p ON p.id=x.platform_id WHERE x.solution_id=$1 ORDER BY p.sort_order,p.id`, &x.Platforms)
 	var metricsJSON, bonusesJSON []byte
 	if db.QueryRowContext(ctx, `SELECT s.key_metrics,s.bonuses,s.bonus_style,s.metric_style,s.access_style,s.right_block_title,s.implementation_title,s.implementation_subtitle,s.purchase_button_code,COALESCE(o.name,'Купить и внедрить') FROM profimarket_solutions s LEFT JOIN profimarket_purchase_button_options o ON o.code=s.purchase_button_code WHERE s.id=$1`, x.ID).Scan(&metricsJSON, &bonusesJSON, &x.BonusStyle, &x.MetricStyle, &x.AccessStyle, &x.RightBlockTitle, &x.ImplementationTitle, &x.ImplementationSubtitle, &x.PurchaseButtonCode, &x.PurchaseButtonLabel) == nil {
 		_ = json.Unmarshal(metricsJSON, &x.KeyMetrics)
@@ -917,6 +924,8 @@ func profiMarketMetaAPI(w http.ResponseWriter, r *http.Request) {
 		columns := "id,code,name,'',''"
 		if table == "profimarket_crm" {
 			columns = "id,code,name,description,icon"
+		} else if table == "profimarket_platforms" {
+			columns = "id,code,name,'',icon"
 		}
 		rows, _ := db.QueryContext(r.Context(), `SELECT `+columns+` FROM `+table+` WHERE active=TRUE ORDER BY sort_order,id`)
 		if rows != nil {

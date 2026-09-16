@@ -1,0 +1,1 @@
+ALTER TABLE profimarket_platforms ADD COLUMN IF NOT EXISTS icon TEXT NOT NULL DEFAULT '';
