@@ -9,26 +9,28 @@ export default function usePageStyles(stylesheets) {
     const generation = ++activeStyleGeneration
     document.documentElement.classList.add('react-page-styles-loading')
     const sharedStylesStart = document.querySelector('link[href="/static/layout-safety.css"]')
-    const links = key.split('\u0000').filter(Boolean).map((href) => {
+    const entries = key.split('\u0000').filter(Boolean).map((href) => {
       const link = document.createElement('link')
       link.rel = 'stylesheet'
-      link.href = href
       link.dataset.reactPageStyle = 'true'
       link.dataset.reactPageStyleGeneration = String(generation)
+      const ready = new Promise((resolve) => {
+        let settled = false
+        const finish = () => {
+          if (settled) return
+          settled = true
+          resolve()
+        }
+        link.addEventListener('load', finish, { once: true })
+        link.addEventListener('error', finish, { once: true })
+        window.setTimeout(finish, 3000)
+      })
+      link.href = href
       document.head.insertBefore(link, sharedStylesStart)
-      return link
+      return { link, ready }
     })
 
-    const ready = links.map((link) => new Promise((resolve) => {
-      if (link.sheet) {
-        resolve()
-        return
-      }
-      link.addEventListener('load', resolve, { once: true })
-      link.addEventListener('error', resolve, { once: true })
-    }))
-
-    Promise.all(ready).then(() => {
+    Promise.all(entries.map((entry) => entry.ready)).then(() => {
       if (generation !== activeStyleGeneration) return
       document.querySelectorAll('link[data-react-page-style]').forEach((link) => {
         if (link.dataset.reactPageStyleGeneration !== String(generation)) link.remove()
