@@ -206,6 +206,128 @@
   font-size: 15px;
 }
 
+.pm-ai-basic-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 22px;
+}
+
+.pm-ai-basic-copy {
+  display: grid;
+  align-content: start;
+  gap: 18px;
+}
+
+.pm-ai-basic-cover .pm-upload-box {
+  min-height: 0;
+  aspect-ratio: 1 / 1;
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.pm-ai-basic-cover .pm-upload-box img {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  object-fit: cover;
+}
+
+.pm-ai-basic-meta {
+  grid-column: 1 / -1;
+  padding-top: 20px;
+  border-top: 1px solid #edf0f5;
+}
+
+.pm-ai-pricing {
+  display: grid;
+  gap: 16px;
+}
+
+.pm-ai-price-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(240px, .9fr);
+  gap: 18px;
+  padding: 22px;
+  border: 1px solid #d8d2fb;
+  border-radius: 16px;
+  background: linear-gradient(120deg, #f5f1ff, #eef5ff);
+}
+
+.pm-ai-price-main .pm-field:first-child {
+  color: #5035c5;
+  font-size: 15px;
+}
+
+.pm-ai-price-main .pm-field:first-child input {
+  height: 62px;
+  color: #17204a;
+  background: #fff;
+  font-size: 25px;
+  font-weight: 800;
+}
+
+.pm-ai-price-main select {
+  height: 62px;
+  background: #fff;
+}
+
+.pm-ai-price-secondary,
+.pm-ai-trial {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 18px 20px;
+  border: 1px solid #e1e6ef;
+  border-radius: 14px;
+  background: #fafbfe;
+}
+
+.pm-ai-price-secondary .pm-field,
+.pm-ai-trial .pm-field {
+  width: min(280px, 42%);
+  flex: 0 0 min(280px, 42%);
+}
+
+.pm-ai-price-secondary p,
+.pm-ai-trial p {
+  margin: 0;
+  color: #78859b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.pm-ai-trial > div {
+  flex: 1;
+}
+
+.pm-ai-trial b {
+  display: block;
+  margin-bottom: 5px;
+  color: #243052;
+  font-size: 16px;
+}
+
+.pm-ai-publish-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.pm-ai-publish-actions > a,
+.pm-ai-publish-actions > button {
+  min-width: 190px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
 @media (max-width: 820px) {
   .pm-ai-create-page .pm-editor-layout {
     grid-template-columns: 1fr;
@@ -235,5 +357,30 @@
 
   .pm-ai-publish-visual > div {
     padding: 0 18px 20px;
+  }
+
+  .pm-ai-basic-layout,
+  .pm-ai-price-main {
+    grid-template-columns: 1fr;
+  }
+
+  .pm-ai-basic-meta {
+    grid-column: auto;
+  }
+
+  .pm-ai-price-secondary,
+  .pm-ai-trial {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pm-ai-price-secondary .pm-field,
+  .pm-ai-trial .pm-field {
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  .pm-ai-publish-actions {
+    flex-direction: column;
   }
 }
