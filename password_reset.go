@@ -48,10 +48,15 @@ func registerPasswordResetRoutes() {
 
 func passwordResetSecret() ([]byte, error) {
 	secret := strings.TrimSpace(os.Getenv("PASSWORD_RESET_SECRET"))
-	if len(secret) < 32 {
-		return nil, errors.New("PASSWORD_RESET_SECRET должен содержать не менее 32 символов")
+	if len(secret) >= 32 {
+		return []byte(secret), nil
 	}
-	return []byte(secret), nil
+	smtpPassword := os.Getenv("SMTP_PASSWORD")
+	if smtpPassword == "" {
+		return nil, errors.New("PASSWORD_RESET_SECRET или SMTP_PASSWORD должен быть настроен")
+	}
+	derived := sha256.Sum256([]byte("fintalent-password-reset:" + smtpPassword))
+	return derived[:], nil
 }
 
 func resetHMAC(secret []byte, purpose, value string) string {

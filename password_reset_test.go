@@ -16,6 +16,18 @@ func TestResetHMACSeparatesPurposeAndValue(t *testing.T) {
 	}
 }
 
+func TestPasswordResetSecretFallsBackToSMTPPassword(t *testing.T) {
+	t.Setenv("PASSWORD_RESET_SECRET", "")
+	t.Setenv("SMTP_PASSWORD", "smtp-secret")
+	secret, err := passwordResetSecret()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(secret) != 32 {
+		t.Fatalf("derived secret length = %d, want 32", len(secret))
+	}
+}
+
 func TestNewResetCodeAlwaysHasSixDigits(t *testing.T) {
 	pattern := regexp.MustCompile(`^\d{6}$`)
 	for range 100 {
