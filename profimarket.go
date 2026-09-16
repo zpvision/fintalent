@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-//go:embed migrations/027_profimarket.sql migrations/028_profimarket_demo.sql migrations/029_profimarket_card_builder.sql migrations/030_profimarket_section_images.sql migrations/031_profimarket_crm_dictionary.sql migrations/032_profimarket_feature_colors.sql migrations/033_profimarket_bonus_style.sql migrations/034_profimarket_block_styles.sql migrations/035_profimarket_right_block.sql migrations/036_profimarket_implementation.sql migrations/037_profimarket_section_appearance.sql migrations/049_profimarket_platform_icons.sql
+//go:embed migrations/027_profimarket.sql migrations/028_profimarket_demo.sql migrations/029_profimarket_card_builder.sql migrations/030_profimarket_section_images.sql migrations/031_profimarket_crm_dictionary.sql migrations/032_profimarket_feature_colors.sql migrations/033_profimarket_bonus_style.sql migrations/034_profimarket_block_styles.sql migrations/035_profimarket_right_block.sql migrations/036_profimarket_implementation.sql migrations/037_profimarket_section_appearance.sql migrations/049_profimarket_platform_icons.sql migrations/050_profimarket_how_it_works.sql
 var profiMarketMigrationFS embed.FS
 
 type profiMedia struct {
@@ -98,6 +98,7 @@ type profiSolution struct {
 	Sections               []profiSection         `json:"sections"`
 	AccessFeatures         []profiFeature         `json:"access_features"`
 	AIFeatures             []profiFeature         `json:"ai_features"`
+	HowItWorks             []profiFeature         `json:"how_it_works"`
 	Media                  []profiMedia           `json:"media"`
 	CRMs                   []profiDictionaryValue `json:"crms"`
 	Platforms              []profiDictionaryValue `json:"platforms"`
@@ -131,6 +132,7 @@ type profiSolutionInput struct {
 	Sections               []profiSection `json:"sections"`
 	AccessFeatures         []profiFeature `json:"access_features"`
 	AIFeatures             []profiFeature `json:"ai_features"`
+	HowItWorks             []profiFeature `json:"how_it_works"`
 	Media                  []profiMedia   `json:"media"`
 	CRMIDs                 []int64        `json:"crm_ids"`
 	PlatformIDs            []int64        `json:"platform_ids"`
@@ -222,6 +224,13 @@ func prepareProfiMarketDatabase(ctx context.Context) error {
 	}
 	if _, err = db.ExecContext(ctx, string(platformIcons)); err != nil {
 		return fmt.Errorf("иконки платформ ПрофиМаркета: %w", err)
+	}
+	howItWorks, err := profiMarketMigrationFS.ReadFile("migrations/050_profimarket_how_it_works.sql")
+	if err != nil {
+		return err
+	}
+	if _, err = db.ExecContext(ctx, string(howItWorks)); err != nil {
+		return fmt.Errorf("шаги работы ИИ-ассистента: %w", err)
 	}
 	if err = syncProfiMarketCRMs(ctx); err != nil {
 		return fmt.Errorf("синхронизация CRM ПрофиМаркета: %w", err)
@@ -630,7 +639,7 @@ func profiMarketSolutionAPI(w http.ResponseWriter, r *http.Request) {
 }
 
 func solutionToInput(x *profiSolution) profiSolutionInput {
-	return profiSolutionInput{Type: x.Type, Title: x.Title, ShortDescription: x.ShortDescription, Description: x.Description, CoverImage: x.CoverImage, Price: x.Price, OldPrice: x.OldPrice, Currency: x.Currency, PricingType: x.PricingType, TrialDays: x.TrialDays, DeliveryType: x.DeliveryType, ExternalURL: x.ExternalURL, Tags: x.Tags, Topics: x.Topics, Audiences: x.Audiences, Sections: x.Sections, AccessFeatures: x.AccessFeatures, AIFeatures: x.AIFeatures, Media: x.Media, KeyMetrics: x.KeyMetrics, Bonuses: x.Bonuses, BonusStyle: x.BonusStyle, MetricStyle: x.MetricStyle, AccessStyle: x.AccessStyle, RightBlockTitle: x.RightBlockTitle, ImplementationTitle: x.ImplementationTitle, ImplementationSubtitle: x.ImplementationSubtitle, PurchaseButtonCode: x.PurchaseButtonCode}
+	return profiSolutionInput{Type: x.Type, Title: x.Title, ShortDescription: x.ShortDescription, Description: x.Description, CoverImage: x.CoverImage, Price: x.Price, OldPrice: x.OldPrice, Currency: x.Currency, PricingType: x.PricingType, TrialDays: x.TrialDays, DeliveryType: x.DeliveryType, ExternalURL: x.ExternalURL, Tags: x.Tags, Topics: x.Topics, Audiences: x.Audiences, Sections: x.Sections, AccessFeatures: x.AccessFeatures, AIFeatures: x.AIFeatures, HowItWorks: x.HowItWorks, Media: x.Media, KeyMetrics: x.KeyMetrics, Bonuses: x.Bonuses, BonusStyle: x.BonusStyle, MetricStyle: x.MetricStyle, AccessStyle: x.AccessStyle, RightBlockTitle: x.RightBlockTitle, ImplementationTitle: x.ImplementationTitle, ImplementationSubtitle: x.ImplementationSubtitle, PurchaseButtonCode: x.PurchaseButtonCode}
 }
 
 func saveProfiSolution(ctx context.Context, id, userID int64, input profiSolutionInput) error {
@@ -649,7 +658,8 @@ func saveProfiSolution(ctx context.Context, id, userID int64, input profiSolutio
 	}
 	metricsJSON, _ := json.Marshal(input.KeyMetrics)
 	bonusesJSON, _ := json.Marshal(input.Bonuses)
-	if _, err = tx.ExecContext(ctx, `UPDATE profimarket_solutions SET key_metrics=$1::jsonb,bonuses=$2::jsonb,bonus_style=$3,metric_style=$4,access_style=$5,right_block_title=$6,implementation_title=$7,implementation_subtitle=$8,purchase_button_code=CASE WHEN EXISTS(SELECT 1 FROM profimarket_purchase_button_options WHERE code=$9 AND active=TRUE) THEN $9 ELSE 'buy_and_implement' END WHERE id=$10 AND author_user_id=$11`, string(metricsJSON), string(bonusesJSON), input.BonusStyle, input.MetricStyle, input.AccessStyle, input.RightBlockTitle, input.ImplementationTitle, input.ImplementationSubtitle, input.PurchaseButtonCode, id, userID); err != nil {
+	howItWorksJSON, _ := json.Marshal(input.HowItWorks)
+	if _, err = tx.ExecContext(ctx, `UPDATE profimarket_solutions SET key_metrics=$1::jsonb,bonuses=$2::jsonb,bonus_style=$3,metric_style=$4,access_style=$5,right_block_title=$6,implementation_title=$7,implementation_subtitle=$8,purchase_button_code=CASE WHEN EXISTS(SELECT 1 FROM profimarket_purchase_button_options WHERE code=$9 AND active=TRUE) THEN $9 ELSE 'buy_and_implement' END,how_it_works=$10::jsonb WHERE id=$11 AND author_user_id=$12`, string(metricsJSON), string(bonusesJSON), input.BonusStyle, input.MetricStyle, input.AccessStyle, input.RightBlockTitle, input.ImplementationTitle, input.ImplementationSubtitle, input.PurchaseButtonCode, string(howItWorksJSON), id, userID); err != nil {
 		return err
 	}
 	for _, table := range []string{"profimarket_media", "profimarket_regulation_sections", "profimarket_access_features", "profimarket_ai_features", "profimarket_solution_crm", "profimarket_solution_platforms"} {
@@ -819,10 +829,11 @@ func loadProfiSolution(ctx context.Context, key string, u *user) (*profiSolution
 	}
 	loadDict(`SELECT c.id,c.code,c.name,c.description,c.icon FROM profimarket_solution_crm x JOIN profimarket_crm c ON c.id=x.crm_id WHERE x.solution_id=$1 ORDER BY c.sort_order,c.id`, &x.CRMs)
 	loadDict(`SELECT p.id,p.code,p.name,'',p.icon FROM profimarket_solution_platforms x JOIN profimarket_platforms p ON p.id=x.platform_id WHERE x.solution_id=$1 ORDER BY p.sort_order,p.id`, &x.Platforms)
-	var metricsJSON, bonusesJSON []byte
-	if db.QueryRowContext(ctx, `SELECT s.key_metrics,s.bonuses,s.bonus_style,s.metric_style,s.access_style,s.right_block_title,s.implementation_title,s.implementation_subtitle,s.purchase_button_code,COALESCE(o.name,'Купить и внедрить') FROM profimarket_solutions s LEFT JOIN profimarket_purchase_button_options o ON o.code=s.purchase_button_code WHERE s.id=$1`, x.ID).Scan(&metricsJSON, &bonusesJSON, &x.BonusStyle, &x.MetricStyle, &x.AccessStyle, &x.RightBlockTitle, &x.ImplementationTitle, &x.ImplementationSubtitle, &x.PurchaseButtonCode, &x.PurchaseButtonLabel) == nil {
+	var metricsJSON, bonusesJSON, howItWorksJSON []byte
+	if db.QueryRowContext(ctx, `SELECT s.key_metrics,s.bonuses,s.bonus_style,s.metric_style,s.access_style,s.right_block_title,s.implementation_title,s.implementation_subtitle,s.purchase_button_code,COALESCE(o.name,'Купить и внедрить'),s.how_it_works FROM profimarket_solutions s LEFT JOIN profimarket_purchase_button_options o ON o.code=s.purchase_button_code WHERE s.id=$1`, x.ID).Scan(&metricsJSON, &bonusesJSON, &x.BonusStyle, &x.MetricStyle, &x.AccessStyle, &x.RightBlockTitle, &x.ImplementationTitle, &x.ImplementationSubtitle, &x.PurchaseButtonCode, &x.PurchaseButtonLabel, &howItWorksJSON) == nil {
 		_ = json.Unmarshal(metricsJSON, &x.KeyMetrics)
 		_ = json.Unmarshal(bonusesJSON, &x.Bonuses)
+		_ = json.Unmarshal(howItWorksJSON, &x.HowItWorks)
 	}
 	return x, nil
 }

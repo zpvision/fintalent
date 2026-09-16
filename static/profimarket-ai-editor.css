@@ -88,6 +88,25 @@
   border-radius: 12px;
 }
 
+.pm-ai-create-page .pm-how-editor-item {
+  padding-left: 64px;
+}
+
+.pm-ai-create-page .pm-how-editor-item > i {
+  position: absolute;
+  left: 18px;
+  top: 20px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: #fff;
+  background: linear-gradient(135deg, #7049eb, #397cf0);
+  font-style: normal;
+  font-weight: 800;
+}
+
 .pm-ai-create-page .pm-remove {
   width: 30px;
   height: 30px;
