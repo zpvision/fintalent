@@ -1,0 +1,159 @@
+.pm-ai-create-page {
+  font-size: 15px;
+}
+
+.pm-ai-create-page .pm-create-shell {
+  width: min(1320px, calc(100% - 32px));
+}
+
+.pm-ai-create-page .pm-create-head {
+  margin-bottom: 24px;
+  font-size: 14px;
+}
+
+.pm-ai-create-page .pm-editor-layout {
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: 24px;
+}
+
+.pm-ai-create-page .pm-wizard-nav {
+  padding: 18px;
+  border-radius: 15px;
+}
+
+.pm-ai-create-page .pm-wizard-nav small {
+  padding: 4px 10px 10px;
+  font-size: 11px;
+}
+
+.pm-ai-create-page .pm-wizard-nav button {
+  gap: 10px;
+  padding: 11px;
+  font-size: 14px;
+}
+
+.pm-ai-create-page .pm-wizard-nav button i {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+}
+
+.pm-ai-create-page .pm-editor-card {
+  padding: 27px;
+  border-radius: 15px;
+}
+
+.pm-ai-create-page .pm-editor-card > header {
+  margin-bottom: 23px;
+  padding-bottom: 19px;
+}
+
+.pm-ai-create-page .pm-editor-card > header small {
+  font-size: 11px;
+  letter-spacing: .1em;
+}
+
+.pm-ai-create-page .pm-editor-card h1 {
+  margin: 7px 0;
+  font-size: 28px;
+}
+
+.pm-ai-create-page .pm-editor-card > header p {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.pm-ai-create-page .pm-form-grid {
+  gap: 17px;
+}
+
+.pm-ai-create-page .pm-field {
+  font-size: 14px;
+}
+
+.pm-ai-create-page .pm-field input,
+.pm-ai-create-page .pm-field textarea,
+.pm-ai-create-page .pm-field select {
+  margin-top: 8px;
+  padding: 13px;
+  font-size: 15px;
+}
+
+.pm-ai-create-page .pm-repeat-list {
+  gap: 13px;
+}
+
+.pm-ai-create-page .pm-repeat-item {
+  padding: 20px;
+  border-radius: 12px;
+}
+
+.pm-ai-create-page .pm-remove {
+  width: 30px;
+  height: 30px;
+  font-size: 20px;
+}
+
+.pm-ai-create-page .pm-add {
+  margin-top: 14px;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.pm-ai-create-page .pm-check-grid {
+  gap: 12px;
+}
+
+.pm-ai-create-page .pm-choice-check {
+  gap: 12px;
+  padding: 15px;
+  font-size: 14px;
+}
+
+.pm-ai-create-page .pm-choice-check small {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  color: #8793a6;
+}
+
+.pm-ai-create-page .pm-upload-box {
+  min-height: 160px;
+  font-size: 14px;
+}
+
+.pm-ai-create-page .pm-editor-footer span {
+  font-size: 13px;
+}
+
+.pm-ai-create-page .pm-editor-footer button,
+.pm-ai-create-page .pm-editor-footer a {
+  padding: 12px 16px;
+  font-size: 14px;
+}
+
+.pm-ai-create-page .pm-preview-summary,
+.pm-ai-create-page .pm-publish-box {
+  font-size: 14px;
+}
+
+@media (max-width: 820px) {
+  .pm-ai-create-page .pm-editor-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .pm-ai-create-page .pm-create-shell {
+    width: calc(100% - 20px);
+  }
+
+  .pm-ai-create-page .pm-editor-card {
+    padding: 18px;
+  }
+
+  .pm-ai-create-page .pm-editor-card h1 {
+    font-size: 24px;
+  }
+}
