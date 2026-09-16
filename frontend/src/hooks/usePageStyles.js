@@ -7,6 +7,7 @@ export default function usePageStyles(stylesheets) {
 
   useLayoutEffect(() => {
     const generation = ++activeStyleGeneration
+    document.documentElement.classList.add('react-page-styles-loading')
     const sharedStylesStart = document.querySelector('link[href="/static/layout-safety.css"]')
     const links = key.split('\u0000').filter(Boolean).map((href) => {
       const link = document.createElement('link')
@@ -32,10 +33,16 @@ export default function usePageStyles(stylesheets) {
       document.querySelectorAll('link[data-react-page-style]').forEach((link) => {
         if (link.dataset.reactPageStyleGeneration !== String(generation)) link.remove()
       })
+      document.documentElement.classList.remove('react-page-styles-loading')
     })
 
     return () => {
       // The next page removes this set only after its own styles are ready.
+      queueMicrotask(() => {
+        if (generation === activeStyleGeneration) {
+          document.documentElement.classList.remove('react-page-styles-loading')
+        }
+      })
     }
   }, [key])
 }

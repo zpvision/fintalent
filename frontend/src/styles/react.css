@@ -67,3 +67,6 @@
   height: 100%;
   object-fit: cover;
 }
+html.react-page-styles-loading #root > :not(.ft-site-header) {
+  visibility: hidden !important;
+}
