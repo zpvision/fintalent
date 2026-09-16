@@ -39,7 +39,7 @@ export default function ProfiMarketRegulationEditPage() {
       try {
         const presets = await loadScript('/static/profimarket-style-presets.js?v=3', () => window.ProfiMarketStylePresets)
         if (presets) loaded.push(presets)
-        const components = await loadScript('/static/profimarket-components.js?v=27', () => window.ProfiMarketUI)
+        const components = await loadScript('/static/profimarket-components.js?v=28', () => window.ProfiMarketUI?.version >= 28)
         if (components) loaded.push(components)
         if (cancelled) return
         const editor = await loadScript('/static/profimarket-regulation-editor.js?v=40')

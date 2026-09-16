@@ -7,13 +7,17 @@ import PublicLayout from '../../layouts/PublicLayout'
 
 let uiPromise
 function loadPresentation() {
-  if (window.ProfiMarketUI) return Promise.resolve(window.ProfiMarketUI)
+  if (window.ProfiMarketUI?.version >= 28) return Promise.resolve(window.ProfiMarketUI)
   if (!uiPromise) uiPromise = new Promise((resolve, reject) => {
-    const script = document.createElement('script')
-    script.src = '/static/profimarket-components.js?v=12'
-    script.onload = () => resolve(window.ProfiMarketUI)
-    script.onerror = () => reject(new Error('Не удалось загрузить компоненты страницы'))
-    document.head.append(script)
+    const load = (src, done) => {
+      const script = document.createElement('script')
+      script.src = src; script.onload = done
+      script.onerror = () => reject(new Error('Не удалось загрузить компоненты страницы'))
+      document.head.append(script)
+    }
+    const loadComponents = () => load('/static/profimarket-components.js?v=28', () => resolve(window.ProfiMarketUI))
+    if (window.ProfiMarketStylePresets) loadComponents()
+    else load('/static/profimarket-style-presets.js?v=3', loadComponents)
   })
   return uiPromise
 }
