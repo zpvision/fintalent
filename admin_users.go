@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -63,6 +64,40 @@ func adminUserAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch parts[1] {
+	case "profile":
+		var payload struct {
+			FullName string `json:"full_name"`
+			Email    string `json:"email"`
+		}
+		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<10))
+		decoder.DisallowUnknownFields()
+		if decoder.Decode(&payload) != nil {
+			writeJSON(w, http.StatusBadRequest, "Некорректные данные")
+			return
+		}
+		payload.FullName = strings.Join(strings.Fields(payload.FullName), " ")
+		payload.Email = strings.ToLower(strings.TrimSpace(payload.Email))
+		if len([]rune(payload.FullName)) < 3 || len([]rune(payload.FullName)) > 200 {
+			writeJSON(w, http.StatusBadRequest, "Укажите корректное ФИО")
+			return
+		}
+		if !validEmail(payload.Email) {
+			writeJSON(w, http.StatusBadRequest, "Укажите корректный email")
+			return
+		}
+		var updated adminUser
+		err = db.QueryRowContext(r.Context(), `UPDATE users SET full_name=$1,email=$2 WHERE id=$3 RETURNING id,email,full_name,is_blocked,created_at`, payload.FullName, payload.Email, userID).Scan(&updated.ID, &updated.Email, &updated.FullName, &updated.IsBlocked, &updated.CreatedAt)
+		if err != nil {
+			if strings.Contains(err.Error(), "23505") {
+				writeJSON(w, http.StatusConflict, "Пользователь с таким email уже зарегистрирован")
+			} else if err == sql.ErrNoRows {
+				writeJSON(w, http.StatusNotFound, "Пользователь не найден")
+			} else {
+				writeJSON(w, http.StatusInternalServerError, "Не удалось изменить пользователя")
+			}
+			return
+		}
+		writeAdminJSON(w, http.StatusOK, updated)
 	case "block":
 		var payload struct {
 			IsBlocked bool `json:"is_blocked"`
