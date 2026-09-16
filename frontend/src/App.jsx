@@ -42,12 +42,48 @@ const reactPaths = [
   '/tests', '/tests/take', '/employee-test', '/client-exchange', '/client-exchange/create', '/profile', '/admin/*',
 ]
 
+const isolatedPaths = [
+  '/profimarket/regulation/edit',
+  '/resume/create',
+  '/publications/create',
+  '/publications/:id/edit',
+  '/admin/*',
+]
+
+function matchesAnyPath(pathname, paths) {
+  return paths.some((path) => matchPath({ path, end: true }, pathname))
+}
+
+function requiresDocumentNavigation(from, to) {
+  return matchesAnyPath(from, isolatedPaths) || matchesAnyPath(to, isolatedPaths)
+}
+
 function ReactNavigationBridge() {
   const navigate = useNavigate()
+  const location = useLocation()
   useEffect(() => {
     function handleNavigation(event) {
       event.preventDefault()
+      const url = new URL(event.detail.to, window.location.href)
+      if (requiresDocumentNavigation(location.pathname, url.pathname)) {
+        if (event.detail.replace) window.location.replace(url.href)
+        else window.location.assign(url.href)
+        return
+      }
       navigate(event.detail.to, { replace: event.detail.replace })
+    }
+    function handleHardNavigation(event) {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+      const anchor = event.target.closest?.('a[href]')
+      if (!anchor || anchor.target || anchor.hasAttribute('download')) return
+      const href = anchor.getAttribute('href')
+      if (!href || href === '#' || href.startsWith('#')) return
+      const url = new URL(anchor.href, window.location.href)
+      if (url.origin !== window.location.origin || !matchesAnyPath(url.pathname, reactPaths)) return
+      if (!requiresDocumentNavigation(location.pathname, url.pathname)) return
+      event.preventDefault()
+      event.stopPropagation()
+      window.location.assign(`${url.pathname}${url.search}${url.hash}`)
     }
     function handleClick(event) {
       if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
@@ -60,13 +96,15 @@ function ReactNavigationBridge() {
       event.preventDefault()
       navigate(`${url.pathname}${url.search}${url.hash}`)
     }
+    document.addEventListener('click', handleHardNavigation, true)
     document.addEventListener('click', handleClick)
     window.addEventListener('fintalent:navigate', handleNavigation)
     return () => {
+      document.removeEventListener('click', handleHardNavigation, true)
       document.removeEventListener('click', handleClick)
       window.removeEventListener('fintalent:navigate', handleNavigation)
     }
-  }, [navigate])
+  }, [location.pathname, navigate])
   return null
 }
 
