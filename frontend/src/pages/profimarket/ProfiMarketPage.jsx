@@ -80,7 +80,7 @@ function SolutionCard({ solution }) {
   const ai = solution.type === 'AI_ASSISTANT'
   return (
     <article className="pmh-card">
-      <div className={`pmh-card-cover ${ai ? 'ai' : 'reg'}`}><em>{solution.is_new ? 'НОВИНКА' : 'ХИТ'}</em><button type="button"><Icon name="folder" /></button><i><Icon name={ai ? 'bot' : 'workflow'} /></i><b>{ai ? 'AI' : 'PRO'}</b></div>
+      <div className={`pmh-card-cover ${ai ? 'ai' : 'reg'}${solution.cover_image ? ' has-image' : ''}`}><em>{solution.is_new ? 'НОВИНКА' : 'ХИТ'}</em><button type="button"><Icon name="folder" /></button>{solution.cover_image ? <img src={solution.cover_image} alt={solution.title} loading="lazy" /> : <><i><Icon name={ai ? 'bot' : 'workflow'} /></i><b>{ai ? 'AI' : 'PRO'}</b></>}</div>
       <div className="pmh-card-body"><h3>{solution.title}</h3><p>{solution.short_description}</p><div className="pmh-author"><i>{(solution.author_name || 'А').charAt(0)}</i><span>{solution.author_name || 'Автор FinTalent'}</span></div><footer><span><b>★ {Number(solution.rating || 4.9).toFixed(1)}</b> ({solution.review_count || 0})</span><strong>{priceText(solution)}</strong></footer></div>
       <a href={`/profimarket/solution/${encodeURIComponent(solution.slug)}`} aria-label={`Открыть ${solution.title}`} />
     </article>
@@ -96,7 +96,7 @@ export default function ProfiMarketPage() {
   const [error, setError] = useState('')
   const popularRef = useRef(null)
 
-  usePageStyles(['/static/profimarket.css?v=1', '/static/profimarket-regulation.css?v=12', '/static/profimarket-home.css?v=2'])
+  usePageStyles(['/static/profimarket.css?v=1', '/static/profimarket-regulation.css?v=12', '/static/profimarket-home.css?v=3'])
   useDocumentPage({ title: 'ПрофиМаркет — FinTalent' })
 
   useEffect(() => {
