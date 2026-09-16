@@ -1,6 +1,6 @@
 (()=>{
   if(!document.querySelector('link[href*="profimarket-regulation.css"]')){const link=document.createElement('link');link.rel='stylesheet';link.href='/static/profimarket-regulation.css?v=12';document.head.appendChild(link)}
-  if(!document.querySelector('link[href*="profimarket-ai-detail.css"]')){const link=document.createElement('link');link.rel='stylesheet';link.href='/static/profimarket-ai-detail.css?v=3';document.head.appendChild(link)}
+  if(!document.querySelector('link[href*="profimarket-ai-detail.css"]')){const link=document.createElement('link');link.rel='stylesheet';link.href='/static/profimarket-ai-detail.css?v=4';document.head.appendChild(link)}
   if(document.querySelector('#pm-detail')&&!document.querySelector('script[src*="profimarket-card-layout.js"]')){const script=document.createElement('script');script.src='/static/profimarket-card-layout.js?v=12';document.head.appendChild(script)}
   const esc=value=>{const n=document.createElement('span');n.textContent=value??'';return n.innerHTML};
   const icons={
@@ -64,6 +64,6 @@
   const baseRegulationViewV2=regulationViewV2;
   regulationViewV2=function(s,preview=false){const total=(s.sections||[]).reduce((n,g)=>n+g.items.length,0),marketplaces=(s.sections||[]).length,wrapper=document.createElement('div');wrapper.innerHTML=baseRegulationViewV2(s,preview);const benefits=wrapper.querySelector('.pmr-benefits'),access=wrapper.querySelector('.pmr-access'),bonuses=wrapper.querySelector('.pmr-bonuses');if(benefits)benefits.outerHTML=regulationMetricsV2(s,total,marketplaces);if(access)access.outerHTML=regulationAccessV2(s);if(bonuses){const style=blockStyle(s.bonus_style,'amber');if(style)bonuses.setAttribute('style',style.slice(7,-1))}return wrapper.innerHTML}
   function solutionView(s,preview=false){return s.type==='REGULATION'?regulationViewV2(s,preview):aiView(s,preview)}
-  window.ProfiMarketUI={version:32,esc,icon,hydrateIcons,money,priceText,typeLabel,solutionCover,solutionCard,solutionView};
+  window.ProfiMarketUI={version:33,esc,icon,hydrateIcons,money,priceText,typeLabel,solutionCover,solutionCard,solutionView};
   document.addEventListener('DOMContentLoaded',()=>hydrateIcons());
 })();
