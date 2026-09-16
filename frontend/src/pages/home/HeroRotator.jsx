@@ -57,7 +57,7 @@ function ProfiMarketHero({ active, leaving }) {
         <div className="profimarket-eyebrow"><i>✦</i> ПРОФИМАРКЕТ FINTALENT</div>
         <h1>ПрофиМаркет —<br /><span>{text}</span></h1>
         <p>Используйте готовые материалы для работы<br />или делитесь своими решениями с другими.</p>
-        <div className="profimarket-hero-actions"><a className="profimarket-primary" href="/profimarket"><span>Найти решение</span><i>→</i></a><a className="profimarket-secondary" href="/profimarket/create">Создать решение</a></div>
+        <div className="profimarket-hero-actions"><a className="profimarket-primary" href="/profimarket"><span>Найти решение</span><i>→</i></a><a className="profimarket-secondary" href="/profimarket/create" target="_self">Создать решение</a></div>
         <div className="profimarket-benefits"><span>Практика экспертов</span><span>Готово к внедрению</span><span>Новые возможности</span></div>
       </div>
     </section>

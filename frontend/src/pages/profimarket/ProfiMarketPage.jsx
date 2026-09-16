@@ -42,9 +42,9 @@ function Sidebar({ selectType }) {
         <a href="/profimarket/my?tab=favorites"><Icon name="heart" /> Избранное</a>
         <a href="/profimarket/my?tab=purchases"><Icon name="bag" /> Мои покупки</a>
         <a href="/profimarket/my"><Icon name="folder" /> Мои решения</a>
-        <Link to="/profimarket/create"><Icon name="users" /> Стать автором</Link>
+        <a href="/profimarket/create" target="_self"><Icon name="users" /> Стать автором</a>
       </div>
-      <section className="pmh-author-cta"><i><Icon name="sparkles" /></i><h3>Есть свои наработки?</h3><p>Размещайте решения на ПрофиМаркете и зарабатывайте на своём опыте</p><Link to="/profimarket/create">Стать автором</Link></section>
+      <section className="pmh-author-cta"><i><Icon name="sparkles" /></i><h3>Есть свои наработки?</h3><p>Размещайте решения на ПрофиМаркете и зарабатывайте на своём опыте</p><a href="/profimarket/create" target="_self">Стать автором</a></section>
     </aside>
   )
 }
