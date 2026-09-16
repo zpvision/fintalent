@@ -24,6 +24,9 @@ import (
 //go:embed mail/templates/welcome.html
 var welcomeEmailTemplate string
 
+//go:embed mail/templates/password_reset.html
+var passwordResetEmailTemplate string
+
 //go:embed static/logo.png
 var welcomeEmailLogo []byte
 
@@ -38,6 +41,11 @@ type smtpConfig struct {
 type welcomeEmailData struct {
 	UserName   string
 	ProfileURL string
+}
+
+type passwordResetEmailData struct {
+	ResetCode         string
+	ExpirationMinutes int
 }
 
 func loadSMTPConfig() (smtpConfig, error) {
@@ -84,14 +92,34 @@ func sendWelcomeEmail(recipientName, recipientEmail string) error {
 	if err := tmpl.Execute(&htmlBody, welcomeEmailData{UserName: recipientName, ProfileURL: baseURL + "/profile"}); err != nil {
 		return fmt.Errorf("формирование приветственного письма: %w", err)
 	}
-	message, err := buildWelcomeMessage(config.From, mail.Address{Name: recipientName, Address: recipientEmail}, htmlBody.Bytes())
+	message, err := buildHTMLMessage(config.From, mail.Address{Name: recipientName, Address: recipientEmail}, "Добро пожаловать в FinTalent", htmlBody.Bytes())
 	if err != nil {
 		return err
 	}
 	return sendSMTPMessage(config, recipientEmail, message)
 }
 
-func buildWelcomeMessage(from, to mail.Address, htmlBody []byte) ([]byte, error) {
+func sendPasswordResetEmail(recipientName, recipientEmail, code string, expirationMinutes int) error {
+	config, err := loadSMTPConfig()
+	if err != nil {
+		return err
+	}
+	tmpl, err := template.New("password-reset").Parse(passwordResetEmailTemplate)
+	if err != nil {
+		return fmt.Errorf("шаблон письма восстановления: %w", err)
+	}
+	var htmlBody bytes.Buffer
+	if err := tmpl.Execute(&htmlBody, passwordResetEmailData{ResetCode: code, ExpirationMinutes: expirationMinutes}); err != nil {
+		return fmt.Errorf("формирование письма восстановления: %w", err)
+	}
+	message, err := buildHTMLMessage(config.From, mail.Address{Name: recipientName, Address: recipientEmail}, "Код восстановления пароля FinTalent", htmlBody.Bytes())
+	if err != nil {
+		return err
+	}
+	return sendSMTPMessage(config, recipientEmail, message)
+}
+
+func buildHTMLMessage(from, to mail.Address, subject string, htmlBody []byte) ([]byte, error) {
 	var body bytes.Buffer
 	related := multipart.NewWriter(&body)
 	htmlHeader := textproto.MIMEHeader{}
@@ -128,7 +156,7 @@ func buildWelcomeMessage(from, to mail.Address, htmlBody []byte) ([]byte, error)
 	}
 
 	var message bytes.Buffer
-	encodedSubject := mime.BEncoding.Encode("UTF-8", "Добро пожаловать в FinTalent")
+	encodedSubject := mime.BEncoding.Encode("UTF-8", subject)
 	fmt.Fprintf(&message, "From: %s\r\n", from.String())
 	fmt.Fprintf(&message, "To: %s\r\n", to.String())
 	fmt.Fprintf(&message, "Subject: %s\r\n", encodedSubject)

@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { matchPath, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import LoginPage from './pages/auth/LoginPage'
+import ForgotPasswordPage from './pages/auth/ForgotPasswordPage'
 import RegisterPage from './pages/auth/RegisterPage'
 import CatalogPage from './pages/catalog/CatalogPage'
 import HomePage from './pages/home/HomePage'
@@ -33,7 +34,7 @@ import AdminPage from './pages/admin/AdminPage'
 import PublicLayout from './layouts/PublicLayout'
 
 const reactPaths = [
-  '/', '/login', '/register', '/vacancies', '/vacancies/view', '/vacancies/create',
+  '/', '/login', '/register', '/forgot-password', '/vacancies', '/vacancies/view', '/vacancies/create',
   '/resumes', '/resume/view/:id', '/resume/create', '/marketplace', '/marketplace/create-test',
   '/accounting-companies', '/accounting-companies/view', '/accounting-companies/passport', '/accounting-companies/create',
   '/profimarket', '/profimarket/my', '/profimarket/solution/:key', '/profimarket/create', '/profimarket/regulation/edit',
@@ -87,6 +88,7 @@ export default function App() {
     <><ReactNavigationBridge /><Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/vacancies" element={<CatalogPage type="vacancies" />} />
       <Route path="/vacancies/view" element={<VacancyViewPage />} />
       <Route path="/resumes" element={<CatalogPage type="resumes" />} />

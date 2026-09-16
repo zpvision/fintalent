@@ -54,6 +54,7 @@ export default function LoginPage() {
             Email
             <span className="input-wrap"><i>✉</i><input type="email" name="email" autoComplete="email" placeholder="name@example.ru" required /></span>
           </label>
+          <a className="forgot-password-link" href="/forgot-password">Забыли пароль?</a>
           <label>
             Пароль
             <span className="input-wrap">
