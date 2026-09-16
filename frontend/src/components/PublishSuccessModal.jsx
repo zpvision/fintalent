@@ -15,7 +15,7 @@ export default function PublishSuccessModal({ eyebrow, title, description, wishT
       <div className="publish-success-mark" aria-hidden="true"><span>✓</span></div>
       <small>{eyebrow}</small><h2 id="publish-success-title">{title}</h2><p>{description}</p>
       <div className="publish-success-wish"><i>✦</i><span><b>{wishTitle}</b><small>{wishText}</small></span></div>
-      <div className="publish-success-actions"><a href={primaryHref}>{primaryText} <span>→</span></a><button type="button" onClick={onClose}>Остаться здесь</button></div>
+      <div className="publish-success-actions"><a href={primaryHref} target="_self">{primaryText} <span>→</span></a><button type="button" onClick={onClose}>Остаться здесь</button></div>
     </section>
   </div>
 }

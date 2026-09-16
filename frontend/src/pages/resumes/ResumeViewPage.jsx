@@ -290,7 +290,7 @@ function HelpModal({ data, mode, onClose }) {
       <div className="resume-help-review-list"><ReviewList reviews={reviews} /></div>
     </div>
   ) : status === 'sent' ? (
-    <div className="resume-help-dialog" role="dialog" aria-modal="true"><header><div><h2>Запрос отправлен</h2><p>Статус обращения появится в личном кабинете в разделе “Помощь коллегам”.</p></div><button className="close" type="button" onClick={onClose}>×</button></header><footer><a className="primary" href="/profile?section=help">Открыть обращения</a></footer></div>
+    <div className="resume-help-dialog" role="dialog" aria-modal="true"><header><div><h2>Запрос отправлен</h2><p>Статус обращения появится в личном кабинете в разделе “Помощь коллегам”.</p></div><button className="close" type="button" onClick={onClose}>×</button></header><footer><a className="primary" href="/profile?section=help" target="_self">Открыть обращения</a></footer></div>
   ) : (
     <div className="resume-help-dialog" role="dialog" aria-modal="true">
       <header><div><h2>Попросить помощи</h2><p>Выберите направление и коротко опишите вопрос или ситуацию.</p></div><button className="close" type="button" aria-label="Закрыть" onClick={onClose}>×</button></header>
