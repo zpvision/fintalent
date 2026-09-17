@@ -4,6 +4,11 @@ export const getMyVacancies = options => apiClient.get('/api/v1/vacancies', opti
 export const unpublishMyVacancy = (id, options) => apiClient.post(`/api/v1/vacancies/${encodeURIComponent(id)}/unpublish`, null, options)
 export const deleteMyVacancy = (id, options) => apiClient.delete(`/api/v1/vacancies/${encodeURIComponent(id)}`, options)
 export const updateProfileName = (fullName, options) => apiClient.post('/api/profile/name', { full_name: fullName }, options)
+export const updateProfileAvatar = (file, options) => {
+  const body = new FormData()
+  body.append('avatar', file)
+  return apiClient.post('/api/profile/avatar', body, options)
+}
 export const updateProfilePassword = (currentPassword, newPassword, options) => apiClient.post('/api/profile/password', { current_password: currentPassword, new_password: newPassword }, options)
 export const getHelpRequests = (scope = 'incoming', options) => apiClient.get(`/api/v1/help/requests?scope=${encodeURIComponent(scope)}`, options)
 export const runHelpRequestAction = (id, action, options) => apiClient.post(`/api/v1/help/requests/${encodeURIComponent(id)}/${action}`, null, options)
