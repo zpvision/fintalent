@@ -8,12 +8,17 @@ const styles = ['/static/client-exchange-access.css?v=1']
 
 export default function ClientExchangeAccess({ children }) {
   const { user, loading } = useAuth()
-  const location = useLocation()
-  useDocumentPage({ title: 'Клиентская биржа — FinTalent' })
-  usePageStyles(styles)
 
   if (loading) return <PublicLayout><main className="ce-access-loading">Загружаем…</main></PublicLayout>
   if (user) return children
+
+  return <ClientExchangeGuest />
+}
+
+function ClientExchangeGuest() {
+  const location = useLocation()
+  useDocumentPage({ title: 'Клиентская биржа — FinTalent' })
+  usePageStyles(styles)
 
   const next = `${location.pathname}${location.search}`
   const query = encodeURIComponent(next)
