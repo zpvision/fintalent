@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"database/sql"
+	"database/sql/driver"
 	"encoding/hex"
 	"encoding/json"
 	"io"
@@ -173,7 +174,24 @@ func prepareDatabase() error {
 	if err := db.PingContext(ctx); err != nil {
 		return err
 	}
-	_, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS users (
+	lockConn, err := db.Conn(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err = lockConn.ExecContext(ctx, `SELECT pg_advisory_lock(hashtext('fintalent:prepare-database'))`); err != nil {
+		_ = lockConn.Close()
+		return err
+	}
+	defer func() {
+		unlockCtx, unlockCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer unlockCancel()
+		var unlocked bool
+		if unlockErr := lockConn.QueryRowContext(unlockCtx, `SELECT pg_advisory_unlock(hashtext('fintalent:prepare-database'))`).Scan(&unlocked); unlockErr != nil || !unlocked {
+			_ = lockConn.Raw(func(any) error { return driver.ErrBadConn })
+		}
+		_ = lockConn.Close()
+	}()
+	_, err = db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS users (
 		id BIGSERIAL PRIMARY KEY, full_name VARCHAR(200) NOT NULL,
 		email VARCHAR(254) NOT NULL UNIQUE, password_hash VARCHAR(60) NOT NULL,
 		agreed_to_terms BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -202,6 +220,9 @@ func prepareDatabase() error {
 	if err := prepareTestingDatabase(ctx); err != nil {
 		return err
 	}
+	if err := prepareEmployeeTestingDatabase(ctx); err != nil {
+		return err
+	}
 	if err := prepareTestCategories(ctx); err != nil {
 		return err
 	}
@@ -226,7 +247,7 @@ func prepareDatabase() error {
 	if err := prepareHelpDatabase(ctx); err != nil {
 		return err
 	}
-	if strings.EqualFold(strings.TrimSpace(os.Getenv("SEED_DEMO_DATA")), "false") {
+	if !demoDataEnabled() {
 		return nil
 	}
 	if err := prepareDemoContent(ctx); err != nil {
@@ -242,6 +263,14 @@ func prepareDatabase() error {
 		return err
 	}
 	return prepareAccountingCompanyDemo(ctx)
+}
+
+func demoDataEnabled() bool {
+	value := strings.TrimSpace(os.Getenv("SEED_DEMO_DATA"))
+	if value != "" {
+		return strings.EqualFold(value, "true")
+	}
+	return !strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production")
 }
 
 func contextWithTimeout() (context.Context, context.CancelFunc) {

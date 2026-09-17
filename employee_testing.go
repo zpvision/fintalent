@@ -83,9 +83,6 @@ type employeeAnswerInput struct {
 }
 
 func registerEmployeeTestingRoutes() {
-	if _, err := db.Exec(employeeTestingMigration); err != nil {
-		panic(err)
-	}
 	http.HandleFunc("/employee-test", serveFrontendPage("static/employee-test.html"))
 	http.HandleFunc("/api/employee-testing/employees", employeeTestingEmployees)
 	http.HandleFunc("/api/employee-testing/employees/", employeeTestingEmployee)
@@ -94,6 +91,11 @@ func registerEmployeeTestingRoutes() {
 	http.HandleFunc("/api/employee-testing/invitations", employeeTestingInvitations)
 	http.HandleFunc("/api/employee-testing/results", employeeTestingResults)
 	http.HandleFunc("/api/employee-test/", publicEmployeeTest)
+}
+
+func prepareEmployeeTestingDatabase(ctx context.Context) error {
+	_, err := db.ExecContext(ctx, employeeTestingMigration)
+	return err
 }
 
 func jsonResponse(w http.ResponseWriter, status int, value any) {

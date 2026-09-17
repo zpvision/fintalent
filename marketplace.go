@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -79,7 +78,7 @@ func marketplaceSystemAuthorID(ctx context.Context, tx *sql.Tx) (int64, error) {
 }
 
 func seedMarketplaceDemoData() bool {
-	return !strings.EqualFold(strings.TrimSpace(os.Getenv("SEED_DEMO_DATA")), "false")
+	return demoDataEnabled()
 }
 
 type accountingTopicTestSeed struct {

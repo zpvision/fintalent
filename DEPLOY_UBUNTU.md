@@ -24,7 +24,7 @@ PORT=8080
 ADMIN_LOGIN=your-admin-login
 ADMIN_PASSWORD=use-a-long-random-password
 COOKIE_SECURE=true
-SEED_DEMO_DATA=true
+SEED_DEMO_DATA=false
 SYNC_GEOGRAPHY=false
 ```
 

@@ -50,22 +50,32 @@ func TestMarketplaceSystemSeedInventoryIsUnique(t *testing.T) {
 
 func TestMarketplaceDemoFlag(t *testing.T) {
 	original, existed := os.LookupEnv("SEED_DEMO_DATA")
+	originalAppEnv, appEnvExisted := os.LookupEnv("APP_ENV")
 	t.Cleanup(func() {
 		if existed {
 			_ = os.Setenv("SEED_DEMO_DATA", original)
 		} else {
 			_ = os.Unsetenv("SEED_DEMO_DATA")
 		}
+		if appEnvExisted {
+			_ = os.Setenv("APP_ENV", originalAppEnv)
+		} else {
+			_ = os.Unsetenv("APP_ENV")
+		}
 	})
 	for _, test := range []struct {
-		value string
-		want  bool
-	}{{"false", false}, {"FALSE", false}, {" true ", true}, {"", true}} {
+		value  string
+		appEnv string
+		want   bool
+	}{{"false", "production", false}, {"FALSE", "development", false}, {" true ", "production", true}, {"", "development", true}, {"", "production", false}} {
 		if err := os.Setenv("SEED_DEMO_DATA", test.value); err != nil {
 			t.Fatal(err)
 		}
+		if err := os.Setenv("APP_ENV", test.appEnv); err != nil {
+			t.Fatal(err)
+		}
 		if got := seedMarketplaceDemoData(); got != test.want {
-			t.Fatalf("SEED_DEMO_DATA=%q: got %v, want %v", test.value, got, test.want)
+			t.Fatalf("SEED_DEMO_DATA=%q APP_ENV=%q: got %v, want %v", test.value, test.appEnv, got, test.want)
 		}
 	}
 }
