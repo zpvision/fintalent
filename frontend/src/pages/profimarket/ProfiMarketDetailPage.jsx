@@ -4,6 +4,7 @@ import { addProfiMarketFavorite, getProfiMarketMeta, getProfiMarketSolution, pur
 import { useDocumentPage } from '../../hooks/useDocumentPage'
 import usePageStyles from '../../hooks/usePageStyles'
 import PublicLayout from '../../layouts/PublicLayout'
+import ProfiMarketProductDetail from './ProfiMarketProductDetail'
 
 let uiPromise
 function loadPresentation() {
@@ -46,7 +47,7 @@ function PurchaseModal({ solution, close, done, fail }) {
 }
 
 export default function ProfiMarketDetailPage() {
-  usePageStyles(['/static/profimarket.css?v=1'])
+  usePageStyles(['/static/profimarket.css?v=1','/static/profimarket-product.css?v=1'])
   const { key } = useParams(), location = useLocation(), root = useRef(null)
   const [solution, setSolution] = useState(null), [html, setHTML] = useState(''), [error, setError] = useState(''), [modal, setModal] = useState(false), [notice, setNotice] = useState(null)
   useDocumentPage({ title: solution ? `${solution.title} — ПрофиМаркет` : 'Решение — ПрофиМаркет' })
@@ -54,7 +55,7 @@ export default function ProfiMarketDetailPage() {
   function notify(text, bad = false) { setNotice({ text, bad }); window.setTimeout(() => setNotice(null), 3000) }
   useEffect(() => {
     const controller = new AbortController(); setError(''); setSolution(null)
-    Promise.all([getProfiMarketSolution(key, { signal: controller.signal }), loadPresentation()]).then(([data, ui]) => { setSolution(data); setHTML(ui.solutionView(data, preview)) }).catch((requestError) => { if (requestError.name !== 'AbortError') setError(requestError.message) })
+    getProfiMarketSolution(key, { signal: controller.signal }).then(async(data) => { setSolution(data);if(['AUTOMATION','INSTRUCTION','ONEC_INTEGRATION','TEMPLATE','CHECKLIST'].includes(data.type)){setHTML('');return}const ui=await loadPresentation();setHTML(ui.solutionView(data,preview)) }).catch((requestError) => { if (requestError.name !== 'AbortError') setError(requestError.message) })
     return () => controller.abort()
   }, [key, preview])
   useEffect(() => {
@@ -89,5 +90,6 @@ export default function ProfiMarketDetailPage() {
     else if (buyButton) buy()
     else if (tabButton) { root.current.querySelectorAll('[data-section-tab]').forEach((item) => item.classList.toggle('active', item === tabButton)); root.current.querySelectorAll('[data-section]').forEach((item) => item.classList.toggle('hidden', item.dataset.section !== tabButton.dataset.sectionTab)) }
   }
-  return <PublicLayout><main ref={root} id="pm-detail" className="pm-detail-page" onClick={interact}>{error ? <div className="pm-detail-loading"><h1>Решение не найдено</h1><p>{error}</p><a href="/profimarket">Вернуться в ПрофиМаркет</a></div> : !solution ? <div className="pm-detail-loading"><i /><b>Загружаем решение…</b></div> : <div dangerouslySetInnerHTML={{ __html: html }} />}</main>{modal && <PurchaseModal solution={solution} close={() => setModal(false)} done={notify} fail={(text) => notify(text, true)} />}<Notice value={notice} /></PublicLayout>
+  const modern=solution&&['AUTOMATION','INSTRUCTION','ONEC_INTEGRATION','TEMPLATE','CHECKLIST'].includes(solution.type)
+  return <PublicLayout><main ref={root} id="pm-detail" className="pm-detail-page" onClick={interact}>{error ? <div className="pm-detail-loading"><h1>Решение не найдено</h1><p>{error}</p><a href="/profimarket">Вернуться в ПрофиМаркет</a></div> : !solution ? <div className="pm-detail-loading"><i /><b>Загружаем решение…</b></div> : modern?<ProfiMarketProductDetail solution={solution}/>:<div dangerouslySetInnerHTML={{ __html: html }} />}</main>{modal && <PurchaseModal solution={solution} close={() => setModal(false)} done={notify} fail={(text) => notify(text, true)} />}<Notice value={notice} /></PublicLayout>
 }

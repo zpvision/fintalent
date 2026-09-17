@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-//go:embed migrations/027_profimarket.sql migrations/028_profimarket_demo.sql migrations/029_profimarket_card_builder.sql migrations/030_profimarket_section_images.sql migrations/031_profimarket_crm_dictionary.sql migrations/032_profimarket_feature_colors.sql migrations/033_profimarket_bonus_style.sql migrations/034_profimarket_block_styles.sql migrations/035_profimarket_right_block.sql migrations/036_profimarket_implementation.sql migrations/037_profimarket_section_appearance.sql migrations/049_profimarket_platform_icons.sql migrations/050_profimarket_how_it_works.sql
+//go:embed migrations/027_profimarket.sql migrations/028_profimarket_demo.sql migrations/029_profimarket_card_builder.sql migrations/030_profimarket_section_images.sql migrations/031_profimarket_crm_dictionary.sql migrations/032_profimarket_feature_colors.sql migrations/033_profimarket_bonus_style.sql migrations/034_profimarket_block_styles.sql migrations/035_profimarket_right_block.sql migrations/036_profimarket_implementation.sql migrations/037_profimarket_section_appearance.sql migrations/049_profimarket_platform_icons.sql migrations/050_profimarket_how_it_works.sql migrations/051_profimarket_product_types.sql migrations/052_profimarket_product_demo.sql
 var profiMarketMigrationFS embed.FS
 
 type profiMedia struct {
@@ -112,6 +112,7 @@ type profiSolution struct {
 	ImplementationSubtitle string                 `json:"implementation_subtitle"`
 	PurchaseButtonCode     string                 `json:"purchase_button_code"`
 	PurchaseButtonLabel    string                 `json:"purchase_button_label"`
+	ProductData            map[string]any         `json:"product_data"`
 }
 type profiSolutionInput struct {
 	Type                   string         `json:"type"`
@@ -145,6 +146,7 @@ type profiSolutionInput struct {
 	ImplementationTitle    string         `json:"implementation_title"`
 	ImplementationSubtitle string         `json:"implementation_subtitle"`
 	PurchaseButtonCode     string         `json:"purchase_button_code"`
+	ProductData            map[string]any `json:"product_data"`
 }
 
 func prepareProfiMarketDatabase(ctx context.Context) error {
@@ -232,6 +234,13 @@ func prepareProfiMarketDatabase(ctx context.Context) error {
 	if _, err = db.ExecContext(ctx, string(howItWorks)); err != nil {
 		return fmt.Errorf("шаги работы ИИ-ассистента: %w", err)
 	}
+	productTypes, err := profiMarketMigrationFS.ReadFile("migrations/051_profimarket_product_types.sql")
+	if err != nil {
+		return err
+	}
+	if _, err = db.ExecContext(ctx, string(productTypes)); err != nil {
+		return fmt.Errorf("типы продуктов ПрофиМаркета: %w", err)
+	}
 	if err = syncProfiMarketCRMs(ctx); err != nil {
 		return fmt.Errorf("синхронизация CRM ПрофиМаркета: %w", err)
 	}
@@ -266,6 +275,13 @@ func prepareProfiMarketDemo(ctx context.Context) error {
 	if _, err = db.ExecContext(ctx, string(schema)); err != nil {
 		return fmt.Errorf("демо ПрофиМаркета: %w", err)
 	}
+	products, err := profiMarketMigrationFS.ReadFile("migrations/052_profimarket_product_demo.sql")
+	if err != nil {
+		return err
+	}
+	if _, err = db.ExecContext(ctx, string(products)); err != nil {
+		return fmt.Errorf("демо продуктов ПрофиМаркета: %w", err)
+	}
 	return nil
 }
 
@@ -273,6 +289,7 @@ func registerProfiMarketRoutes() {
 	http.HandleFunc("/profimarket", serveFrontendPage("static/profimarket.html"))
 	http.HandleFunc("/profimarket/create", serveFrontendPage("static/profimarket-create.html"))
 	http.HandleFunc("/profimarket/regulation/edit", serveFrontendPage("static/profimarket-regulation-edit.html"))
+	http.HandleFunc("/profimarket/product/edit", serveFrontendPage("static/profimarket-create.html"))
 	http.HandleFunc("/profimarket/my", serveFrontendPage("static/profimarket-my.html"))
 	http.HandleFunc("/profimarket/solution/", serveFrontendPage("static/profimarket-detail.html"))
 	http.HandleFunc("/api/profimarket", profiMarketCollectionAPI)
@@ -339,7 +356,8 @@ func decodeStringArray(raw []byte) []string {
 }
 func validateProfiInput(input *profiSolutionInput, publishing bool) error {
 	input.Type = strings.ToUpper(strings.TrimSpace(input.Type))
-	if input.Type != "REGULATION" && input.Type != "AI_ASSISTANT" {
+	validTypes := map[string]bool{"REGULATION": true, "AI_ASSISTANT": true, "AUTOMATION": true, "INSTRUCTION": true, "ONEC_INTEGRATION": true, "TEMPLATE": true, "CHECKLIST": true}
+	if !validTypes[input.Type] {
 		return errors.New("выберите тип решения")
 	}
 	input.Title = strings.TrimSpace(input.Title)
@@ -446,7 +464,7 @@ func profiMarketList(w http.ResponseWriter, r *http.Request, own bool, userID in
 		args = append(args, userID)
 	}
 	if !own {
-		if value := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("type"))); value == "REGULATION" || value == "AI_ASSISTANT" {
+		if value := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("type"))); map[string]bool{"REGULATION": true, "AI_ASSISTANT": true, "AUTOMATION": true, "INSTRUCTION": true, "ONEC_INTEGRATION": true, "TEMPLATE": true, "CHECKLIST": true}[value] {
 			args = append(args, value)
 			where += fmt.Sprintf(" AND s.type=$%d", len(args))
 		}
@@ -639,7 +657,7 @@ func profiMarketSolutionAPI(w http.ResponseWriter, r *http.Request) {
 }
 
 func solutionToInput(x *profiSolution) profiSolutionInput {
-	return profiSolutionInput{Type: x.Type, Title: x.Title, ShortDescription: x.ShortDescription, Description: x.Description, CoverImage: x.CoverImage, Price: x.Price, OldPrice: x.OldPrice, Currency: x.Currency, PricingType: x.PricingType, TrialDays: x.TrialDays, DeliveryType: x.DeliveryType, ExternalURL: x.ExternalURL, Tags: x.Tags, Topics: x.Topics, Audiences: x.Audiences, Sections: x.Sections, AccessFeatures: x.AccessFeatures, AIFeatures: x.AIFeatures, HowItWorks: x.HowItWorks, Media: x.Media, KeyMetrics: x.KeyMetrics, Bonuses: x.Bonuses, BonusStyle: x.BonusStyle, MetricStyle: x.MetricStyle, AccessStyle: x.AccessStyle, RightBlockTitle: x.RightBlockTitle, ImplementationTitle: x.ImplementationTitle, ImplementationSubtitle: x.ImplementationSubtitle, PurchaseButtonCode: x.PurchaseButtonCode}
+	return profiSolutionInput{Type: x.Type, Title: x.Title, ShortDescription: x.ShortDescription, Description: x.Description, CoverImage: x.CoverImage, Price: x.Price, OldPrice: x.OldPrice, Currency: x.Currency, PricingType: x.PricingType, TrialDays: x.TrialDays, DeliveryType: x.DeliveryType, ExternalURL: x.ExternalURL, Tags: x.Tags, Topics: x.Topics, Audiences: x.Audiences, Sections: x.Sections, AccessFeatures: x.AccessFeatures, AIFeatures: x.AIFeatures, HowItWorks: x.HowItWorks, Media: x.Media, KeyMetrics: x.KeyMetrics, Bonuses: x.Bonuses, BonusStyle: x.BonusStyle, MetricStyle: x.MetricStyle, AccessStyle: x.AccessStyle, RightBlockTitle: x.RightBlockTitle, ImplementationTitle: x.ImplementationTitle, ImplementationSubtitle: x.ImplementationSubtitle, PurchaseButtonCode: x.PurchaseButtonCode, ProductData: x.ProductData}
 }
 
 func saveProfiSolution(ctx context.Context, id, userID int64, input profiSolutionInput) error {
@@ -659,7 +677,8 @@ func saveProfiSolution(ctx context.Context, id, userID int64, input profiSolutio
 	metricsJSON, _ := json.Marshal(input.KeyMetrics)
 	bonusesJSON, _ := json.Marshal(input.Bonuses)
 	howItWorksJSON, _ := json.Marshal(input.HowItWorks)
-	if _, err = tx.ExecContext(ctx, `UPDATE profimarket_solutions SET key_metrics=$1::jsonb,bonuses=$2::jsonb,bonus_style=$3,metric_style=$4,access_style=$5,right_block_title=$6,implementation_title=$7,implementation_subtitle=$8,purchase_button_code=CASE WHEN EXISTS(SELECT 1 FROM profimarket_purchase_button_options WHERE code=$9 AND active=TRUE) THEN $9 ELSE 'buy_and_implement' END,how_it_works=$10::jsonb WHERE id=$11 AND author_user_id=$12`, string(metricsJSON), string(bonusesJSON), input.BonusStyle, input.MetricStyle, input.AccessStyle, input.RightBlockTitle, input.ImplementationTitle, input.ImplementationSubtitle, input.PurchaseButtonCode, string(howItWorksJSON), id, userID); err != nil {
+	productDataJSON, _ := json.Marshal(input.ProductData)
+	if _, err = tx.ExecContext(ctx, `UPDATE profimarket_solutions SET key_metrics=$1::jsonb,bonuses=$2::jsonb,bonus_style=$3,metric_style=$4,access_style=$5,right_block_title=$6,implementation_title=$7,implementation_subtitle=$8,purchase_button_code=CASE WHEN EXISTS(SELECT 1 FROM profimarket_purchase_button_options WHERE code=$9 AND active=TRUE) THEN $9 ELSE 'buy_and_implement' END,how_it_works=$10::jsonb,product_data=$11::jsonb WHERE id=$12 AND author_user_id=$13`, string(metricsJSON), string(bonusesJSON), input.BonusStyle, input.MetricStyle, input.AccessStyle, input.RightBlockTitle, input.ImplementationTitle, input.ImplementationSubtitle, input.PurchaseButtonCode, string(howItWorksJSON), string(productDataJSON), id, userID); err != nil {
 		return err
 	}
 	for _, table := range []string{"profimarket_media", "profimarket_regulation_sections", "profimarket_access_features", "profimarket_ai_features", "profimarket_solution_crm", "profimarket_solution_platforms"} {
@@ -829,11 +848,12 @@ func loadProfiSolution(ctx context.Context, key string, u *user) (*profiSolution
 	}
 	loadDict(`SELECT c.id,c.code,c.name,c.description,c.icon FROM profimarket_solution_crm x JOIN profimarket_crm c ON c.id=x.crm_id WHERE x.solution_id=$1 ORDER BY c.sort_order,c.id`, &x.CRMs)
 	loadDict(`SELECT p.id,p.code,p.name,'',p.icon FROM profimarket_solution_platforms x JOIN profimarket_platforms p ON p.id=x.platform_id WHERE x.solution_id=$1 ORDER BY p.sort_order,p.id`, &x.Platforms)
-	var metricsJSON, bonusesJSON, howItWorksJSON []byte
-	if db.QueryRowContext(ctx, `SELECT s.key_metrics,s.bonuses,s.bonus_style,s.metric_style,s.access_style,s.right_block_title,s.implementation_title,s.implementation_subtitle,s.purchase_button_code,COALESCE(o.name,'Купить и внедрить'),s.how_it_works FROM profimarket_solutions s LEFT JOIN profimarket_purchase_button_options o ON o.code=s.purchase_button_code WHERE s.id=$1`, x.ID).Scan(&metricsJSON, &bonusesJSON, &x.BonusStyle, &x.MetricStyle, &x.AccessStyle, &x.RightBlockTitle, &x.ImplementationTitle, &x.ImplementationSubtitle, &x.PurchaseButtonCode, &x.PurchaseButtonLabel, &howItWorksJSON) == nil {
+	var metricsJSON, bonusesJSON, howItWorksJSON, productDataJSON []byte
+	if db.QueryRowContext(ctx, `SELECT s.key_metrics,s.bonuses,s.bonus_style,s.metric_style,s.access_style,s.right_block_title,s.implementation_title,s.implementation_subtitle,s.purchase_button_code,COALESCE(o.name,'Купить и внедрить'),s.how_it_works,s.product_data FROM profimarket_solutions s LEFT JOIN profimarket_purchase_button_options o ON o.code=s.purchase_button_code WHERE s.id=$1`, x.ID).Scan(&metricsJSON, &bonusesJSON, &x.BonusStyle, &x.MetricStyle, &x.AccessStyle, &x.RightBlockTitle, &x.ImplementationTitle, &x.ImplementationSubtitle, &x.PurchaseButtonCode, &x.PurchaseButtonLabel, &howItWorksJSON, &productDataJSON) == nil {
 		_ = json.Unmarshal(metricsJSON, &x.KeyMetrics)
 		_ = json.Unmarshal(bonusesJSON, &x.Bonuses)
 		_ = json.Unmarshal(howItWorksJSON, &x.HowItWorks)
+		_ = json.Unmarshal(productDataJSON, &x.ProductData)
 	}
 	return x, nil
 }
@@ -918,7 +938,7 @@ func profiPurchaseAction(w http.ResponseWriter, r *http.Request, id int64, u *us
 		writeJSON(w, 500, "Не удалось завершить покупку")
 		return
 	}
-	profiRespond(w, 201, map[string]any{"purchase_id": purchaseID, "message": "Покупка оформлена"})
+	profiRespond(w, 201, map[string]any{"purchase_id": purchaseID, "message": "Покупка оформлена. Продавец получил информацию о заказе и передаст вам материалы."})
 }
 
 func profiMarketMetaAPI(w http.ResponseWriter, r *http.Request) {
@@ -961,9 +981,25 @@ func profiMarketMetaAPI(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	var regulations, ai int
-	_ = db.QueryRowContext(r.Context(), `SELECT COUNT(*) FILTER(WHERE type='REGULATION'),COUNT(*) FILTER(WHERE type='AI_ASSISTANT') FROM profimarket_solutions WHERE status='PUBLISHED' AND deleted_at IS NULL`).Scan(&regulations, &ai)
-	profiRespond(w, 200, map[string]any{"crms": crms, "platforms": platforms, "purchase_buttons": purchaseButtons, "categories": []map[string]any{{"type": "AI_ASSISTANT", "name": "ИИ-ассистенты и боты", "count": ai}, {"type": "REGULATION", "name": "Регламенты", "count": regulations}}})
+	categoryNames := map[string]string{"AI_ASSISTANT": "ИИ-ассистенты", "REGULATION": "Регламенты", "AUTOMATION": "Автоматизации", "INSTRUCTION": "Инструкции", "ONEC_INTEGRATION": "1С Интеграции", "TEMPLATE": "Шаблоны", "CHECKLIST": "Чек-листы"}
+	categoryOrder := []string{"AI_ASSISTANT", "REGULATION", "AUTOMATION", "INSTRUCTION", "ONEC_INTEGRATION", "TEMPLATE", "CHECKLIST"}
+	counts := map[string]int{}
+	categoryRows, _ := db.QueryContext(r.Context(), `SELECT type,COUNT(*) FROM profimarket_solutions WHERE status='PUBLISHED' AND deleted_at IS NULL GROUP BY type`)
+	if categoryRows != nil {
+		defer categoryRows.Close()
+		for categoryRows.Next() {
+			var productType string
+			var count int
+			if categoryRows.Scan(&productType, &count) == nil {
+				counts[productType] = count
+			}
+		}
+	}
+	categories := make([]map[string]any, 0, len(categoryOrder))
+	for _, productType := range categoryOrder {
+		categories = append(categories, map[string]any{"type": productType, "name": categoryNames[productType], "count": counts[productType]})
+	}
+	profiRespond(w, 200, map[string]any{"crms": crms, "platforms": platforms, "purchase_buttons": purchaseButtons, "categories": categories})
 }
 
 func profiMarketMySolutionsAPI(w http.ResponseWriter, r *http.Request) {

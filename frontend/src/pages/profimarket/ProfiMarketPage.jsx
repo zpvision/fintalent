@@ -7,13 +7,16 @@ import usePageStyles from '../../hooks/usePageStyles'
 import PublicLayout from '../../layouts/PublicLayout'
 
 const categories = [
-  { type: 'AI_ASSISTANT', name: 'ИИ-ассистенты и боты', icon: 'bot' },
-  { name: 'Автоматизации', icon: 'sparkles', soon: true },
-  { name: '1С и интеграции', icon: 'calculator', soon: true },
+  { type: 'AI_ASSISTANT', name: 'ИИ-ассистенты', icon: 'bot' },
   { type: 'REGULATION', name: 'Регламенты', icon: 'workflow' },
-  { name: 'Инструкции', icon: 'list', soon: true },
-  { name: 'Шаблоны', icon: 'folder', soon: true },
+  { type: 'AUTOMATION', name: 'Автоматизации', icon: 'sparkles' },
+  { type: 'INSTRUCTION', name: 'Инструкции', icon: 'list' },
+  { type: 'ONEC_INTEGRATION', name: '1С Интеграции', icon: 'calculator' },
+  { type: 'TEMPLATE', name: 'Шаблоны', icon: 'folder' },
+  { type: 'CHECKLIST', name: 'Чек-листы', icon: 'check' },
 ]
+const productVisuals={AI_ASSISTANT:['bot','AI','ai'],REGULATION:['workflow','PRO','reg'],AUTOMATION:['sparkles','AUTO','automation'],INSTRUCTION:['list','DOC','instruction'],ONEC_INTEGRATION:['calculator','1C','onec'],TEMPLATE:['folder','FILE','template'],CHECKLIST:['check','CHECK','checklist']}
+const productLabels=Object.fromEntries(categories.map(item=>[item.type,item.name]))
 
 function priceText(solution) {
   if (solution.pricing_type === 'FREE' || !Number(solution.price)) return 'Бесплатно'
@@ -34,7 +37,7 @@ function Sidebar({ selectType }) {
             onClick={category.type ? (event) => { event.preventDefault(); selectType(category.type) } : (event) => event.preventDefault()}
             key={category.name}
           >
-            <Icon name={category.icon} /><span>{category.name}</span>{index === 0 ? <em>NEW</em> : category.soon ? <small>Скоро</small> : null}
+            <Icon name={category.icon} /><span>{category.name}</span>{index === 0 ? <em>NEW</em> : null}
           </a>
         ))}
       </nav>
@@ -77,11 +80,11 @@ function CategoryRow({ counts, selectType }) {
 }
 
 function SolutionCard({ solution }) {
-  const ai = solution.type === 'AI_ASSISTANT'
+  const visual=productVisuals[solution.type]||productVisuals.REGULATION
   return (
     <article className="pmh-card">
-      <div className={`pmh-card-cover ${ai ? 'ai' : 'reg'}${solution.cover_image ? ' has-image' : ''}`}><em>{solution.is_new ? 'НОВИНКА' : 'ХИТ'}</em><button type="button"><Icon name="folder" /></button>{solution.cover_image ? <img src={solution.cover_image} alt={solution.title} loading="lazy" /> : <><i><Icon name={ai ? 'bot' : 'workflow'} /></i><b>{ai ? 'AI' : 'PRO'}</b></>}</div>
-      <div className="pmh-card-body"><h3>{solution.title}</h3><p>{solution.short_description}</p><div className="pmh-author"><i>{(solution.author_name || 'А').charAt(0)}</i><span>{solution.author_name || 'Автор FinTalent'}</span></div><footer><span><b>★ {Number(solution.rating || 4.9).toFixed(1)}</b> ({solution.review_count || 0})</span><strong>{priceText(solution)}</strong></footer></div>
+      <div className={`pmh-card-cover ${visual[2]}${solution.cover_image ? ' has-image' : ''}`}><em>{solution.is_new ? 'НОВИНКА' : 'ХИТ'}</em><button type="button"><Icon name="folder" /></button>{solution.cover_image ? <img src={solution.cover_image} alt={solution.title} loading="lazy" /> : <><i><Icon name={visual[0]} /></i><b>{visual[1]}</b></>}</div>
+      <div className="pmh-card-body"><small className="pmh-card-type">{productLabels[solution.type]||'Профессиональное решение'}</small><h3>{solution.title}</h3><p>{solution.short_description}</p><div className="pmh-author">{solution.author_avatar?<img src={solution.author_avatar} alt=""/>:<i>{(solution.author_name || 'А').charAt(0)}</i>}<span>{solution.author_name || 'Автор FinTalent'}</span></div><footer><span><b>★ {Number(solution.rating || 4.9).toFixed(1)}</b> ({solution.review_count || 0})</span><strong>{priceText(solution)}</strong></footer></div>
       <a href={`/profimarket/solution/${encodeURIComponent(solution.slug)}`} aria-label={`Открыть ${solution.title}`} />
     </article>
   )
@@ -96,7 +99,7 @@ export default function ProfiMarketPage() {
   const [error, setError] = useState('')
   const popularRef = useRef(null)
 
-  usePageStyles(['/static/profimarket.css?v=1', '/static/profimarket-regulation.css?v=12', '/static/profimarket-home.css?v=3'])
+  usePageStyles(['/static/profimarket.css?v=1', '/static/profimarket-regulation.css?v=12', '/static/profimarket-home.css?v=3', '/static/profimarket-product.css?v=1'])
   useDocumentPage({ title: 'ПрофиМаркет — FinTalent' })
 
   useEffect(() => {

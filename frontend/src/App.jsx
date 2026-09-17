@@ -27,6 +27,7 @@ import ProfiMarketMyPage from './pages/profimarket/ProfiMarketMyPage'
 import ProfiMarketDetailPage from './pages/profimarket/ProfiMarketDetailPage'
 import ProfiMarketCreatePage from './pages/profimarket/ProfiMarketCreatePage'
 import ProfiMarketRegulationEditPage from './pages/profimarket/ProfiMarketRegulationEditPage'
+import ProfiMarketProductEditPage from './pages/profimarket/ProfiMarketProductEditPage'
 import ResumeCreatePage from './pages/resumes/ResumeCreatePage'
 import MarketplaceCreateTestPage from './pages/marketplace/MarketplaceCreateTestPage'
 import ProfilePage from './pages/profile/ProfilePage'
@@ -38,7 +39,7 @@ const reactPaths = [
   '/', '/login', '/register', '/forgot-password', '/vacancies', '/vacancies/view', '/vacancies/create',
   '/resumes', '/resume/view/:id', '/resume/create', '/marketplace', '/marketplace/create-test',
   '/accounting-companies', '/accounting-companies/view', '/accounting-companies/passport', '/accounting-companies/create',
-  '/profimarket', '/profimarket/my', '/profimarket/solution/:key', '/profimarket/create', '/profimarket/regulation/edit',
+  '/profimarket', '/profimarket/my', '/profimarket/solution/:key', '/profimarket/create', '/profimarket/regulation/edit', '/profimarket/product/edit',
   '/publications', '/publications/saved', '/publications/create', '/publications/analytics', '/publications/:id/edit',
   '/tests', '/tests/take', '/employee-test', '/client-exchange', '/client-exchange/create', '/profile', '/admin/*',
 ]
@@ -152,6 +153,7 @@ export default function App() {
       <Route path="/profimarket/solution/:key" element={<ProfiMarketDetailPage />} />
       <Route path="/profimarket/create" element={<ProfiMarketCreatePage />} />
       <Route path="/profimarket/regulation/edit" element={<ProfiMarketRegulationEditPage />} />
+      <Route path="/profimarket/product/edit" element={<ProfiMarketProductEditPage />} />
       <Route path="/resume/create" element={<PublicLayout><ResumeCreatePage /></PublicLayout>} />
       <Route path="/marketplace/create-test" element={<MarketplaceCreateTestPage />} />
       <Route path="/profile" element={<ProfileRoute />} />

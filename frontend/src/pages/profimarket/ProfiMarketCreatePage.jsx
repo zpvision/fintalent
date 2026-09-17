@@ -6,7 +6,7 @@ import { useDocumentPage } from '../../hooks/useDocumentPage'
 import usePageStyles from '../../hooks/usePageStyles'
 import PublicLayout from '../../layouts/PublicLayout'
 
-const creationPayload = (type) => ({ type, pricing_type: 'MONTHLY', delivery_type: 'MANUAL' })
+const creationPayload = (type) => ({ type, pricing_type: type === 'AI_ASSISTANT' ? 'MONTHLY' : 'ONE_TIME', delivery_type: 'MANUAL' })
 const solutionPayload = (value) => ({
   type: value.type,
   title: value.title || '',
@@ -49,7 +49,8 @@ const defaultHowItWorks = () => [
 const field = (event) => event.target.type === 'number' ? Number(event.target.value) : event.target.value
 
 function TypeChoice({ choose, busy }) {
-  return <div className="pm-create-shell"><div className="pm-create-head"><Link to="/profimarket">← Вернуться в ПрофиМаркет</Link><span><i>✓</i> Единый кабинет FinTalent</span></div><section className="pm-type-choice"><small>НОВОЕ РЕШЕНИЕ</small><h1>Что вы хотите разместить на ПрофиМаркете?</h1><p>Для каждого типа решения подготовлен отдельный профессиональный мастер.</p><div className="pm-type-grid"><button disabled={busy} className="pm-type-option regulation" onClick={() => choose('REGULATION')}><i><Icon name="workflow" /></i><h2>Регламент</h2><p>Готовый рабочий процесс, который можно внедрить в CRM.</p><strong>Выбрать регламент →</strong></button><button disabled={busy} className="pm-type-option ai" onClick={() => choose('AI_ASSISTANT')}><i><Icon name="bot" /></i><h2>ИИ-ассистент или бот</h2><p>ИИ-инструмент, бот или помощник для автоматизации работы.</p><strong>Выбрать ИИ-инструмент →</strong></button></div></section></div>
+  const types=[['REGULATION','workflow','Регламент','Готовый рабочий процесс для внедрения в компании.'],['AI_ASSISTANT','bot','ИИ-ассистент','Бот или помощник для ежедневных профессиональных задач.'],['AUTOMATION','sparkles','Автоматизация','Готовый сценарий автоматизации конкретного процесса.'],['INSTRUCTION','list','Инструкция','Профессиональная пошаговая инструкция с реальным фрагментом.'],['ONEC_INTEGRATION','calculator','1С Интеграция','Расширение, обработка, отчёт или интеграционный модуль.'],['TEMPLATE','folder','Шаблон','Рабочий файл, таблица, документ или набор материалов.'],['CHECKLIST','check','Чек-лист','Структурированный список проверок и контрольных действий.']]
+  return <div className="pm-create-shell"><div className="pm-create-head"><Link to="/profimarket">← Вернуться в ПрофиМаркет</Link><span><i>✓</i> Единый кабинет FinTalent</span></div><section className="pm-type-choice"><small>НОВЫЙ ПРОДУКТ</small><h1>Что вы хотите разместить на ПрофиМаркете?</h1><p>Выберите тип продукта — откроется подходящий пошаговый мастер.</p><div className="pm-type-grid pm-type-grid-all">{types.map(([type,icon,title,text])=><button disabled={busy} className={`pm-type-option ${type.toLowerCase()}`} onClick={()=>choose(type)} key={type}><i><Icon name={icon}/></i><h2>{title}</h2><p>{text}</p><strong>Выбрать →</strong></button>)}</div></section></div>
 }
 
 function Basic({ value, change, upload }) {
@@ -77,12 +78,12 @@ function Pricing({ value, change }) {
 }
 
 export default function ProfiMarketCreatePage() {
-  usePageStyles(['/static/profimarket.css?v=1', '/static/profimarket-ai-editor.css?v=4']); useDocumentPage({ title: 'Разместить решение — ПрофиМаркет' })
+  usePageStyles(['/static/profimarket.css?v=1', '/static/profimarket-ai-editor.css?v=4', '/static/profimarket-product.css?v=1']); useDocumentPage({ title: 'Разместить решение — ПрофиМаркет' })
   const navigate = useNavigate()
   const [params] = useSearchParams(), editID = params.get('id'), [solution, setSolution] = useState(null), [meta, setMeta] = useState({}), [step, setStep] = useState(0), [busy, setBusy] = useState(false), [notice, setNotice] = useState(''), [error, setError] = useState('')
-  useEffect(() => { setError(''); Promise.all([getProfiMarketMeta(), editID ? getProfiMarketSolution(editID) : null]).then(([dictionary, current]) => { setMeta(dictionary); if (current?.type === 'REGULATION') navigate(`/profimarket/regulation/edit?id=${current.id}`, { replace: true }); else if (current) { setSolution({ ...current, platform_ids: (current.platforms || []).map((item) => item.id), ai_features: current.ai_features || [], how_it_works: current.how_it_works?.length ? current.how_it_works : defaultHowItWorks(), media: current.media || [] }); setBusy(false) } }).catch((requestError) => { setError(requestError.message); setBusy(false) }) }, [editID, navigate])
+  useEffect(() => { setError(''); Promise.all([getProfiMarketMeta(), editID ? getProfiMarketSolution(editID) : null]).then(([dictionary, current]) => { setMeta(dictionary); if (current?.type === 'REGULATION') navigate(`/profimarket/regulation/edit?id=${current.id}`, { replace: true }); else if(current&&current.type!=='AI_ASSISTANT')navigate(`/profimarket/product/edit?id=${current.id}`,{replace:true});else if (current) { setSolution({ ...current, platform_ids: (current.platforms || []).map((item) => item.id), ai_features: current.ai_features || [], how_it_works: current.how_it_works?.length ? current.how_it_works : defaultHowItWorks(), media: current.media || [] }); setBusy(false) } }).catch((requestError) => { setError(requestError.message); setBusy(false) }) }, [editID, navigate])
   const change = (name) => (event) => setSolution((value) => ({ ...value, [name]: field(event) }))
-  async function choose(type) { setBusy(true); setError(''); try { const created = await createProfiMarketSolution(creationPayload(type)); window.location.assign(type === 'REGULATION' ? `/profimarket/regulation/edit?id=${created.id}` : `/profimarket/create?id=${created.id}`) } catch (requestError) { setError(requestError.message); setBusy(false) } }
+  async function choose(type) { setBusy(true); setError(''); try { const created = await createProfiMarketSolution(creationPayload(type)); window.location.assign(type === 'REGULATION' ? `/profimarket/regulation/edit?id=${created.id}` : type === 'AI_ASSISTANT' ? `/profimarket/create?id=${created.id}` : `/profimarket/product/edit?id=${created.id}`) } catch (requestError) { setError(requestError.message); setBusy(false) } }
   function payload() { return solutionPayload(solution) }
   async function save() { setBusy(true); try { const saved = await updateProfiMarketSolution(solution.id, payload()); setSolution({ ...saved, platform_ids: (saved.platforms || []).map((item) => item.id), ai_features: saved.ai_features || [], how_it_works: saved.how_it_works || [], media: saved.media || [] }); setNotice('Черновик сохранён'); return true } catch (requestError) { setError(requestError.message); return false } finally { setBusy(false) } }
   async function move(next) { if (await save()) setStep(next) }
