@@ -66,7 +66,7 @@ export default function LoginPage() {
           <div className={`form-message${error ? ' error' : ''}`} role="alert">{error}</div>
           <button className="submit-register" type="submit" disabled={submitting}>{submitting ? 'Входим…' : <>Войти <span>→</span></>}</button>
         </form>
-        <AuthSwitchLink prompt="Нет аккаунта?" to="/register">Зарегистрироваться</AuthSwitchLink>
+        <AuthSwitchLink prompt="Нет аккаунта?" to={searchParams.get('next')?`/register?next=${encodeURIComponent(searchParams.get('next'))}`:'/register'}>Зарегистрироваться</AuthSwitchLink>
       </section>
     </AuthLayout>
   )

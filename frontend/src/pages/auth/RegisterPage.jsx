@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { apiClient } from '../../api/client'
 import AuthLayout, { AuthFeature, AuthSwitchLink } from '../../layouts/AuthLayout'
 import { useAuth } from '../../context/AuthContext'
@@ -6,6 +7,7 @@ import { navigateInApp } from '../../navigation'
 
 export default function RegisterPage() {
   const { refresh } = useAuth()
+  const [searchParams] = useSearchParams()
   const [showPassword, setShowPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -19,7 +21,8 @@ export default function RegisterPage() {
     try {
       await apiClient.post('/api/register', new FormData(form), { redirectOnUnauthorized: false })
       await refresh()
-      navigateInApp('/')
+      const next = searchParams.get('next')
+      navigateInApp(next?.startsWith('/') && !next.startsWith('//') ? next : '/')
     } catch (requestError) {
       setError(requestError.message || 'Не удалось зарегистрироваться')
       setSubmitting(false)
@@ -67,7 +70,7 @@ export default function RegisterPage() {
           <div className={`form-message${error ? ' error' : ''}`} role="alert">{error}</div>
           <button className="submit-register" type="submit" disabled={submitting}>{submitting ? 'Создаём аккаунт…' : <>Зарегистрироваться <span>→</span></>}</button>
         </form>
-        <AuthSwitchLink prompt="Уже есть аккаунт?" to="/login">Войти</AuthSwitchLink>
+        <AuthSwitchLink prompt="Уже есть аккаунт?" to={searchParams.get('next')?`/login?next=${encodeURIComponent(searchParams.get('next'))}`:'/login'}>Войти</AuthSwitchLink>
       </section>
     </AuthLayout>
   )

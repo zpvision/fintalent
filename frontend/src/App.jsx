@@ -15,6 +15,7 @@ import ResumeViewPage from './pages/resumes/ResumeViewPage'
 import TestsPage from './pages/tests/TestsPage'
 import ClientExchangePage from './pages/clientExchange/ClientExchangePage'
 import ClientExchangeCreatePage from './pages/clientExchange/ClientExchangeCreatePage'
+import ClientExchangeAccess from './pages/clientExchange/ClientExchangeAccess'
 import AccountingCompanyPassportPage from './pages/companies/AccountingCompanyPassportPage'
 import AccountingCompanyCreatePage from './pages/companies/AccountingCompanyCreatePage'
 import TestTakePage from './pages/tests/TestTakePage'
@@ -138,8 +139,8 @@ export default function App() {
       <Route path="/publications" element={<PublicationsPage />} />
       <Route path="/publications/saved" element={<PublicationsPage saved />} />
       <Route path="/tests" element={<TestsPage />} />
-      <Route path="/client-exchange" element={<ClientExchangePage />} />
-      <Route path="/client-exchange/create" element={<ClientExchangeCreatePage />} />
+      <Route path="/client-exchange" element={<ClientExchangeAccess><ClientExchangePage /></ClientExchangeAccess>} />
+      <Route path="/client-exchange/create" element={<ClientExchangeAccess><ClientExchangeCreatePage /></ClientExchangeAccess>} />
       <Route path="/accounting-companies/passport" element={<AccountingCompanyPassportPage />} />
       <Route path="/accounting-companies/create" element={<AccountingCompanyCreatePage />} />
       <Route path="/tests/take" element={<TestTakePage />} />
