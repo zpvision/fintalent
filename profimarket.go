@@ -955,11 +955,18 @@ func profiPurchaseAction(w http.ResponseWriter, r *http.Request, id int64, u *us
 			priceText = "Бесплатно"
 		}
 		emailData := profiMarketOrderEmailData{BuyerName: u.FullName, BuyerEmail: u.Email, ProductTitle: x.Title, ActionTitle: actionTitle, PriceText: priceText, PurchaseID: purchaseID}
-		go func() {
-			if emailErr := sendProfiMarketOrderEmail(sellerName, sellerEmail, emailData); emailErr != nil {
-				log.Printf("profimarket order email to seller %d: %v", x.AuthorUserID, emailErr)
+		var emailErr error
+		for attempt := 1; attempt <= 2; attempt++ {
+			emailErr = sendProfiMarketOrderEmail(sellerName, sellerEmail, emailData)
+			if emailErr == nil {
+				log.Printf("profimarket order email sent to seller %d for purchase %d", x.AuthorUserID, purchaseID)
+				break
 			}
-		}()
+			log.Printf("profimarket order email attempt %d to seller %d for purchase %d: %v", attempt, x.AuthorUserID, purchaseID, emailErr)
+			if attempt == 1 {
+				time.Sleep(400 * time.Millisecond)
+			}
+		}
 	}
 	message := "Покупка оформлена. Автор получил ваши контакты и свяжется с вами."
 	if x.Type == "AI_ASSISTANT" && x.TrialDays > 0 {

@@ -4,6 +4,7 @@ import { addProfiMarketFavorite, getProfiMarketMeta, getProfiMarketSolution, pur
 import { useDocumentPage } from '../../hooks/useDocumentPage'
 import usePageStyles from '../../hooks/usePageStyles'
 import PublicLayout from '../../layouts/PublicLayout'
+import PublishSuccessModal from '../../components/PublishSuccessModal'
 import ProfiMarketProductDetail from './ProfiMarketProductDetail'
 
 let uiPromise
@@ -47,9 +48,9 @@ function PurchaseModal({ solution, close, done, fail }) {
 }
 
 export default function ProfiMarketDetailPage() {
-  usePageStyles(['/static/profimarket.css?v=1','/static/profimarket-product.css?v=1'])
+  usePageStyles(['/static/profimarket.css?v=1','/static/profimarket-product.css?v=1','/static/vacancy-publish-success.css?v=1'])
   const { key } = useParams(), location = useLocation(), root = useRef(null)
-  const [solution, setSolution] = useState(null), [html, setHTML] = useState(''), [error, setError] = useState(''), [modal, setModal] = useState(false), [notice, setNotice] = useState(null)
+  const [solution, setSolution] = useState(null), [html, setHTML] = useState(''), [error, setError] = useState(''), [modal, setModal] = useState(false), [notice, setNotice] = useState(null), [purchaseSuccess, setPurchaseSuccess] = useState(null)
   useDocumentPage({ title: solution ? `${solution.title} — ПрофиМаркет` : 'Решение — ПрофиМаркет' })
   const preview = new URLSearchParams(location.search).get('preview') === '1'
   function notify(text, bad = false) { setNotice({ text, bad }); window.setTimeout(() => setNotice(null), 3000) }
@@ -82,7 +83,7 @@ export default function ProfiMarketDetailPage() {
   }
   async function buy() {
     if (solution.type === 'REGULATION') { setModal(true); return }
-    try { const data = await purchaseProfiMarketSolution(solution.id); notify(data.message || 'Доступ оформлен') } catch (requestError) { notify(requestError.message, true) }
+    try { const data = await purchaseProfiMarketSolution(solution.id); setPurchaseSuccess(data) } catch (requestError) { notify(requestError.message, true) }
   }
   function interact(event) {
     const favoriteButton = event.target.closest('[data-favorite]'), buyButton = event.target.closest('[data-buy]'), tabButton = event.target.closest('[data-section-tab]')
@@ -91,5 +92,5 @@ export default function ProfiMarketDetailPage() {
     else if (tabButton) { root.current.querySelectorAll('[data-section-tab]').forEach((item) => item.classList.toggle('active', item === tabButton)); root.current.querySelectorAll('[data-section]').forEach((item) => item.classList.toggle('hidden', item.dataset.section !== tabButton.dataset.sectionTab)) }
   }
   const modern=solution&&['AUTOMATION','INSTRUCTION','ONEC_INTEGRATION','TEMPLATE','CHECKLIST'].includes(solution.type)
-  return <PublicLayout><main ref={root} id="pm-detail" className="pm-detail-page" onClick={interact}>{error ? <div className="pm-detail-loading"><h1>Решение не найдено</h1><p>{error}</p><a href="/profimarket">Вернуться в ПрофиМаркет</a></div> : !solution ? <div className="pm-detail-loading"><i /><b>Загружаем решение…</b></div> : modern?<ProfiMarketProductDetail solution={solution}/>:<div dangerouslySetInnerHTML={{ __html: html }} />}</main>{modal && <PurchaseModal solution={solution} close={() => setModal(false)} done={notify} fail={(text) => notify(text, true)} />}<Notice value={notice} /></PublicLayout>
+  return <PublicLayout><main ref={root} id="pm-detail" className="pm-detail-page" onClick={interact}>{error ? <div className="pm-detail-loading"><h1>Решение не найдено</h1><p>{error}</p><a href="/profimarket">Вернуться в ПрофиМаркет</a></div> : !solution ? <div className="pm-detail-loading"><i /><b>Загружаем решение…</b></div> : modern?<ProfiMarketProductDetail solution={solution}/>:<div dangerouslySetInnerHTML={{ __html: html }} />}</main>{modal && <PurchaseModal solution={solution} close={() => setModal(false)} done={(text) => { setModal(false); setPurchaseSuccess({ message: text }) }} fail={(text) => notify(text, true)} />}{purchaseSuccess && <PublishSuccessModal eyebrow={solution?.trial_days ? 'БЕСПЛАТНЫЙ ПЕРИОД' : 'ЗАЯВКА ОФОРМЛЕНА'} title="Поздравляем, всё получилось!" description={purchaseSuccess.message || 'Автор получил ваши контакты и свяжется с вами.'} wishTitle="Автор уже получил уведомление" wishText="Ваши контакты сохранены в его кабинете, также ему отправлено письмо." primaryHref="/profimarket/my?tab=purchases" primaryText="Перейти в мои покупки" onClose={() => setPurchaseSuccess(null)} />}<Notice value={notice} /></PublicLayout>
 }
