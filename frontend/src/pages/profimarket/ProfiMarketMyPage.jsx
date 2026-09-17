@@ -29,8 +29,8 @@ function SolutionRows({ items, reload }) {
 function Orders({ items, orders }) {
   return <div className="pm-dashboard-list">{items.length ? items.map((item) => <article className="pm-order-card" key={item.id}>
     <header><div><h3>{item.title}</h3><small>{typeLabel(item.type)} · {date(item.created_at)}</small></div><a href={`/profimarket/solution/${encodeURIComponent(item.slug)}`}>Открыть решение →</a></header>
-    <dl><dt>{orders ? 'Покупатель' : 'Стоимость'}</dt><dd>{orders ? item.buyer_name : `${money(item.amount)} ₽`}</dd><dt>{orders ? 'Контакт' : 'Статус'}</dt><dd>{orders ? item.buyer_email : item.status}</dd>{(item.crm || item.custom_crm_name) && <><dt>CRM</dt><dd>{item.custom_crm_name || item.crm}</dd><dt>E-mail в CRM</dt><dd>{item.crm_email}</dd></>}</dl>
-    <dl>{item.comment && <><dt>Комментарий</dt><dd>{item.comment}</dd></>}{item.implementation_status && <><dt>Внедрение</dt><dd><span className={`pm-status ${item.implementation_status}`}>{item.implementation_status}</span></dd></>}<dt>Покупка</dt><dd>№{item.id}</dd></dl>
+    <dl><dt>{orders ? 'Покупатель' : 'Стоимость'}</dt><dd>{orders ? item.buyer_name : `${money(item.amount)} ₽`}</dd><dt>{orders ? 'Контакт' : 'Статус'}</dt><dd>{orders ? <a href={`mailto:${item.buyer_email}?subject=${encodeURIComponent(`Ваш заказ «${item.title}» на FinTalent`)}`}>{item.buyer_email}</a> : item.status}</dd>{(item.crm || item.custom_crm_name) && <><dt>CRM</dt><dd>{item.custom_crm_name || item.crm}</dd><dt>E-mail в CRM</dt><dd>{item.crm_email}</dd></>}</dl>
+    <dl>{item.comment && <><dt>Комментарий</dt><dd>{item.comment}</dd></>}{item.implementation_status && <><dt>Внедрение</dt><dd><span className={`pm-status ${item.implementation_status}`}>{item.implementation_status}</span></dd></>}<dt>Покупка</dt><dd>№{item.id}</dd>{orders&&<><dt>Действие</dt><dd><a href={`mailto:${item.buyer_email}?subject=${encodeURIComponent(`Ваш заказ «${item.title}» на FinTalent`)}`}>Написать покупателю →</a></dd></>}</dl>
   </article>) : <div className="pm-loading">{orders ? 'Новых заказов пока нет' : 'Покупок пока нет'}</div>}</div>
 }
 

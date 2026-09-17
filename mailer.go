@@ -27,6 +27,9 @@ var welcomeEmailTemplate string
 //go:embed mail/templates/password_reset.html
 var passwordResetEmailTemplate string
 
+//go:embed mail/templates/profimarket_order.html
+var profiMarketOrderEmailTemplate string
+
 //go:embed static/logo.png
 var welcomeEmailLogo []byte
 
@@ -46,6 +49,17 @@ type welcomeEmailData struct {
 type passwordResetEmailData struct {
 	ResetCode         string
 	ExpirationMinutes int
+}
+
+type profiMarketOrderEmailData struct {
+	SellerName   string
+	BuyerName    string
+	BuyerEmail   string
+	ProductTitle string
+	ActionTitle  string
+	PriceText    string
+	PurchaseID   int64
+	OrdersURL    string
 }
 
 func loadSMTPConfig() (smtpConfig, error) {
@@ -113,6 +127,32 @@ func sendPasswordResetEmail(recipientName, recipientEmail, code string, expirati
 		return fmt.Errorf("формирование письма восстановления: %w", err)
 	}
 	message, err := buildHTMLMessage(config.From, mail.Address{Name: recipientName, Address: recipientEmail}, "Код восстановления пароля FinTalent", htmlBody.Bytes())
+	if err != nil {
+		return err
+	}
+	return sendSMTPMessage(config, recipientEmail, message)
+}
+
+func sendProfiMarketOrderEmail(recipientName, recipientEmail string, data profiMarketOrderEmailData) error {
+	config, err := loadSMTPConfig()
+	if err != nil {
+		return err
+	}
+	baseURL := strings.TrimRight(strings.TrimSpace(os.Getenv("APP_BASE_URL")), "/")
+	if baseURL == "" {
+		baseURL = "https://fintalent.ru"
+	}
+	data.SellerName = recipientName
+	data.OrdersURL = baseURL + "/profimarket/my?tab=orders"
+	tmpl, err := template.New("profimarket-order").Parse(profiMarketOrderEmailTemplate)
+	if err != nil {
+		return fmt.Errorf("шаблон письма о заказе ПрофиМаркета: %w", err)
+	}
+	var htmlBody bytes.Buffer
+	if err = tmpl.Execute(&htmlBody, data); err != nil {
+		return fmt.Errorf("формирование письма о заказе ПрофиМаркета: %w", err)
+	}
+	message, err := buildHTMLMessage(config.From, mail.Address{Name: recipientName, Address: recipientEmail}, data.ActionTitle+" — ПрофиМаркет", htmlBody.Bytes())
 	if err != nil {
 		return err
 	}

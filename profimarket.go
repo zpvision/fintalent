@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/mail"
 	"os"
@@ -934,11 +935,37 @@ func profiPurchaseAction(w http.ResponseWriter, r *http.Request, id int64, u *us
 			return
 		}
 	}
+	actionTitle := "Новая покупка"
+	if x.Type == "AI_ASSISTANT" && x.TrialDays > 0 {
+		actionTitle = "Новая заявка на бесплатный период"
+	}
+	notificationBody := fmt.Sprintf("%s (%s) заинтересовался продуктом «%s». Свяжитесь с покупателем по e-mail.", u.FullName, u.Email, x.Title)
+	if _, err = tx.ExecContext(r.Context(), `INSERT INTO notifications(user_id,type,title,body,entity_type,entity_id) VALUES($1,'profimarket_order',$2,$3,'profimarket_purchase',$4)`, x.AuthorUserID, actionTitle, notificationBody, purchaseID); err != nil {
+		writeJSON(w, 500, "Не удалось уведомить продавца о заказе")
+		return
+	}
 	if err = tx.Commit(); err != nil {
 		writeJSON(w, 500, "Не удалось завершить покупку")
 		return
 	}
-	profiRespond(w, 201, map[string]any{"purchase_id": purchaseID, "message": "Покупка оформлена. Продавец получил информацию о заказе и передаст вам материалы."})
+	var sellerName, sellerEmail string
+	if db.QueryRowContext(r.Context(), `SELECT full_name,email FROM users WHERE id=$1`, x.AuthorUserID).Scan(&sellerName, &sellerEmail) == nil {
+		priceText := fmt.Sprintf("%.0f ₽", x.Price)
+		if x.PricingType == "FREE" || x.Price == 0 {
+			priceText = "Бесплатно"
+		}
+		emailData := profiMarketOrderEmailData{BuyerName: u.FullName, BuyerEmail: u.Email, ProductTitle: x.Title, ActionTitle: actionTitle, PriceText: priceText, PurchaseID: purchaseID}
+		go func() {
+			if emailErr := sendProfiMarketOrderEmail(sellerName, sellerEmail, emailData); emailErr != nil {
+				log.Printf("profimarket order email to seller %d: %v", x.AuthorUserID, emailErr)
+			}
+		}()
+	}
+	message := "Покупка оформлена. Автор получил ваши контакты и свяжется с вами."
+	if x.Type == "AI_ASSISTANT" && x.TrialDays > 0 {
+		message = "Заявка на бесплатный период отправлена автору. Он получил ваши контакты и свяжется с вами."
+	}
+	profiRespond(w, 201, map[string]any{"purchase_id": purchaseID, "message": message})
 }
 
 func profiMarketMetaAPI(w http.ResponseWriter, r *http.Request) {
