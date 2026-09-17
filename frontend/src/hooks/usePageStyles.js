@@ -1,19 +1,33 @@
 import { useLayoutEffect } from 'react'
 
-let activeStyleGeneration = 0
+let nextStyleOwner = 0
+const activeStyleOwners = new Set()
+const pendingStyleOwners = new Set()
+
+function removeInactiveStyles() {
+  document.querySelectorAll('link[data-react-page-style]').forEach((link) => {
+    if (!activeStyleOwners.has(Number(link.dataset.reactPageStyleOwner))) link.remove()
+  })
+}
+
+function finishLoadingWhenReady() {
+  if (!pendingStyleOwners.size) document.documentElement.classList.remove('react-page-styles-loading')
+}
 
 export default function usePageStyles(stylesheets) {
   const key = stylesheets.join('\u0000')
 
   useLayoutEffect(() => {
-    const generation = ++activeStyleGeneration
+    const owner = ++nextStyleOwner
+    activeStyleOwners.add(owner)
+    pendingStyleOwners.add(owner)
     document.documentElement.classList.add('react-page-styles-loading')
     const sharedStylesStart = document.querySelector('link[href="/static/layout-safety.css"]')
     const entries = key.split('\u0000').filter(Boolean).map((href) => {
       const link = document.createElement('link')
       link.rel = 'stylesheet'
       link.dataset.reactPageStyle = 'true'
-      link.dataset.reactPageStyleGeneration = String(generation)
+      link.dataset.reactPageStyleOwner = String(owner)
       const ready = new Promise((resolve) => {
         let settled = false
         const finish = () => {
@@ -31,19 +45,19 @@ export default function usePageStyles(stylesheets) {
     })
 
     Promise.all(entries.map((entry) => entry.ready)).then(() => {
-      if (generation !== activeStyleGeneration) return
-      document.querySelectorAll('link[data-react-page-style]').forEach((link) => {
-        if (link.dataset.reactPageStyleGeneration !== String(generation)) link.remove()
-      })
-      document.documentElement.classList.remove('react-page-styles-loading')
+      pendingStyleOwners.delete(owner)
+      if (activeStyleOwners.has(owner)) removeInactiveStyles()
+      else entries.forEach((entry) => entry.link.remove())
+      finishLoadingWhenReady()
     })
 
     return () => {
-      // The next page removes this set only after its own styles are ready.
+      activeStyleOwners.delete(owner)
+      pendingStyleOwners.delete(owner)
+      // Keep the previous page styled until the replacement styles have loaded.
       queueMicrotask(() => {
-        if (generation === activeStyleGeneration) {
-          document.documentElement.classList.remove('react-page-styles-loading')
-        }
+        if (!pendingStyleOwners.size) removeInactiveStyles()
+        finishLoadingWhenReady()
       })
     }
   }, [key])
