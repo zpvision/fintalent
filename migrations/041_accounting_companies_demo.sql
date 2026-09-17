@@ -10,16 +10,16 @@ DECLARE
     company_three BIGINT;
     company_four BIGINT;
 BEGIN
-    SELECT password_hash INTO seed_hash FROM users ORDER BY id LIMIT 1;
+    seed_hash := repeat('*',60);
     IF seed_hash IS NULL THEN RETURN; END IF;
 
-    INSERT INTO users(full_name,email,password_hash,agreed_to_terms)
+    INSERT INTO users(full_name,email,password_hash,agreed_to_terms,is_blocked,is_system)
     VALUES
-        ('Анна Волкова','accounting.demo.one@fintalent.local',seed_hash,TRUE),
-        ('Сергей Ковалёв','accounting.demo.two@fintalent.local',seed_hash,TRUE),
-        ('Елена Сафина','accounting.demo.three@fintalent.local',seed_hash,TRUE),
-        ('Мария Северова','accounting.demo.four@fintalent.local',seed_hash,TRUE)
-    ON CONFLICT(email) DO NOTHING;
+        ('Анна Волкова','accounting.demo.one@fintalent.local',seed_hash,TRUE,TRUE,TRUE),
+        ('Сергей Ковалёв','accounting.demo.two@fintalent.local',seed_hash,TRUE,TRUE,TRUE),
+        ('Елена Сафина','accounting.demo.three@fintalent.local',seed_hash,TRUE,TRUE,TRUE),
+        ('Мария Северова','accounting.demo.four@fintalent.local',seed_hash,TRUE,TRUE,TRUE)
+    ON CONFLICT(email) DO UPDATE SET is_blocked=TRUE,is_system=TRUE;
 
     SELECT id INTO owner_one FROM users WHERE email='accounting.demo.one@fintalent.local';
     SELECT id INTO owner_two FROM users WHERE email='accounting.demo.two@fintalent.local';

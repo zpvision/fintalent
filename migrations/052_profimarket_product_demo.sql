@@ -1,7 +1,7 @@
 DO $seed$
 DECLARE author_id BIGINT;
 BEGIN
-  SELECT id INTO author_id FROM users ORDER BY id LIMIT 1;
+  SELECT id INTO author_id FROM users WHERE email='system@fintalent.local' AND is_system LIMIT 1;
   IF author_id IS NULL THEN RETURN; END IF;
 
   INSERT INTO profimarket_solutions(author_user_id,type,status,title,slug,short_description,description,cover_image,price,old_price,pricing_type,tags,topics,audiences,is_featured,is_new,published_at,product_data)

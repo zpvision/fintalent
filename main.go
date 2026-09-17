@@ -187,7 +187,7 @@ func prepareDatabase() error {
 	if err != nil {
 		return err
 	}
-	if _, err = db.ExecContext(ctx, `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN NOT NULL DEFAULT FALSE`); err != nil {
+	if _, err = db.ExecContext(ctx, `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_blocked BOOLEAN NOT NULL DEFAULT FALSE; ALTER TABLE users ADD COLUMN IF NOT EXISTS is_system BOOLEAN NOT NULL DEFAULT FALSE`); err != nil {
 		return err
 	}
 	if err := preparePasswordResetDatabase(ctx); err != nil {
@@ -347,7 +347,7 @@ func loginUser(w http.ResponseWriter, r *http.Request) {
 	var userID int64
 	var passwordHash string
 	var isBlocked bool
-	err := db.QueryRowContext(ctx, `SELECT id,password_hash,is_blocked FROM users WHERE email=$1`, emailAddress).Scan(&userID, &passwordHash, &isBlocked)
+	err := db.QueryRowContext(ctx, `SELECT id,password_hash,is_blocked FROM users WHERE email=$1 AND NOT is_system`, emailAddress).Scan(&userID, &passwordHash, &isBlocked)
 	if err != nil || bcrypt.CompareHashAndPassword([]byte(passwordHash), []byte(password)) != nil {
 		writeJSON(w, http.StatusUnauthorized, "Неверный email или пароль")
 		return
@@ -391,7 +391,7 @@ func userFromRequest(r *http.Request) (*user, error) {
 	ctx, cancel := contextWithTimeout()
 	defer cancel()
 	u := &user{}
-	err = db.QueryRowContext(ctx, `SELECT u.id,u.full_name,u.email,COALESCE(u.avatar_url,'') FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>NOW() AND NOT u.is_blocked`, hex.EncodeToString(hash[:])).Scan(&u.ID, &u.FullName, &u.Email, &u.Avatar)
+	err = db.QueryRowContext(ctx, `SELECT u.id,u.full_name,u.email,COALESCE(u.avatar_url,'') FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>NOW() AND NOT u.is_blocked AND NOT u.is_system`, hex.EncodeToString(hash[:])).Scan(&u.ID, &u.FullName, &u.Email, &u.Avatar)
 	return u, err
 }
 

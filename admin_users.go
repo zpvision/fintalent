@@ -27,7 +27,7 @@ func adminUsers(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusMethodNotAllowed, "Метод не поддерживается")
 		return
 	}
-	rows, err := db.QueryContext(r.Context(), `SELECT id,email,full_name,is_blocked,created_at FROM users ORDER BY created_at DESC,id DESC`)
+	rows, err := db.QueryContext(r.Context(), `SELECT id,email,full_name,is_blocked,created_at FROM users WHERE NOT is_system ORDER BY created_at DESC,id DESC`)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, "Не удалось загрузить пользователей")
 		return
@@ -86,7 +86,7 @@ func adminUserAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var updated adminUser
-		err = db.QueryRowContext(r.Context(), `UPDATE users SET full_name=$1,email=$2 WHERE id=$3 RETURNING id,email,full_name,is_blocked,created_at`, payload.FullName, payload.Email, userID).Scan(&updated.ID, &updated.Email, &updated.FullName, &updated.IsBlocked, &updated.CreatedAt)
+		err = db.QueryRowContext(r.Context(), `UPDATE users SET full_name=$1,email=$2 WHERE id=$3 AND NOT is_system RETURNING id,email,full_name,is_blocked,created_at`, payload.FullName, payload.Email, userID).Scan(&updated.ID, &updated.Email, &updated.FullName, &updated.IsBlocked, &updated.CreatedAt)
 		if err != nil {
 			if strings.Contains(err.Error(), "23505") {
 				writeJSON(w, http.StatusConflict, "Пользователь с таким email уже зарегистрирован")
@@ -112,7 +112,7 @@ func adminUserAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer tx.Rollback()
-		result, execErr := tx.ExecContext(r.Context(), `UPDATE users SET is_blocked=$1 WHERE id=$2`, payload.IsBlocked, userID)
+		result, execErr := tx.ExecContext(r.Context(), `UPDATE users SET is_blocked=$1 WHERE id=$2 AND NOT is_system`, payload.IsBlocked, userID)
 		if execErr != nil {
 			writeJSON(w, http.StatusInternalServerError, "Не удалось изменить пользователя")
 			return
@@ -156,7 +156,7 @@ func adminUserAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer tx.Rollback()
-		result, execErr := tx.ExecContext(r.Context(), `UPDATE users SET password_hash=$1 WHERE id=$2`, string(hash), userID)
+		result, execErr := tx.ExecContext(r.Context(), `UPDATE users SET password_hash=$1 WHERE id=$2 AND NOT is_system`, string(hash), userID)
 		if execErr != nil {
 			writeJSON(w, http.StatusInternalServerError, "Не удалось изменить пароль")
 			return

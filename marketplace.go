@@ -3,13 +3,21 @@ package main
 import (
 	"context"
 	"database/sql"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 )
+
+const marketplaceSystemAuthorEmail = "system@fintalent.local"
+const disabledSystemPasswordHash = "************************************************************"
+
+//go:embed migrations/053_marketplace_system_author.sql
+var marketplaceSystemAuthorMigration string
 
 type marketplaceTest struct {
 	ID                int64      `json:"id"`
@@ -42,6 +50,9 @@ type marketplaceReview struct {
 }
 
 func prepareMarketplaceDatabase(ctx context.Context) error {
+	if _, err := db.ExecContext(ctx, marketplaceSystemAuthorMigration); err != nil {
+		return fmt.Errorf("prepare marketplace system author: %w", err)
+	}
 	if _, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS test_positions (
 		test_id BIGINT NOT NULL REFERENCES tests(id) ON DELETE CASCADE,
 		position_id BIGINT NOT NULL REFERENCES dictionary_items(id) ON DELETE RESTRICT,
@@ -53,6 +64,22 @@ func prepareMarketplaceDatabase(ctx context.Context) error {
 		return err
 	}
 	return seedAccountingTopicTests(ctx)
+}
+
+func marketplaceSystemAuthorID(ctx context.Context, tx *sql.Tx) (int64, error) {
+	var authorID int64
+	err := tx.QueryRowContext(ctx, `INSERT INTO users(full_name,email,password_hash,agreed_to_terms,is_blocked,is_system)
+		VALUES('FinTalent',$1,$2,TRUE,TRUE,TRUE)
+		ON CONFLICT(email) DO UPDATE SET full_name='FinTalent',is_blocked=TRUE,is_system=TRUE
+		RETURNING id`, marketplaceSystemAuthorEmail, disabledSystemPasswordHash).Scan(&authorID)
+	if err != nil {
+		return 0, fmt.Errorf("prepare marketplace system author: %w", err)
+	}
+	return authorID, nil
+}
+
+func seedMarketplaceDemoData() bool {
+	return !strings.EqualFold(strings.TrimSpace(os.Getenv("SEED_DEMO_DATA")), "false")
 }
 
 type accountingTopicTestSeed struct {
@@ -85,8 +112,8 @@ func seedAccountingTopicTests(ctx context.Context) error {
 		return err
 	}
 	defer tx.Rollback()
-	var authorID int64
-	if err = tx.QueryRowContext(ctx, `SELECT id FROM users WHERE email='3@3.ru'`).Scan(&authorID); err != nil {
+	authorID, err := marketplaceSystemAuthorID(ctx, tx)
+	if err != nil {
 		return err
 	}
 	for _, item := range accountingTopicTestSeeds {
@@ -100,7 +127,7 @@ func seedAccountingTopicTests(ctx context.Context) error {
 		}
 		var versionID int64
 		err = tx.QueryRowContext(ctx, `INSERT INTO test_versions(test_id,version,title,description,created_by,published_at)
-			VALUES($1,1,$2,$3,$4,NOW()) ON CONFLICT(test_id,version) DO UPDATE SET title=EXCLUDED.title,description=EXCLUDED.description,published_at=COALESCE(test_versions.published_at,NOW()),updated_at=NOW() RETURNING id`, testID, item.Title, item.Description, authorID).Scan(&versionID)
+			VALUES($1,1,$2,$3,$4,NOW()) ON CONFLICT(test_id,version) DO UPDATE SET title=EXCLUDED.title,description=EXCLUDED.description,created_by=EXCLUDED.created_by,published_at=COALESCE(test_versions.published_at,NOW()),updated_at=NOW() RETURNING id`, testID, item.Title, item.Description, authorID).Scan(&versionID)
 		if err != nil {
 			return err
 		}
@@ -119,8 +146,10 @@ func seedAccountingTopicTests(ctx context.Context) error {
 			}
 		}
 	}
-	if err = seedAccountingTopicAttempts(ctx, tx, authorID); err != nil {
-		return err
+	if seedMarketplaceDemoData() {
+		if err = seedAccountingTopicAttempts(ctx, tx, authorID); err != nil {
+			return err
+		}
 	}
 	return tx.Commit()
 }
@@ -223,16 +252,18 @@ func seedPositionTests(ctx context.Context) error {
 		return err
 	}
 	defer tx.Rollback()
-	var authorID int64
-	if err = tx.QueryRowContext(ctx, `SELECT id FROM users WHERE email='3@3.ru'`).Scan(&authorID); err != nil {
+	authorID, err := marketplaceSystemAuthorID(ctx, tx)
+	if err != nil {
 		return err
 	}
 	names := []string{"Анна Смирнова", "Михаил Орлов", "Елена Волкова", "Сергей Петров", "Ольга Кузнецова", "Алексей Морозов", "Наталья Соколова", "Марина Фёдорова", "Дмитрий Лебедев", "Юлия Новикова", "Андрей Попов", "Татьяна Васильева"}
-	for index, name := range names {
-		email := fmt.Sprintf("market-review-%d@fintalent.local", index+1)
-		_, err = tx.ExecContext(ctx, `INSERT INTO users(full_name,email,password_hash) SELECT $1,$2,password_hash FROM users WHERE id=$3 ON CONFLICT(email) DO NOTHING`, name, email, authorID)
-		if err != nil {
-			return err
+	if seedMarketplaceDemoData() {
+		for index, name := range names {
+			email := fmt.Sprintf("market-review-%d@fintalent.local", index+1)
+			_, err = tx.ExecContext(ctx, `INSERT INTO users(full_name,email,password_hash,agreed_to_terms,is_blocked,is_system) VALUES($1,$2,$3,TRUE,TRUE,TRUE) ON CONFLICT(email) DO UPDATE SET is_blocked=TRUE,is_system=TRUE`, name, email, disabledSystemPasswordHash)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	rows, err := tx.QueryContext(ctx, `SELECT i.id,i.value FROM dictionary_items i JOIN dictionaries d ON d.id=i.dictionary_id WHERE d.alias='position' AND i.active=TRUE AND i.deleted_at IS NULL ORDER BY i.sort_order,i.id`)
@@ -259,14 +290,14 @@ func seedPositionTests(ctx context.Context) error {
 		var testID int64
 		err = tx.QueryRowContext(ctx, `INSERT INTO tests(author_id,slug,category,category_id,difficulty,status,visibility,is_free,passing_percent,time_limit_seconds)
 			VALUES($1,$2,$3,(SELECT id FROM test_categories WHERE name=$4),'medium','published','marketplace',TRUE,70,2400)
-			ON CONFLICT(slug) DO UPDATE SET status='published',visibility='marketplace' RETURNING id`, authorID, slug, category, category).Scan(&testID)
+			ON CONFLICT(slug) DO UPDATE SET author_id=EXCLUDED.author_id,status='published',visibility='marketplace' RETURNING id`, authorID, slug, category, category).Scan(&testID)
 		if err != nil {
 			return err
 		}
 		var versionID int64
 		title := p.name
 		description := "Комплексная проверка практических знаний, внимательности и профессиональных навыков для должности «" + p.name + "»."
-		err = tx.QueryRowContext(ctx, `INSERT INTO test_versions(test_id,version,title,description,created_by,published_at) VALUES($1,1,$2,$3,$4,NOW()) ON CONFLICT(test_id,version) DO UPDATE SET title=EXCLUDED.title,description=EXCLUDED.description,published_at=NOW() RETURNING id`, testID, title, description, authorID).Scan(&versionID)
+		err = tx.QueryRowContext(ctx, `INSERT INTO test_versions(test_id,version,title,description,created_by,published_at) VALUES($1,1,$2,$3,$4,NOW()) ON CONFLICT(test_id,version) DO UPDATE SET title=EXCLUDED.title,description=EXCLUDED.description,created_by=EXCLUDED.created_by,published_at=NOW() RETURNING id`, testID, title, description, authorID).Scan(&versionID)
 		if err != nil {
 			return err
 		}
@@ -288,15 +319,17 @@ func seedPositionTests(ctx context.Context) error {
 			}
 		}
 		comments := []string{"Отлично проверяет практические знания.", "Вопросы близки к реальным рабочим ситуациям.", "Удобный и содержательный тест.", "Помог быстро оценить уровень кандидата.", "Хороший баланс теории и практики.", "Понятные формулировки и полезные кейсы.", "Будем использовать при подборе специалистов.", "Понравились практические задания и понятный интерфейс.", "Тест хорошо показывает сильные и слабые стороны.", "Полезная проверка перед собеседованием.", "Содержание соответствует реальным задачам специалиста.", "Прохождение заняло разумное время, вопросы качественные."}
-		for i, comment := range comments {
-			rating := 5
-			if i == 2 || i == 5 || i == 9 {
-				rating = 4
-			}
-			email := fmt.Sprintf("market-review-%d@fintalent.local", i+1)
-			_, err = tx.ExecContext(ctx, `INSERT INTO test_reviews(test_id,employer_id,rating,comment) SELECT $1,id,$3,$4 FROM users WHERE email=$2 ON CONFLICT(test_id,employer_id) DO UPDATE SET rating=EXCLUDED.rating,comment=EXCLUDED.comment`, testID, email, rating, comment)
-			if err != nil {
-				return err
+		if seedMarketplaceDemoData() {
+			for i, comment := range comments {
+				rating := 5
+				if i == 2 || i == 5 || i == 9 {
+					rating = 4
+				}
+				email := fmt.Sprintf("market-review-%d@fintalent.local", i+1)
+				_, err = tx.ExecContext(ctx, `INSERT INTO test_reviews(test_id,employer_id,rating,comment) SELECT $1,id,$3,$4 FROM users WHERE email=$2 ON CONFLICT(test_id,employer_id) DO UPDATE SET rating=EXCLUDED.rating,comment=EXCLUDED.comment`, testID, email, rating, comment)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}

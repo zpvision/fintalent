@@ -150,7 +150,7 @@ func requestPasswordReset(w http.ResponseWriter, r *http.Request) {
 	}
 	var userID sql.NullInt64
 	var fullName string
-	err = db.QueryRowContext(ctx, `SELECT id,full_name FROM users WHERE email=$1 AND NOT is_blocked`, email).Scan(&userID, &fullName)
+	err = db.QueryRowContext(ctx, `SELECT id,full_name FROM users WHERE email=$1 AND NOT is_blocked AND NOT is_system`, email).Scan(&userID, &fullName)
 	if err != nil && err != sql.ErrNoRows {
 		log.Printf("password reset user query: %v", err)
 		writeJSON(w, http.StatusInternalServerError, "Сервис временно недоступен")

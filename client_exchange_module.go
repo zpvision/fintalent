@@ -43,7 +43,7 @@ func prepareClientExchangeDemo(ctx context.Context) error {
 	DECLARE seller BIGINT;
 	BEGIN
 		IF EXISTS(SELECT 1 FROM client_exchange_listings) THEN RETURN; END IF;
-		SELECT id INTO seller FROM users ORDER BY id LIMIT 1;
+		SELECT id INTO seller FROM users WHERE email='system@fintalent.local' AND is_system LIMIT 1;
 		IF seller IS NULL THEN RETURN; END IF;
 		INSERT INTO client_exchange_listings(seller_user_id,title,industry_id,employee_range_id,tax_system_id,revenue_range_id,accounting_state_id,transfer_reason_id,transfer_type_id,transfer_reason_comment,transfer_price,current_monthly_fee,operations_per_month,banks_count,has_vat,foreign_trade,bargain_allowed,region,city,client_since,status,match_percent,published_at)
 		VALUES

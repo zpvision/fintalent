@@ -3,10 +3,11 @@ DECLARE author_id BIGINT; reader_id BIGINT; pub_id BIGINT; cat_id BIGINT; series
 BEGIN
  SELECT id INTO author_id FROM users WHERE email='publications.demo@fintalent.local';
  IF author_id IS NULL THEN
-   INSERT INTO users(full_name,email,password_hash,agreed_to_terms,avatar_url)
-   SELECT 'Ирина Петрова','publications.demo@fintalent.local',password_hash,TRUE,'/static/profile-3-avatar.png' FROM users ORDER BY id LIMIT 1 RETURNING id INTO author_id;
+   INSERT INTO users(full_name,email,password_hash,agreed_to_terms,avatar_url,is_blocked,is_system)
+   VALUES ('Ирина Петрова','publications.demo@fintalent.local',repeat('*',60),TRUE,'/static/profile-3-avatar.png',TRUE,TRUE) RETURNING id INTO author_id;
  END IF;
  IF author_id IS NULL THEN RETURN; END IF;
+ UPDATE users SET is_blocked=TRUE,is_system=TRUE WHERE id=author_id;
  SELECT id INTO reader_id FROM users WHERE id<>author_id ORDER BY id LIMIT 1;
  SELECT id INTO cat_id FROM publication_categories WHERE slug='nalogi-i-otchetnost';
  SELECT id INTO linked_test FROM tests WHERE status='published' ORDER BY id LIMIT 1;
