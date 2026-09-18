@@ -30,8 +30,8 @@ var passwordResetEmailTemplate string
 //go:embed mail/templates/profimarket_order.html
 var profiMarketOrderEmailTemplate string
 
-//go:embed static/logo.png
-var welcomeEmailLogo []byte
+//go:embed mail/logo.png
+var emailLogo []byte
 
 type smtpConfig struct {
 	Host     string
@@ -185,7 +185,7 @@ func buildHTMLMessage(from, to mail.Address, subject string, htmlBody []byte) ([
 	if err != nil {
 		return nil, err
 	}
-	encodedLogo := base64.StdEncoding.EncodeToString(welcomeEmailLogo)
+	encodedLogo := base64.StdEncoding.EncodeToString(emailLogo)
 	for len(encodedLogo) > 76 {
 		_, _ = fmt.Fprintln(logoPart, encodedLogo[:76])
 		encodedLogo = encodedLogo[76:]

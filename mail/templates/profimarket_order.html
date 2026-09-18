@@ -1,1 +1,39 @@
-<!doctype html><html lang="ru"><body style="margin:0;background:#f4f7fc;font-family:Arial,sans-serif;color:#10234c"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="620" cellspacing="0" cellpadding="0" style="max-width:620px;background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 12px 40px rgba(30,64,120,.12)"><tr><td style="padding:25px 32px;background:linear-gradient(120deg,#0d2d77,#1768f2);color:#fff"><img src="cid:fintalent-logo" width="124" alt="FinTalent" style="display:block;margin-bottom:20px"><div style="font-size:12px;letter-spacing:1px;opacity:.75">ПРОФИМАРКЕТ · НОВЫЙ ЗАКАЗ</div><h1 style="margin:9px 0 0;font-size:26px;line-height:1.25">{{.ActionTitle}}</h1></td></tr><tr><td style="padding:30px 32px"><p style="margin:0 0 18px;font-size:15px;line-height:1.6">Здравствуйте, {{.SellerName}}! Пользователь заинтересовался вашим продуктом <b>«{{.ProductTitle}}»</b>.</p><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f5f8fd;border-radius:12px"><tr><td style="padding:18px 20px"><div style="font-size:11px;color:#71809c">ПОКУПАТЕЛЬ</div><div style="margin-top:6px;font-size:16px;font-weight:bold">{{.BuyerName}}</div><a href="mailto:{{.BuyerEmail}}" style="display:inline-block;margin-top:7px;color:#1559f6;font-size:14px">{{.BuyerEmail}}</a></td></tr></table><p style="margin:20px 0;color:#566783;font-size:13px;line-height:1.65">Свяжитесь с покупателем, уточните задачу и передайте доступ или материалы. Контакт также сохранён в разделе «Заказы» вашего кабинета.</p><a href="{{.OrdersURL}}" style="display:inline-block;padding:13px 20px;border-radius:9px;background:#1559f6;color:#fff;text-decoration:none;font-size:13px;font-weight:bold">Открыть заказ в FinTalent →</a><p style="margin:22px 0 0;color:#8a96aa;font-size:11px">Заказ №{{.PurchaseID}} · {{.PriceText}}</p></td></tr></table></td></tr></table></body></html>
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+  <title>Новый заказ в ПрофиМаркете</title>
+</head>
+<body style="margin:0;padding:0;background-color:#eef4ff;background-image:linear-gradient(135deg,#eaf3ff 0%,#f6f2ff 48%,#eaf8f3 100%);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;color:#10234c;">
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">Новый заказ на продукт «{{.ProductTitle}}» в ПрофиМаркете.</div>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="width:100%;background-color:#eef4ff;background-image:linear-gradient(135deg,#eaf3ff 0%,#f6f2ff 48%,#eaf8f3 100%);">
+    <tr><td align="center" style="padding:38px 16px;">
+      <table role="presentation" width="620" cellspacing="0" cellpadding="0" style="width:100%;max-width:620px;">
+        <tr><td align="center" style="padding:0 0 22px;"><a href="https://fintalent.ru" style="display:inline-block;text-decoration:none;"><img src="cid:fintalent-logo" width="88" height="88" alt="FinTalent" style="display:block;width:88px;height:88px;border:0;border-radius:22px;box-shadow:0 10px 28px rgba(30,64,120,0.16);"></a></td></tr>
+        <tr><td style="background:#ffffff;border:1px solid #dfe8f5;border-radius:26px;overflow:hidden;box-shadow:0 18px 55px rgba(30,64,120,0.12);">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+            <tr><td style="padding:34px 34px 31px;background-color:#123d91;background-image:linear-gradient(125deg,#123d91 0%,#1768f2 62%,#3489f5 100%);color:#ffffff;">
+              <div style="display:inline-block;padding:7px 12px;border:1px solid rgba(255,255,255,0.28);border-radius:30px;background:rgba(255,255,255,0.12);font-size:12px;line-height:16px;font-weight:600;letter-spacing:0.2px;">ПрофиМаркет · Новый заказ</div>
+              <h1 style="margin:15px 0 0;font-size:27px;line-height:1.28;font-weight:750;">{{.ActionTitle}}</h1>
+            </td></tr>
+            <tr><td style="padding:32px 34px 34px;">
+              <p style="margin:0 0 21px;font-size:16px;line-height:1.65;color:#263a5d;">Здравствуйте, {{.SellerName}}! Пользователь заинтересовался вашим продуктом <strong style="color:#10234c;">«{{.ProductTitle}}»</strong>.</p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f8ff;border:1px solid #e2ebfa;border-radius:16px;"><tr><td style="padding:20px 22px;border-left:4px solid #2875ed;border-radius:16px;">
+                <div style="font-size:12px;line-height:16px;color:#71809c;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;">Покупатель</div>
+                <div style="margin-top:7px;font-size:17px;line-height:23px;font-weight:700;color:#142b55;">{{.BuyerName}}</div>
+                <a href="mailto:{{.BuyerEmail}}" style="display:inline-block;margin-top:7px;color:#1559f6;font-size:14px;line-height:20px;text-decoration:none;">{{.BuyerEmail}}</a>
+              </td></tr></table>
+              <p style="margin:22px 0;color:#566783;font-size:14px;line-height:1.7;">Свяжитесь с покупателем, уточните задачу и передайте доступ или материалы. Контакт также сохранён во вкладке «Заказы и внедрения» вашего кабинета.</p>
+              <table role="presentation" cellspacing="0" cellpadding="0"><tr><td style="border-radius:11px;background:#1559f6;"><a href="{{.OrdersURL}}" style="display:inline-block;padding:14px 21px;color:#ffffff;text-decoration:none;font-size:14px;line-height:18px;font-weight:700;">Открыть заказ в FinTalent →</a></td></tr></table>
+              <p style="margin:24px 0 0;color:#8a96aa;font-size:12px;line-height:18px;">Заказ №{{.PurchaseID}} · {{.PriceText}}</p>
+            </td></tr>
+          </table>
+        </td></tr>
+        <tr><td align="center" style="padding:20px 18px 0;color:#8491a8;font-size:12px;line-height:18px;">FinTalent · Профессиональные решения для вашего бизнеса</td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>

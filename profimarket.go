@@ -20,7 +20,7 @@ import (
 	"time"
 )
 
-//go:embed migrations/027_profimarket.sql migrations/028_profimarket_demo.sql migrations/029_profimarket_card_builder.sql migrations/030_profimarket_section_images.sql migrations/031_profimarket_crm_dictionary.sql migrations/032_profimarket_feature_colors.sql migrations/033_profimarket_bonus_style.sql migrations/034_profimarket_block_styles.sql migrations/035_profimarket_right_block.sql migrations/036_profimarket_implementation.sql migrations/037_profimarket_section_appearance.sql migrations/049_profimarket_platform_icons.sql migrations/050_profimarket_how_it_works.sql migrations/051_profimarket_product_types.sql migrations/052_profimarket_product_demo.sql migrations/055_profimarket_order_notifications.sql
+//go:embed migrations/027_profimarket.sql migrations/028_profimarket_demo.sql migrations/029_profimarket_card_builder.sql migrations/030_profimarket_section_images.sql migrations/031_profimarket_crm_dictionary.sql migrations/032_profimarket_feature_colors.sql migrations/033_profimarket_bonus_style.sql migrations/034_profimarket_block_styles.sql migrations/035_profimarket_right_block.sql migrations/036_profimarket_implementation.sql migrations/037_profimarket_section_appearance.sql migrations/049_profimarket_platform_icons.sql migrations/050_profimarket_how_it_works.sql migrations/051_profimarket_product_types.sql migrations/052_profimarket_product_demo.sql migrations/055_profimarket_order_notifications.sql migrations/056_profimarket_purchase_snapshot.sql
 var profiMarketMigrationFS embed.FS
 
 type profiMedia struct {
@@ -248,6 +248,13 @@ func prepareProfiMarketDatabase(ctx context.Context) error {
 	}
 	if _, err = db.ExecContext(ctx, string(orderNotifications)); err != nil {
 		return fmt.Errorf("уведомления о заказах ПрофиМаркета: %w", err)
+	}
+	purchaseSnapshot, err := profiMarketMigrationFS.ReadFile("migrations/056_profimarket_purchase_snapshot.sql")
+	if err != nil {
+		return err
+	}
+	if _, err = db.ExecContext(ctx, string(purchaseSnapshot)); err != nil {
+		return fmt.Errorf("снимки покупок ПрофиМаркета: %w", err)
 	}
 	if err = syncProfiMarketCRMs(ctx); err != nil {
 		return fmt.Errorf("синхронизация CRM ПрофиМаркета: %w", err)
@@ -1024,7 +1031,7 @@ func profiPurchaseAction(w http.ResponseWriter, r *http.Request, id int64, u *us
 	}
 	defer tx.Rollback()
 	var purchaseID int64
-	err = tx.QueryRowContext(r.Context(), `INSERT INTO profimarket_purchases(solution_id,buyer_user_id,seller_user_id,amount,currency,pricing_type,status) VALUES($1,$2,$3,$4,$5,$6,'COMPLETED') RETURNING id`, x.ID, u.ID, x.AuthorUserID, x.Price, x.Currency, x.PricingType).Scan(&purchaseID)
+	err = tx.QueryRowContext(r.Context(), `INSERT INTO profimarket_purchases(solution_id,buyer_user_id,seller_user_id,amount,currency,pricing_type,status,product_title_snapshot,product_slug_snapshot,product_type_snapshot,product_cover_snapshot,product_description_snapshot,seller_name_snapshot) VALUES($1,$2,$3,$4,$5,$6,'COMPLETED',$7,$8,$9,$10,$11,$12) RETURNING id`, x.ID, u.ID, x.AuthorUserID, x.Price, x.Currency, x.PricingType, x.Title, x.Slug, x.Type, x.CoverImage, x.ShortDescription, x.AuthorName).Scan(&purchaseID)
 	if err != nil {
 		writeJSON(w, 500, "Не удалось оформить покупку")
 		return
@@ -1203,7 +1210,23 @@ func profiMarketMyOrdersAPI(w http.ResponseWriter, r *http.Request) {
 	profiPurchaseList(w, r, `p.seller_user_id=$1`, u.ID)
 }
 func profiPurchaseList(w http.ResponseWriter, r *http.Request, where string, userID int64) {
-	rows, err := db.QueryContext(r.Context(), `SELECT p.id,p.solution_id,s.title,s.slug,s.type,p.amount,p.currency,p.pricing_type,p.status,p.created_at,b.full_name,b.email,COALESCE(c.name,''),COALESCE(ir.custom_crm_name,''),COALESCE(ir.crm_email,''),COALESCE(ir.comment,''),COALESCE(ir.status,''),p.seller_seen_at IS NULL FROM profimarket_purchases p JOIN profimarket_solutions s ON s.id=p.solution_id JOIN users b ON b.id=p.buyer_user_id LEFT JOIN profimarket_implementation_requests ir ON ir.purchase_id=p.id LEFT JOIN profimarket_crm c ON c.id=ir.crm_id WHERE `+where+` ORDER BY p.created_at DESC`, userID)
+	rows, err := db.QueryContext(r.Context(), `SELECT p.id,p.solution_id,
+		COALESCE(NULLIF(p.product_title_snapshot,''),s.title,'Удалённое решение'),
+		COALESCE(NULLIF(p.product_slug_snapshot,''),s.slug,''),
+		COALESCE(NULLIF(p.product_type_snapshot,''),s.type,''),
+		COALESCE(NULLIF(p.product_cover_snapshot,''),s.cover_image,''),
+		COALESCE(NULLIF(p.product_description_snapshot,''),s.short_description,''),
+		COALESCE(NULLIF(p.seller_name_snapshot,''),seller.full_name,'Автор FinTalent'),
+		p.amount,p.currency,p.pricing_type,p.status,p.created_at,b.full_name,b.email,
+		COALESCE(c.name,''),COALESCE(ir.custom_crm_name,''),COALESCE(ir.crm_email,''),COALESCE(ir.comment,''),COALESCE(ir.status,''),
+		p.seller_seen_at IS NULL,(s.id IS NOT NULL AND s.deleted_at IS NULL)
+		FROM profimarket_purchases p
+		LEFT JOIN profimarket_solutions s ON s.id=p.solution_id
+		LEFT JOIN users seller ON seller.id=p.seller_user_id
+		JOIN users b ON b.id=p.buyer_user_id
+		LEFT JOIN profimarket_implementation_requests ir ON ir.purchase_id=p.id
+		LEFT JOIN profimarket_crm c ON c.id=ir.crm_id
+		WHERE `+where+` ORDER BY p.created_at DESC`, userID)
 	if err != nil {
 		writeJSON(w, 500, "Не удалось загрузить покупки")
 		return
@@ -1213,15 +1236,15 @@ func profiPurchaseList(w http.ResponseWriter, r *http.Request, where string, use
 	newCount := 0
 	for rows.Next() {
 		var id, sid int64
-		var title, slug, typ, currency, pricing, status, buyer, buyerEmail, crm, customCRM, crmEmail, comment, implementation string
+		var title, slug, typ, cover, description, author, currency, pricing, status, buyer, buyerEmail, crm, customCRM, crmEmail, comment, implementation string
 		var amount float64
-		var isNew bool
+		var isNew, solutionAvailable bool
 		var created time.Time
-		if rows.Scan(&id, &sid, &title, &slug, &typ, &amount, &currency, &pricing, &status, &created, &buyer, &buyerEmail, &crm, &customCRM, &crmEmail, &comment, &implementation, &isNew) == nil {
+		if rows.Scan(&id, &sid, &title, &slug, &typ, &cover, &description, &author, &amount, &currency, &pricing, &status, &created, &buyer, &buyerEmail, &crm, &customCRM, &crmEmail, &comment, &implementation, &isNew, &solutionAvailable) == nil {
 			if isNew {
 				newCount++
 			}
-			items = append(items, map[string]any{"id": id, "solution_id": sid, "title": title, "slug": slug, "type": typ, "amount": amount, "currency": currency, "pricing_type": pricing, "status": status, "created_at": created, "buyer_name": buyer, "buyer_email": buyerEmail, "crm": crm, "custom_crm_name": customCRM, "crm_email": crmEmail, "comment": comment, "implementation_status": implementation, "is_new": isNew})
+			items = append(items, map[string]any{"id": id, "solution_id": sid, "title": title, "slug": slug, "type": typ, "cover_image": cover, "short_description": description, "author_name": author, "amount": amount, "currency": currency, "pricing_type": pricing, "status": status, "created_at": created, "buyer_name": buyer, "buyer_email": buyerEmail, "crm": crm, "custom_crm_name": customCRM, "crm_email": crmEmail, "comment": comment, "implementation_status": implementation, "is_new": isNew, "solution_available": solutionAvailable})
 		}
 	}
 	profiRespond(w, 200, map[string]any{"items": items, "total_count": len(items), "new_count": newCount})
