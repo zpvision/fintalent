@@ -226,15 +226,15 @@
     return `<tr class="${item.active?'':'inactive'}"><td>${item.sort_order}</td><td>${item.logo?`<img src="${esc(item.logo)}" alt="">`:'<i>—</i>'}</td><td><b>${esc(item.name)}</b></td><td><code>${esc(item.code)}</code></td><td>${item.active?'Активна':'Отключена'}</td><td>${item.used?'Есть в карточках':'Не используется'}</td><td><button data-onec-edit="${item.id}">Изменить</button> <button class="delete" data-onec-delete="${item.id}">${item.used?'Отключить':'Удалить'}</button></td></tr>`;
   }
 
-  function editOneCConfiguration(item = {name:'',code:'',logo:'',sort_order:0,active:true}) {
+  function editOneCConfiguration(item = {name:'',code:'',logo:'',sort_order:onecConfigurations.length+1,active:true}) {
     const modal = document.createElement('div');
-    modal.className = 'pm-modal';
-    modal.innerHTML = `<form class="pm-modal-card"><button type="button" class="close">×</button><small>СПРАВОЧНИК</small><h2>${item.id?'Изменить':'Новая'} конфигурация 1С</h2><label>Название<input name="name" required value="${esc(item.name)}" placeholder="1С:Бухгалтерия предприятия"></label><label>Код<input name="code" required pattern="[a-z0-9_-]+" value="${esc(item.code)}" placeholder="accounting"></label><label>Ссылка на логотип<input name="logo" value="${esc(item.logo)}" placeholder="https://…"></label>${item.logo?`<div class="icon-preview"><img src="${esc(item.logo)}" alt=""></div>`:''}<label>Порядок<input name="sort_order" type="number" value="${item.sort_order}"></label><label class="check"><input name="active" type="checkbox" ${item.active?'checked':''}> Показывать в редакторе карточки</label><div class="actions"><button type="button" class="secondary cancel">Отмена</button><button class="primary">Сохранить</button></div></form>`;
+    modal.className = 'pm-admin-modal';
+    modal.innerHTML = `<form><h2>${item.id?'Изменить конфигурацию 1С':'Новая конфигурация 1С'}</h2><p>Название и логотип появятся в разделе совместимости карточки.</p><div class="grid"><label>Название<input name="name" maxlength="160" required value="${esc(item.name)}" placeholder="1С:Бухгалтерия предприятия"></label><label>Code<input name="code" maxlength="80" required pattern="[a-z][a-z0-9_-]*" value="${esc(item.code)}" placeholder="accounting"></label></div><label>Ссылка на логотип<input name="logo" maxlength="1000" type="url" value="${esc(item.logo)}" placeholder="https://example.ru/logo.svg"></label><div class="icon-preview">${item.logo?`<img src="${esc(item.logo)}" alt="">`:'<span>Предпросмотр логотипа</span>'}</div><div class="grid"><label>Порядок<input name="sort_order" type="number" value="${item.sort_order||0}"></label><label class="check"><input name="active" type="checkbox" ${item.active!==false?'checked':''}> Показывать в редакторе карточки</label></div><footer><button type="button" data-cancel>Отмена</button><button class="primary">Сохранить</button></footer></form>`;
     document.body.append(modal);
-    const close = () => modal.remove();
-    modal.querySelector('.close').onclick = close;
-    modal.querySelector('.cancel').onclick = close;
-    modal.onclick = event => { if (event.target === modal) close(); };
+    const logoInput = modal.querySelector('[name=logo]');
+    logoInput.oninput = () => { modal.querySelector('.icon-preview').innerHTML = logoInput.value ? `<img src="${esc(logoInput.value)}" alt="">` : '<span>Предпросмотр логотипа</span>'; };
+    modal.querySelector('[data-cancel]').onclick = () => modal.remove();
+    modal.onclick = event => { if (event.target === modal) modal.remove(); };
     modal.querySelector('form').onsubmit = async event => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
