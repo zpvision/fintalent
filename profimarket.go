@@ -1071,8 +1071,23 @@ func profiMarketMyOrdersAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == http.MethodPost {
-		if _, err := db.ExecContext(r.Context(), `UPDATE profimarket_purchases SET seller_seen_at=NOW() WHERE seller_user_id=$1 AND seller_seen_at IS NULL`, u.ID); err != nil {
+		var input struct {
+			OrderID int64 `json:"order_id"`
+		}
+		if !profiDecode(w, r, &input) {
+			return
+		}
+		if input.OrderID <= 0 {
+			writeJSON(w, 400, "Некорректный заказ")
+			return
+		}
+		result, err := db.ExecContext(r.Context(), `UPDATE profimarket_purchases SET seller_seen_at=NOW() WHERE id=$1 AND seller_user_id=$2 AND seller_seen_at IS NULL`, input.OrderID, u.ID)
+		if err != nil {
 			writeJSON(w, 500, "Не удалось обновить уведомления")
+			return
+		}
+		if affected, _ := result.RowsAffected(); affected == 0 {
+			writeJSON(w, 404, "Новый заказ не найден")
 			return
 		}
 		profiRespond(w, 200, map[string]bool{"ok": true})

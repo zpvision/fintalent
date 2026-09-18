@@ -20,7 +20,7 @@ export const getMyProfiMarketSolutions = options => apiClient.get('/api/profimar
 export const getMyProfiMarketPurchases = options => apiClient.get('/api/profimarket/my-purchases', options)
 export const getMyProfiMarketOrders = options => apiClient.get('/api/profimarket/my-orders', options)
 export const getMyProfiMarketOrderSummary = options => apiClient.get('/api/profimarket/my-orders?summary=1', options)
-export const markMyProfiMarketOrdersRead = options => apiClient.post('/api/profimarket/my-orders', null, options)
+export const markMyProfiMarketOrderRead = (orderID, options) => apiClient.post('/api/profimarket/my-orders', { order_id: orderID }, options)
 export const getProfiMarketSolution = (slug, options) => apiClient.get(`/api/profimarket/solution/${encodeURIComponent(slug)}`, options)
 export const addProfiMarketFavorite = (id, options) => apiClient.post(`/api/profimarket/solution/${encodeURIComponent(id)}/favorite`, null, options)
 export const removeProfiMarketFavorite = (id, options) => apiClient.delete(`/api/profimarket/solution/${encodeURIComponent(id)}/favorite`, options)
