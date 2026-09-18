@@ -3,7 +3,7 @@
   const workspace = document.querySelector('.workspace');
   if (!nav || !workspace) return;
 
-  document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="/static/admin-profimarket.css?v=3">');
+  document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="/static/admin-profimarket.css?v=4">');
   nav.insertAdjacentHTML('beforeend', '<small>ПРОФИМАРКЕТ</small><button id="profimarket-admin-nav">✦ <span>ПрофиМаркет</span></button>');
   workspace.insertAdjacentHTML('beforeend', `
     <section id="profimarket-admin" class="pm-admin-section hidden">
@@ -11,16 +11,19 @@
         <button class="active" data-pm-tab="purchases">Покупки</button>
         <button data-pm-tab="solutions">Карточки</button>
         <button data-pm-tab="platforms">Платформы ИИ-ассистентов</button>
+        <button data-pm-tab="dictionaries">Справочники</button>
       </div>
       <div data-pm-view="purchases"></div>
       <div data-pm-view="solutions" class="hidden"></div>
       <div data-pm-view="platforms" class="hidden"></div>
+      <div data-pm-view="dictionaries" class="hidden"></div>
     </section>`);
 
   const section = document.querySelector('#profimarket-admin');
   const purchasesView = section.querySelector('[data-pm-view="purchases"]');
   const solutionsView = section.querySelector('[data-pm-view="solutions"]');
   const platformsView = section.querySelector('[data-pm-view="platforms"]');
+  const dictionariesView = section.querySelector('[data-pm-view="dictionaries"]');
   const productTypes = {
     AI_ASSISTANT: 'ИИ-ассистенты',
     REGULATION: 'Регламенты',
@@ -33,6 +36,7 @@
   const statusNames = {PENDING: 'Ожидает', COMPLETED: 'Оформлена', CANCELLED: 'Отменена', REFUNDED: 'Возврат'};
   let activeTab = 'purchases';
   let platforms = [];
+  let onecConfigurations = [];
   let query = {q: '', status: '', type: '', page: 1};
   let searchTimer;
 
@@ -69,15 +73,19 @@
     purchasesView.classList.toggle('hidden', activeTab !== 'purchases');
     solutionsView.classList.toggle('hidden', activeTab !== 'solutions');
     platformsView.classList.toggle('hidden', activeTab !== 'platforms');
+    dictionariesView.classList.toggle('hidden', activeTab !== 'dictionaries');
     if (activeTab === 'purchases') {
       setHeader('ПрофиМаркет', 'Все покупки и заявки на решения сервиса');
       loadPurchases();
     } else if (activeTab === 'solutions') {
       setHeader('ПрофиМаркет', 'Управление публикацией карточек сервиса');
       loadSolutions();
-    } else {
+    } else if (activeTab === 'platforms') {
       setHeader('ПрофиМаркет', 'ИИ-ассистенты → справочник платформ');
       loadPlatforms();
+    } else {
+      setHeader('ПрофиМаркет', 'Справочники для карточек решений');
+      loadDictionaries();
     }
   }
 
@@ -199,6 +207,53 @@
     button.disabled = true;
     try { await request(`/api/admin/profimarket/solutions/${button.dataset.deleteSolution}`, {method:'DELETE'}); loadSolutions(); }
     catch (error) { alert(error.message); button.disabled = false; }
+  }
+
+  async function loadDictionaries() {
+    dictionariesView.innerHTML = '<div class="pm-loading"><span></span>Загружаем конфигурации 1С…</div>';
+    try {
+      onecConfigurations = (await request('/api/admin/profimarket/onec-configurations')).items || [];
+      dictionariesView.innerHTML = `<div class="pm-admin-head"><div><small>ПРОФИМАРКЕТ → СПРАВОЧНИКИ</small><h2>Конфигурации 1С</h2><p>Список используется при заполнении совместимости карточек 1С. Переименование автоматически обновит уже заполненные карточки.</p></div><button class="primary" id="pm-onec-new">＋ Добавить конфигурацию</button></div><div class="pm-admin-table"><table><thead><tr><th>Порядок</th><th>Логотип</th><th>Название</th><th>Code</th><th>Статус</th><th>Использование</th><th></th></tr></thead><tbody>${onecConfigurations.map(onecConfigurationRow).join('') || '<tr><td colspan="7">Конфигураций пока нет</td></tr>'}</tbody></table></div>`;
+      dictionariesView.querySelector('#pm-onec-new').onclick = () => editOneCConfiguration();
+      dictionariesView.querySelectorAll('[data-onec-edit]').forEach(button => button.onclick = () => editOneCConfiguration(onecConfigurations.find(item => item.id === Number(button.dataset.onecEdit))));
+      dictionariesView.querySelectorAll('[data-onec-delete]').forEach(button => button.onclick = () => removeOneCConfiguration(Number(button.dataset.onecDelete)));
+    } catch (error) {
+      dictionariesView.innerHTML = `<div class="pm-empty"><b>Не удалось загрузить конфигурации 1С</b><p>${esc(error.message)}</p></div>`;
+    }
+  }
+
+  function onecConfigurationRow(item) {
+    return `<tr class="${item.active?'':'inactive'}"><td>${item.sort_order}</td><td>${item.logo?`<img src="${esc(item.logo)}" alt="">`:'<i>—</i>'}</td><td><b>${esc(item.name)}</b></td><td><code>${esc(item.code)}</code></td><td>${item.active?'Активна':'Отключена'}</td><td>${item.used?'Есть в карточках':'Не используется'}</td><td><button data-onec-edit="${item.id}">Изменить</button> <button class="delete" data-onec-delete="${item.id}">${item.used?'Отключить':'Удалить'}</button></td></tr>`;
+  }
+
+  function editOneCConfiguration(item = {name:'',code:'',logo:'',sort_order:0,active:true}) {
+    const modal = document.createElement('div');
+    modal.className = 'pm-modal';
+    modal.innerHTML = `<form class="pm-modal-card"><button type="button" class="close">×</button><small>СПРАВОЧНИК</small><h2>${item.id?'Изменить':'Новая'} конфигурация 1С</h2><label>Название<input name="name" required value="${esc(item.name)}" placeholder="1С:Бухгалтерия предприятия"></label><label>Код<input name="code" required pattern="[a-z0-9_-]+" value="${esc(item.code)}" placeholder="accounting"></label><label>Ссылка на логотип<input name="logo" value="${esc(item.logo)}" placeholder="https://…"></label>${item.logo?`<div class="icon-preview"><img src="${esc(item.logo)}" alt=""></div>`:''}<label>Порядок<input name="sort_order" type="number" value="${item.sort_order}"></label><label class="check"><input name="active" type="checkbox" ${item.active?'checked':''}> Показывать в редакторе карточки</label><div class="actions"><button type="button" class="secondary cancel">Отмена</button><button class="primary">Сохранить</button></div></form>`;
+    document.body.append(modal);
+    const close = () => modal.remove();
+    modal.querySelector('.close').onclick = close;
+    modal.querySelector('.cancel').onclick = close;
+    modal.onclick = event => { if (event.target === modal) close(); };
+    modal.querySelector('form').onsubmit = async event => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      const payload = {name:form.get('name').trim(),code:form.get('code').trim(),logo:form.get('logo').trim(),sort_order:Number(form.get('sort_order') || 0),active:form.has('active')};
+      try {
+        await request(item.id?`/api/admin/profimarket/onec-configurations/${item.id}`:'/api/admin/profimarket/onec-configurations', {method:item.id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        modal.remove(); loadDictionaries();
+      } catch (error) { alert(error.message); }
+    };
+  }
+
+  async function removeOneCConfiguration(id) {
+    const item = onecConfigurations.find(value => value.id === id);
+    const message = item?.used
+      ? `Конфигурация «${item.name}» используется в карточках и будет отключена для нового выбора. Продолжить?`
+      : `Удалить конфигурацию «${item?.name || ''}»?`;
+    if (!confirm(message)) return;
+    try { await request(`/api/admin/profimarket/onec-configurations/${id}`, {method:'DELETE'}); loadDictionaries(); }
+    catch (error) { alert(error.message); }
   }
 
   async function loadPlatforms() {

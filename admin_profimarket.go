@@ -20,6 +20,16 @@ type adminProfiMarketPlatformValue struct {
 	Used      bool   `json:"used"`
 }
 
+type adminProfiMarketOneCConfiguration struct {
+	ID        int64  `json:"id"`
+	Code      string `json:"code"`
+	Name      string `json:"name"`
+	Logo      string `json:"logo"`
+	SortOrder int    `json:"sort_order"`
+	Active    bool   `json:"active"`
+	Used      bool   `json:"used"`
+}
+
 var profiMarketPlatformCodePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 
 type adminProfiMarketPurchase struct {
@@ -318,4 +328,115 @@ func validProfiMarketPlatform(item *adminProfiMarketPlatformValue) bool {
 	item.Name = strings.TrimSpace(item.Name)
 	item.Icon = strings.TrimSpace(item.Icon)
 	return item.Name != "" && profiMarketPlatformCodePattern.MatchString(item.Code) && len(item.Name) <= 160 && len(item.Code) <= 80 && len(item.Icon) <= 1000
+}
+
+func adminProfiMarketOneCConfigurations(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) {
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		rows, err := db.QueryContext(r.Context(), `SELECT c.id,c.code,c.name,c.logo,c.sort_order,c.active,EXISTS(
+			SELECT 1 FROM profimarket_solutions s WHERE s.type='ONEC_INTEGRATION' AND s.deleted_at IS NULL AND COALESCE(s.product_data->'configurations','[]'::jsonb) ? c.name
+		) FROM profimarket_onec_configurations c ORDER BY c.sort_order,c.id`)
+		if err != nil {
+			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить конфигурации 1С"})
+			return
+		}
+		defer rows.Close()
+		items := make([]adminProfiMarketOneCConfiguration, 0)
+		for rows.Next() {
+			var item adminProfiMarketOneCConfiguration
+			if err = rows.Scan(&item.ID, &item.Code, &item.Name, &item.Logo, &item.SortOrder, &item.Active, &item.Used); err != nil {
+				writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить конфигурации 1С"})
+				return
+			}
+			items = append(items, item)
+		}
+		writeAdminJSON(w, http.StatusOK, map[string]any{"items": items})
+	case http.MethodPost:
+		var item adminProfiMarketOneCConfiguration
+		if json.NewDecoder(r.Body).Decode(&item) != nil || !validProfiMarketOneCConfiguration(&item) {
+			writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": "Укажите название и корректный code"})
+			return
+		}
+		if err := db.QueryRowContext(r.Context(), `INSERT INTO profimarket_onec_configurations(code,name,logo,sort_order,active) VALUES($1,$2,$3,$4,$5) RETURNING id`, item.Code, item.Name, item.Logo, item.SortOrder, item.Active).Scan(&item.ID); err != nil {
+			writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": "Конфигурация с таким code или названием уже существует"})
+			return
+		}
+		writeAdminJSON(w, http.StatusCreated, item)
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func adminProfiMarketOneCConfigurationItem(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) {
+		return
+	}
+	id, err := strconv.ParseInt(strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/admin/profimarket/onec-configurations/"), "/"), 10, 64)
+	if err != nil || id <= 0 {
+		writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": "Некорректная конфигурация 1С"})
+		return
+	}
+	switch r.Method {
+	case http.MethodPut:
+		var item adminProfiMarketOneCConfiguration
+		if json.NewDecoder(r.Body).Decode(&item) != nil || !validProfiMarketOneCConfiguration(&item) {
+			writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": "Укажите название и корректный code"})
+			return
+		}
+		tx, err := db.BeginTx(r.Context(), nil)
+		if err != nil {
+			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось сохранить конфигурацию"})
+			return
+		}
+		defer tx.Rollback()
+		var oldName string
+		if err = tx.QueryRowContext(r.Context(), `SELECT name FROM profimarket_onec_configurations WHERE id=$1 FOR UPDATE`, id).Scan(&oldName); err != nil {
+			writeAdminJSON(w, http.StatusNotFound, map[string]string{"error": "Конфигурация не найдена"})
+			return
+		}
+		if _, err = tx.ExecContext(r.Context(), `UPDATE profimarket_onec_configurations SET code=$1,name=$2,logo=$3,sort_order=$4,active=$5,updated_at=NOW() WHERE id=$6`, item.Code, item.Name, item.Logo, item.SortOrder, item.Active, id); err != nil {
+			writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": "Конфигурация с таким code или названием уже существует"})
+			return
+		}
+		if oldName != item.Name {
+			_, err = tx.ExecContext(r.Context(), `UPDATE profimarket_solutions s SET product_data=jsonb_set(s.product_data,'{configurations}',COALESCE((SELECT jsonb_agg(CASE WHEN value=$1 THEN to_jsonb($2::text) ELSE to_jsonb(value) END) FROM jsonb_array_elements_text(COALESCE(s.product_data->'configurations','[]'::jsonb)) value),'[]'::jsonb)),updated_at=NOW() WHERE s.type='ONEC_INTEGRATION' AND s.deleted_at IS NULL AND COALESCE(s.product_data->'configurations','[]'::jsonb) ? $1`, oldName, item.Name)
+			if err != nil {
+				writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось обновить заполненные карточки"})
+				return
+			}
+		}
+		if err = tx.Commit(); err != nil {
+			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось сохранить конфигурацию"})
+			return
+		}
+		writeAdminJSON(w, http.StatusOK, map[string]string{"message": "Конфигурация сохранена"})
+	case http.MethodDelete:
+		var used bool
+		if err = db.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM profimarket_solutions s JOIN profimarket_onec_configurations c ON c.id=$1 WHERE s.type='ONEC_INTEGRATION' AND s.deleted_at IS NULL AND COALESCE(s.product_data->'configurations','[]'::jsonb) ? c.name)`, id).Scan(&used); err != nil {
+			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось удалить конфигурацию"})
+			return
+		}
+		if used {
+			_, err = db.ExecContext(r.Context(), `UPDATE profimarket_onec_configurations SET active=FALSE,updated_at=NOW() WHERE id=$1`, id)
+		} else {
+			_, err = db.ExecContext(r.Context(), `DELETE FROM profimarket_onec_configurations WHERE id=$1`, id)
+		}
+		if err != nil {
+			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось удалить конфигурацию"})
+			return
+		}
+		writeAdminJSON(w, http.StatusOK, map[string]string{"message": map[bool]string{true: "Конфигурация отключена", false: "Конфигурация удалена"}[used]})
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func validProfiMarketOneCConfiguration(item *adminProfiMarketOneCConfiguration) bool {
+	item.Code = strings.ToLower(strings.TrimSpace(item.Code))
+	item.Name = strings.TrimSpace(item.Name)
+	item.Logo = strings.TrimSpace(item.Logo)
+	return item.Name != "" && profiMarketPlatformCodePattern.MatchString(item.Code) && len(item.Name) <= 160 && len(item.Code) <= 80 && len(item.Logo) <= 1000
 }

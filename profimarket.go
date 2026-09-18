@@ -20,7 +20,7 @@ import (
 	"time"
 )
 
-//go:embed migrations/027_profimarket.sql migrations/028_profimarket_demo.sql migrations/029_profimarket_card_builder.sql migrations/030_profimarket_section_images.sql migrations/031_profimarket_crm_dictionary.sql migrations/032_profimarket_feature_colors.sql migrations/033_profimarket_bonus_style.sql migrations/034_profimarket_block_styles.sql migrations/035_profimarket_right_block.sql migrations/036_profimarket_implementation.sql migrations/037_profimarket_section_appearance.sql migrations/049_profimarket_platform_icons.sql migrations/050_profimarket_how_it_works.sql migrations/051_profimarket_product_types.sql migrations/052_profimarket_product_demo.sql migrations/055_profimarket_order_notifications.sql migrations/056_profimarket_purchase_snapshot.sql
+//go:embed migrations/027_profimarket.sql migrations/028_profimarket_demo.sql migrations/029_profimarket_card_builder.sql migrations/030_profimarket_section_images.sql migrations/031_profimarket_crm_dictionary.sql migrations/032_profimarket_feature_colors.sql migrations/033_profimarket_bonus_style.sql migrations/034_profimarket_block_styles.sql migrations/035_profimarket_right_block.sql migrations/036_profimarket_implementation.sql migrations/037_profimarket_section_appearance.sql migrations/049_profimarket_platform_icons.sql migrations/050_profimarket_how_it_works.sql migrations/051_profimarket_product_types.sql migrations/052_profimarket_product_demo.sql migrations/055_profimarket_order_notifications.sql migrations/056_profimarket_purchase_snapshot.sql migrations/057_profimarket_onec_configurations.sql
 var profiMarketMigrationFS embed.FS
 
 type profiMedia struct {
@@ -255,6 +255,13 @@ func prepareProfiMarketDatabase(ctx context.Context) error {
 	}
 	if _, err = db.ExecContext(ctx, string(purchaseSnapshot)); err != nil {
 		return fmt.Errorf("снимки покупок ПрофиМаркета: %w", err)
+	}
+	onecConfigurations, err := profiMarketMigrationFS.ReadFile("migrations/057_profimarket_onec_configurations.sql")
+	if err != nil {
+		return err
+	}
+	if _, err = db.ExecContext(ctx, string(onecConfigurations)); err != nil {
+		return fmt.Errorf("конфигурации 1С ПрофиМаркета: %w", err)
 	}
 	if err = syncProfiMarketCRMs(ctx); err != nil {
 		return fmt.Errorf("синхронизация CRM ПрофиМаркета: %w", err)
@@ -1092,7 +1099,7 @@ func profiMarketMetaAPI(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 500, "Не удалось загрузить справочник CRM")
 		return
 	}
-	crms, platforms, purchaseButtons := []profiDictionaryValue{}, []profiDictionaryValue{}, []profiDictionaryValue{}
+	crms, platforms, purchaseButtons, onecConfigurations := []profiDictionaryValue{}, []profiDictionaryValue{}, []profiDictionaryValue{}, []profiDictionaryValue{}
 	load := func(table string, target *[]profiDictionaryValue) {
 		columns := "id,code,name,'',''"
 		if table == "profimarket_crm" {
@@ -1113,7 +1120,17 @@ func profiMarketMetaAPI(w http.ResponseWriter, r *http.Request) {
 	}
 	load("profimarket_crm", &crms)
 	load("profimarket_platforms", &platforms)
-	rows, _ := db.QueryContext(r.Context(), `SELECT id,code,name,'','' FROM profimarket_purchase_button_options WHERE active=TRUE ORDER BY sort_order,id`)
+	rows, _ := db.QueryContext(r.Context(), `SELECT id,code,name,'',logo FROM profimarket_onec_configurations WHERE active=TRUE ORDER BY sort_order,id`)
+	if rows != nil {
+		defer rows.Close()
+		for rows.Next() {
+			var option profiDictionaryValue
+			if rows.Scan(&option.ID, &option.Code, &option.Name, &option.Description, &option.Icon) == nil {
+				onecConfigurations = append(onecConfigurations, option)
+			}
+		}
+	}
+	rows, _ = db.QueryContext(r.Context(), `SELECT id,code,name,'','' FROM profimarket_purchase_button_options WHERE active=TRUE ORDER BY sort_order,id`)
 	if rows != nil {
 		defer rows.Close()
 		for rows.Next() {
@@ -1141,7 +1158,7 @@ func profiMarketMetaAPI(w http.ResponseWriter, r *http.Request) {
 	for _, productType := range categoryOrder {
 		categories = append(categories, map[string]any{"type": productType, "name": categoryNames[productType], "count": counts[productType]})
 	}
-	profiRespond(w, 200, map[string]any{"crms": crms, "platforms": platforms, "purchase_buttons": purchaseButtons, "categories": categories})
+	profiRespond(w, 200, map[string]any{"crms": crms, "platforms": platforms, "onec_configurations": onecConfigurations, "purchase_buttons": purchaseButtons, "categories": categories})
 }
 
 func profiMarketMySolutionsAPI(w http.ResponseWriter, r *http.Request) {
