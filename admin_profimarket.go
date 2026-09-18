@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type adminProfiMarketPlatformValue struct {
@@ -20,6 +21,121 @@ type adminProfiMarketPlatformValue struct {
 }
 
 var profiMarketPlatformCodePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
+
+type adminProfiMarketPurchase struct {
+	ID              int64     `json:"id"`
+	SolutionID      int64     `json:"solution_id"`
+	Title           string    `json:"title"`
+	Slug            string    `json:"slug"`
+	ProductType     string    `json:"product_type"`
+	CoverImage      string    `json:"cover_image"`
+	BuyerName       string    `json:"buyer_name"`
+	BuyerEmail      string    `json:"buyer_email"`
+	SellerName      string    `json:"seller_name"`
+	SellerEmail     string    `json:"seller_email"`
+	Amount          float64   `json:"amount"`
+	Currency        string    `json:"currency"`
+	PricingType     string    `json:"pricing_type"`
+	Status          string    `json:"status"`
+	CreatedAt       time.Time `json:"created_at"`
+	SolutionVisible bool      `json:"solution_visible"`
+}
+
+func adminProfiMarketPurchases(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) {
+		return
+	}
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	search := strings.TrimSpace(r.URL.Query().Get("q"))
+	status := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("status")))
+	productType := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("type")))
+	if status != "" && status != "PENDING" && status != "COMPLETED" && status != "CANCELLED" && status != "REFUNDED" {
+		writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": "Некорректный статус покупки"})
+		return
+	}
+	validTypes := map[string]bool{"": true, "AI_ASSISTANT": true, "REGULATION": true, "AUTOMATION": true, "INSTRUCTION": true, "ONEC_INTEGRATION": true, "TEMPLATE": true, "CHECKLIST": true}
+	if !validTypes[productType] {
+		writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": "Некорректное направление"})
+		return
+	}
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page < 1 {
+		page = 1
+	}
+	const limit = 50
+
+	where := `($1='' OR buyer.full_name ILIKE '%'||$1||'%' OR buyer.email ILIKE '%'||$1||'%' OR seller.full_name ILIKE '%'||$1||'%' OR seller.email ILIKE '%'||$1||'%')
+		AND ($2='' OR p.status=$2)
+		AND ($3='' OR COALESCE(NULLIF(p.product_type_snapshot,''),s.type,'')=$3)`
+	var total int
+	if err := db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM profimarket_purchases p
+		JOIN users buyer ON buyer.id=p.buyer_user_id
+		JOIN users seller ON seller.id=p.seller_user_id
+		LEFT JOIN profimarket_solutions s ON s.id=p.solution_id
+		WHERE `+where, search, status, productType).Scan(&total); err != nil {
+		writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить покупки ПрофиМаркета"})
+		return
+	}
+
+	rows, err := db.QueryContext(r.Context(), `SELECT p.id,p.solution_id,
+		COALESCE(NULLIF(p.product_title_snapshot,''),s.title,'Удалённое решение'),
+		COALESCE(NULLIF(p.product_slug_snapshot,''),s.slug,''),
+		COALESCE(NULLIF(p.product_type_snapshot,''),s.type,''),
+		COALESCE(NULLIF(p.product_cover_snapshot,''),s.cover_image,''),
+		buyer.full_name,buyer.email,seller.full_name,seller.email,
+		p.amount,p.currency,p.pricing_type,p.status,p.created_at,
+		(s.id IS NOT NULL AND s.deleted_at IS NULL)
+		FROM profimarket_purchases p
+		JOIN users buyer ON buyer.id=p.buyer_user_id
+		JOIN users seller ON seller.id=p.seller_user_id
+		LEFT JOIN profimarket_solutions s ON s.id=p.solution_id
+		WHERE `+where+`
+		ORDER BY p.created_at DESC,p.id DESC LIMIT $4 OFFSET $5`, search, status, productType, limit, (page-1)*limit)
+	if err != nil {
+		writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить покупки ПрофиМаркета"})
+		return
+	}
+	defer rows.Close()
+	items := make([]adminProfiMarketPurchase, 0)
+	for rows.Next() {
+		var item adminProfiMarketPurchase
+		if err = rows.Scan(&item.ID, &item.SolutionID, &item.Title, &item.Slug, &item.ProductType, &item.CoverImage, &item.BuyerName, &item.BuyerEmail, &item.SellerName, &item.SellerEmail, &item.Amount, &item.Currency, &item.PricingType, &item.Status, &item.CreatedAt, &item.SolutionVisible); err != nil {
+			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить покупки ПрофиМаркета"})
+			return
+		}
+		items = append(items, item)
+	}
+	if err = rows.Err(); err != nil {
+		writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить покупки ПрофиМаркета"})
+		return
+	}
+
+	statusRows, err := db.QueryContext(r.Context(), `SELECT status,COUNT(*) FROM profimarket_purchases GROUP BY status`)
+	if err != nil {
+		writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить статистику покупок"})
+		return
+	}
+	defer statusRows.Close()
+	statusCounts := map[string]int{"PENDING": 0, "COMPLETED": 0, "CANCELLED": 0, "REFUNDED": 0}
+	for statusRows.Next() {
+		var key string
+		var count int
+		if err = statusRows.Scan(&key, &count); err != nil {
+			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить статистику покупок"})
+			return
+		}
+		statusCounts[key] = count
+	}
+	if err = statusRows.Err(); err != nil {
+		writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить статистику покупок"})
+		return
+	}
+	writeAdminJSON(w, http.StatusOK, map[string]any{"items": items, "total": total, "page": page, "limit": limit, "status_counts": statusCounts})
+}
 
 func adminProfiMarketPlatforms(w http.ResponseWriter, r *http.Request) {
 	if !requireAdmin(w, r) {
