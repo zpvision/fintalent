@@ -143,7 +143,7 @@ func sendProfiMarketOrderEmail(recipientName, recipientEmail string, data profiM
 		baseURL = "https://fintalent.ru"
 	}
 	data.SellerName = recipientName
-	data.OrdersURL = baseURL + "/profimarket/my?tab=orders"
+	data.OrdersURL = baseURL + "/profile?section=profimarket&tab=orders"
 	tmpl, err := template.New("profimarket-order").Parse(profiMarketOrderEmailTemplate)
 	if err != nil {
 		return fmt.Errorf("шаблон письма о заказе ПрофиМаркета: %w", err)

@@ -43,8 +43,8 @@ function Sidebar({ selectType }) {
       </nav>
       <div className="pmh-side-links">
         <a href="/profimarket/my?tab=favorites"><Icon name="heart" /> Избранное</a>
-        <a href="/profimarket/my?tab=purchases"><Icon name="bag" /> Мои покупки</a>
-        <a href="/profimarket/my"><Icon name="folder" /> Мои решения</a>
+        <a href="/profile?section=profimarket-purchases"><Icon name="bag" /> Мои покупки</a>
+        <a href="/profile?section=profimarket"><Icon name="folder" /> Мои решения</a>
         <a href="/profimarket/create" target="_self"><Icon name="users" /> Стать автором</a>
       </div>
       <section className="pmh-author-cta"><i><Icon name="sparkles" /></i><h3>Есть свои наработки?</h3><p>Размещайте решения на ПрофиМаркете и зарабатывайте на своём опыте</p><a href="/profimarket/create" target="_self">Стать автором</a></section>

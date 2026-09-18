@@ -123,6 +123,15 @@ function ProfileRoute() {
   return <ProfilePage />
 }
 
+function ProfiMarketMyRoute() {
+  const location = useLocation()
+  const tab = new URLSearchParams(location.search).get('tab')
+  if (tab === 'favorites') return <ProfiMarketMyPage />
+  if (tab === 'purchases') return <Navigate to="/profile?section=profimarket-purchases" replace />
+  if (tab === 'orders') return <Navigate to="/profile?section=profimarket&tab=orders" replace />
+  return <Navigate to="/profile?section=profimarket" replace />
+}
+
 export default function App() {
   return (
     <><ReactNavigationBridge /><Routes>
@@ -149,7 +158,7 @@ export default function App() {
       <Route path="/tests/create" element={<TestCreatePage />} />
       <Route path="/vacancies/create" element={<PublicLayout><VacancyCreatePage /></PublicLayout>} />
       <Route path="/publications/analytics" element={<PublicationAnalyticsPage />} />
-      <Route path="/profimarket/my" element={<ProfiMarketMyPage />} />
+      <Route path="/profimarket/my" element={<ProfiMarketMyRoute />} />
       <Route path="/profimarket/solution/:key" element={<ProfiMarketDetailPage />} />
       <Route path="/profimarket/create" element={<ProfiMarketCreatePage />} />
       <Route path="/profimarket/regulation/edit" element={<ProfiMarketRegulationEditPage />} />
