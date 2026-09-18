@@ -306,7 +306,101 @@ func registerProfiMarketRoutes() {
 	http.HandleFunc("/api/profimarket/my-solutions", profiMarketMySolutionsAPI)
 	http.HandleFunc("/api/profimarket/my-purchases", profiMarketMyPurchasesAPI)
 	http.HandleFunc("/api/profimarket/my-orders", profiMarketMyOrdersAPI)
+	http.HandleFunc("/api/profimarket/reviews", profiMarketReviewsAPI)
 	http.HandleFunc("/api/profimarket/solution/", profiMarketSolutionAPI)
+}
+
+func profiMarketReviewsAPI(w http.ResponseWriter, r *http.Request) {
+	if db == nil {
+		writeJSON(w, http.StatusServiceUnavailable, "База данных недоступна")
+		return
+	}
+	if r.Method == http.MethodGet {
+		solutionID, err := strconv.ParseInt(r.URL.Query().Get("solution_id"), 10, 64)
+		if err != nil || solutionID <= 0 {
+			writeJSON(w, http.StatusBadRequest, "Некорректное решение")
+			return
+		}
+		u := profiCurrentUser(r)
+		userID := int64(0)
+		if u != nil {
+			userID = u.ID
+		}
+		rows, err := db.QueryContext(r.Context(), `SELECT rv.id,rv.rating,rv.comment,rv.created_at,u.full_name,COALESCE(u.avatar_url,''),rv.user_id=$2
+			FROM profimarket_reviews rv JOIN users u ON u.id=rv.user_id
+			WHERE rv.solution_id=$1 ORDER BY rv.created_at DESC,rv.id DESC`, solutionID, userID)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, "Не удалось загрузить отзывы")
+			return
+		}
+		defer rows.Close()
+		reviews := []map[string]any{}
+		for rows.Next() {
+			var id int64
+			var rating int
+			var comment, name, avatar string
+			var created time.Time
+			var mine bool
+			if err = rows.Scan(&id, &rating, &comment, &created, &name, &avatar, &mine); err != nil {
+				writeJSON(w, http.StatusInternalServerError, "Не удалось загрузить отзывы")
+				return
+			}
+			reviews = append(reviews, map[string]any{"id": id, "rating": rating, "comment": comment, "created_at": created, "author_name": name, "author_avatar": avatar, "is_mine": mine})
+		}
+		if err = rows.Err(); err != nil {
+			writeJSON(w, http.StatusInternalServerError, "Не удалось загрузить отзывы")
+			return
+		}
+		canReview := false
+		if userID > 0 {
+			err = db.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM profimarket_purchases p JOIN profimarket_solutions s ON s.id=p.solution_id WHERE p.solution_id=$1 AND p.buyer_user_id=$2 AND p.status='COMPLETED' AND s.author_user_id<>$2)`, solutionID, userID).Scan(&canReview)
+			if err != nil {
+				writeJSON(w, http.StatusInternalServerError, "Не удалось проверить покупку")
+				return
+			}
+		}
+		profiRespond(w, http.StatusOK, map[string]any{"reviews": reviews, "can_review": canReview})
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
+		return
+	}
+	u, ok := profiRequireUser(w, r)
+	if !ok {
+		return
+	}
+	var input struct {
+		SolutionID int64  `json:"solution_id"`
+		Rating     int    `json:"rating"`
+		Comment    string `json:"comment"`
+	}
+	if !profiDecode(w, r, &input) {
+		return
+	}
+	input.Comment = strings.TrimSpace(input.Comment)
+	if input.SolutionID <= 0 || input.Rating < 1 || input.Rating > 5 || len([]rune(input.Comment)) > 2000 {
+		writeJSON(w, http.StatusBadRequest, "Укажите оценку от 1 до 5 и комментарий до 2000 символов")
+		return
+	}
+	var purchaseID int64
+	err := db.QueryRowContext(r.Context(), `SELECT p.id FROM profimarket_purchases p JOIN profimarket_solutions s ON s.id=p.solution_id
+		WHERE p.solution_id=$1 AND p.buyer_user_id=$2 AND p.status='COMPLETED' AND s.author_user_id<>$2 ORDER BY p.created_at DESC,p.id DESC LIMIT 1`, input.SolutionID, u.ID).Scan(&purchaseID)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeJSON(w, http.StatusForbidden, "Отзыв доступен после покупки или оформления пробного периода")
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, "Не удалось проверить покупку")
+		return
+	}
+	_, err = db.ExecContext(r.Context(), `INSERT INTO profimarket_reviews(solution_id,purchase_id,user_id,rating,comment) VALUES($1,$2,$3,$4,$5)
+		ON CONFLICT(solution_id,user_id) DO UPDATE SET purchase_id=EXCLUDED.purchase_id,rating=EXCLUDED.rating,comment=EXCLUDED.comment,updated_at=NOW()`, input.SolutionID, purchaseID, u.ID, input.Rating, input.Comment)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, "Не удалось сохранить отзыв")
+		return
+	}
+	profiRespond(w, http.StatusOK, map[string]string{"message": "Спасибо! Ваш отзыв опубликован."})
 }
 
 func profiRespond(w http.ResponseWriter, status int, value any) {

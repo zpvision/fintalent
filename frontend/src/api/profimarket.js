@@ -25,6 +25,8 @@ export const getProfiMarketSolution = (slug, options) => apiClient.get(`/api/pro
 export const addProfiMarketFavorite = (id, options) => apiClient.post(`/api/profimarket/solution/${encodeURIComponent(id)}/favorite`, null, options)
 export const removeProfiMarketFavorite = (id, options) => apiClient.delete(`/api/profimarket/solution/${encodeURIComponent(id)}/favorite`, options)
 export const purchaseProfiMarketSolution = (id, payload = {}, options) => apiClient.post(`/api/profimarket/solution/${encodeURIComponent(id)}/purchase`, payload, options)
+export const getProfiMarketReviews = (id, options) => apiClient.get(`/api/profimarket/reviews?solution_id=${encodeURIComponent(id)}`, { redirectOnUnauthorized: false, ...options })
+export const saveProfiMarketReview = (solutionID, rating, comment, options) => apiClient.post('/api/profimarket/reviews', { solution_id: solutionID, rating, comment }, options)
 export const createProfiMarketSolution = (payload, options) => apiClient.post('/api/profimarket', payload, options)
 export const updateProfiMarketSolution = (id, payload, options) => apiClient.put(`/api/profimarket/solution/${encodeURIComponent(id)}`, payload, options)
 export const publishProfiMarketSolution = (id, options) => apiClient.post(`/api/profimarket/solution/${encodeURIComponent(id)}/publish`, null, options)

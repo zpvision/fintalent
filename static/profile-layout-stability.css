@@ -1,0 +1,30 @@
+.dashboard-layout > .dashboard-main {
+  width: 100%;
+  min-width: 0;
+  justify-self: stretch;
+  align-self: stretch;
+}
+
+.dashboard-main > .my-vacancies-page,
+.dashboard-main > .profile-market,
+.dashboard-main > .ac-profile,
+.dashboard-main > .ce-profile,
+.dashboard-main > .profile-help-page {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  margin-left: 0;
+  margin-right: 0;
+  align-self: stretch;
+  text-align: left;
+}
+
+.my-vacancies-grid,
+.profile-market-list,
+.profile-market-order-list,
+.ce-profile-list,
+.profile-help-list,
+.ac-manage-card {
+  width: 100%;
+  min-width: 0;
+}
