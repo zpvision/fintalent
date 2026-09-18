@@ -161,6 +161,8 @@ func registerAdminRoutes() {
 	http.HandleFunc("/api/admin/profimarket/platforms", adminProfiMarketPlatforms)
 	http.HandleFunc("/api/admin/profimarket/platforms/", adminProfiMarketPlatform)
 	http.HandleFunc("/api/admin/profimarket/purchases", adminProfiMarketPurchases)
+	http.HandleFunc("/api/admin/profimarket/solutions", adminProfiMarketSolutions)
+	http.HandleFunc("/api/admin/profimarket/solutions/", adminProfiMarketSolutionAction)
 	http.HandleFunc("/api/assets/dictionary-icon/", dictionaryIconAsset)
 	registerApplicantSurveyRoutes()
 	registerVacancySurveyRoutes()

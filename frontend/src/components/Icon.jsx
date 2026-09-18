@@ -12,6 +12,8 @@ const icons = {
   users: <><circle cx="9" cy="8" r="3" /><circle cx="17" cy="9" r="2" /><path d="M3 20c0-4 2-7 6-7s6 3 6 7M15 14c4 0 6 2 6 6" /></>,
   list: <><path d="M9 6h12M9 12h12M9 18h12M4 6h.01M4 12h.01M4 18h.01" /></>,
   check: <><rect x="3" y="3" width="18" height="18" rx="3" /><path d="m7 12 3 3 7-7" /></>,
+  replace: <><path d="M20 7h-9a5 5 0 0 0-5 5v1" /><path d="m17 4 3 3-3 3M4 17h9a5 5 0 0 0 5-5v-1" /><path d="m7 20-3-3 3-3" /></>,
+  trash: <><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6" /></>,
 }
 
 export default function Icon({ name, ...props }) {

@@ -41,6 +41,95 @@ type adminProfiMarketPurchase struct {
 	SolutionVisible bool      `json:"solution_visible"`
 }
 
+type adminProfiMarketSolution struct {
+	ID          int64     `json:"id"`
+	Title       string    `json:"title"`
+	Slug        string    `json:"slug"`
+	ProductType string    `json:"product_type"`
+	CoverImage  string    `json:"cover_image"`
+	OwnerName   string    `json:"owner_name"`
+	OwnerEmail  string    `json:"owner_email"`
+	Status      string    `json:"status"`
+	Purchases   int       `json:"purchases"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+func adminProfiMarketSolutions(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) {
+		return
+	}
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	rows, err := db.QueryContext(r.Context(), `SELECT s.id,s.title,s.slug,s.type,COALESCE(s.cover_image,''),u.full_name,u.email,s.status,
+		(SELECT COUNT(*) FROM profimarket_purchases p WHERE p.solution_id=s.id),s.updated_at
+		FROM profimarket_solutions s JOIN users u ON u.id=s.author_user_id
+		WHERE s.deleted_at IS NULL ORDER BY s.updated_at DESC,s.id DESC`)
+	if err != nil {
+		writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить карточки ПрофиМаркета"})
+		return
+	}
+	defer rows.Close()
+	items := make([]adminProfiMarketSolution, 0)
+	for rows.Next() {
+		var item adminProfiMarketSolution
+		if err = rows.Scan(&item.ID, &item.Title, &item.Slug, &item.ProductType, &item.CoverImage, &item.OwnerName, &item.OwnerEmail, &item.Status, &item.Purchases, &item.UpdatedAt); err != nil {
+			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить карточки ПрофиМаркета"})
+			return
+		}
+		items = append(items, item)
+	}
+	if err = rows.Err(); err != nil {
+		writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить карточки ПрофиМаркета"})
+		return
+	}
+	writeAdminJSON(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func adminProfiMarketSolutionAction(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) {
+		return
+	}
+	parts := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/admin/profimarket/solutions/"), "/"), "/")
+	if len(parts) == 0 || len(parts) > 2 {
+		writeAdminJSON(w, http.StatusNotFound, map[string]string{"error": "Действие не найдено"})
+		return
+	}
+	id, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil || id <= 0 {
+		writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": "Некорректная карточка"})
+		return
+	}
+	if len(parts) == 2 && parts[1] == "unpublish" && r.Method == http.MethodPost {
+		result, execErr := db.ExecContext(r.Context(), `UPDATE profimarket_solutions SET status='ARCHIVED',updated_at=NOW() WHERE id=$1 AND deleted_at IS NULL AND status='PUBLISHED'`, id)
+		if execErr != nil {
+			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось снять карточку с публикации"})
+			return
+		}
+		if count, _ := result.RowsAffected(); count == 0 {
+			writeAdminJSON(w, http.StatusConflict, map[string]string{"error": "Карточка уже снята с публикации или удалена"})
+			return
+		}
+		writeAdminJSON(w, http.StatusOK, map[string]string{"message": "Карточка снята с публикации"})
+		return
+	}
+	if len(parts) == 1 && r.Method == http.MethodDelete {
+		result, execErr := db.ExecContext(r.Context(), `UPDATE profimarket_solutions SET deleted_at=NOW(),updated_at=NOW() WHERE id=$1 AND deleted_at IS NULL`, id)
+		if execErr != nil {
+			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось удалить карточку"})
+			return
+		}
+		if count, _ := result.RowsAffected(); count == 0 {
+			writeAdminJSON(w, http.StatusNotFound, map[string]string{"error": "Карточка не найдена"})
+			return
+		}
+		writeAdminJSON(w, http.StatusOK, map[string]string{"message": "Карточка удалена"})
+		return
+	}
+	w.WriteHeader(http.StatusMethodNotAllowed)
+}
+
 func adminProfiMarketPurchases(w http.ResponseWriter, r *http.Request) {
 	if !requireAdmin(w, r) {
 		return

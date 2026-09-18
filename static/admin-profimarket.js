@@ -3,20 +3,23 @@
   const workspace = document.querySelector('.workspace');
   if (!nav || !workspace) return;
 
-  document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="/static/admin-profimarket.css?v=2">');
+  document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="/static/admin-profimarket.css?v=3">');
   nav.insertAdjacentHTML('beforeend', '<small>ПРОФИМАРКЕТ</small><button id="profimarket-admin-nav">✦ <span>ПрофиМаркет</span></button>');
   workspace.insertAdjacentHTML('beforeend', `
     <section id="profimarket-admin" class="pm-admin-section hidden">
       <div class="pm-admin-tabs" role="tablist">
         <button class="active" data-pm-tab="purchases">Покупки</button>
+        <button data-pm-tab="solutions">Карточки</button>
         <button data-pm-tab="platforms">Платформы ИИ-ассистентов</button>
       </div>
       <div data-pm-view="purchases"></div>
+      <div data-pm-view="solutions" class="hidden"></div>
       <div data-pm-view="platforms" class="hidden"></div>
     </section>`);
 
   const section = document.querySelector('#profimarket-admin');
   const purchasesView = section.querySelector('[data-pm-view="purchases"]');
+  const solutionsView = section.querySelector('[data-pm-view="solutions"]');
   const platformsView = section.querySelector('[data-pm-view="platforms"]');
   const productTypes = {
     AI_ASSISTANT: 'ИИ-ассистенты',
@@ -64,10 +67,14 @@
   function renderActiveTab() {
     section.querySelectorAll('[data-pm-tab]').forEach(button => button.classList.toggle('active', button.dataset.pmTab === activeTab));
     purchasesView.classList.toggle('hidden', activeTab !== 'purchases');
+    solutionsView.classList.toggle('hidden', activeTab !== 'solutions');
     platformsView.classList.toggle('hidden', activeTab !== 'platforms');
     if (activeTab === 'purchases') {
       setHeader('ПрофиМаркет', 'Все покупки и заявки на решения сервиса');
       loadPurchases();
+    } else if (activeTab === 'solutions') {
+      setHeader('ПрофиМаркет', 'Управление публикацией карточек сервиса');
+      loadSolutions();
     } else {
       setHeader('ПрофиМаркет', 'ИИ-ассистенты → справочник платформ');
       loadPlatforms();
@@ -160,6 +167,38 @@
   function person(name, email, role) {
     const initials = String(name || email || '?').split(/\s+/).slice(0,2).map(part => part[0]).join('').toUpperCase();
     return `<div class="pm-person"><span>${esc(initials)}</span><div><b>${esc(name || role)}</b><a href="mailto:${esc(email)}">${esc(email)}</a></div></div>`;
+  }
+
+  async function loadSolutions() {
+    solutionsView.innerHTML = '<div class="pm-loading"><span></span>Загружаем карточки…</div>';
+    try {
+      const items = (await request('/api/admin/profimarket/solutions')).items || [];
+      solutionsView.innerHTML = `<div class="pm-admin-head"><div><small>УПРАВЛЕНИЕ КАТАЛОГОМ</small><h2>Все карточки</h2><p>Снимайте решения с публикации или удаляйте их из сервиса.</p></div><div class="pm-purchase-total"><span>Всего карточек</span><b>${items.length.toLocaleString('ru-RU')}</b></div></div><div class="pm-admin-table pm-solutions-table"><table><thead><tr><th>Карточка</th><th>Владелец</th><th>Статус</th><th>Покупки</th><th>Обновлена</th><th>Действия</th></tr></thead><tbody>${items.map(solutionRow).join('') || '<tr><td colspan="6"><div class="pm-table-empty"><b>Карточек пока нет</b></div></td></tr>'}</tbody></table></div>`;
+      solutionsView.querySelectorAll('[data-unpublish-solution]').forEach(button => button.onclick = () => unpublishSolution(button));
+      solutionsView.querySelectorAll('[data-delete-solution]').forEach(button => button.onclick = () => deleteSolution(button));
+    } catch (error) {
+      solutionsView.innerHTML = `<div class="pm-empty"><b>Не удалось загрузить карточки</b><p>${esc(error.message)}</p><button data-retry>Повторить</button></div>`;
+      solutionsView.querySelector('[data-retry]').onclick = loadSolutions;
+    }
+  }
+
+  function solutionRow(item) {
+    const status = {PUBLISHED:'Опубликована', DRAFT:'Черновик', MODERATION:'На модерации', ARCHIVED:'Снята'}[item.status] || item.status;
+    return `<tr><td><div class="pm-product"><div class="pm-product-cover">${item.cover_image?`<img src="${esc(item.cover_image)}" alt="">`:'<span>F</span>'}</div><div><a class="pm-product-title" href="/profimarket/solution/${encodeURIComponent(item.slug)}?preview=1" target="_blank" rel="noopener">${esc(item.title)} <span>↗</span></a><small>${esc(productTypes[item.product_type] || item.product_type)}</small></div></div></td><td>${person(item.owner_name,item.owner_email,'Владелец')}</td><td><span class="pm-solution-status status-${item.status.toLowerCase()}">${esc(status)}</span></td><td><b>${Number(item.purchases).toLocaleString('ru-RU')}</b></td><td><time>${formatDate(item.updated_at)}</time></td><td><div class="pm-solution-actions">${item.status==='PUBLISHED'?`<button data-unpublish-solution="${item.id}" data-title="${esc(item.title)}">Снять</button>`:''}<button class="delete" data-delete-solution="${item.id}" data-title="${esc(item.title)}">Удалить</button></div></td></tr>`;
+  }
+
+  async function unpublishSolution(button) {
+    if (!confirm(`Снять с публикации карточку «${button.dataset.title}»? Она исчезнет из каталога.`)) return;
+    button.disabled = true;
+    try { await request(`/api/admin/profimarket/solutions/${button.dataset.unpublishSolution}/unpublish`, {method:'POST'}); loadSolutions(); }
+    catch (error) { alert(error.message); button.disabled = false; }
+  }
+
+  async function deleteSolution(button) {
+    if (!confirm(`Удалить карточку «${button.dataset.title}»? История покупок сохранится, но карточка исчезнет из сервиса.`)) return;
+    button.disabled = true;
+    try { await request(`/api/admin/profimarket/solutions/${button.dataset.deleteSolution}`, {method:'DELETE'}); loadSolutions(); }
+    catch (error) { alert(error.message); button.disabled = false; }
   }
 
   async function loadPlatforms() {
