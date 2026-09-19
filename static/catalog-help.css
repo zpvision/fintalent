@@ -1,0 +1,48 @@
+.catalog-search-resumes {
+  grid-template-columns: minmax(220px, 1fr) 210px minmax(250px, 330px) 110px;
+}
+
+.catalog-help-filter {
+  position: relative;
+  display: block !important;
+  padding: 5px 12px !important;
+}
+
+.catalog-help-filter > span {
+  display: block;
+  color: #7a88a1;
+  font-size: 7px;
+  line-height: 1.1;
+}
+
+.catalog-help-filter select {
+  width: 100%;
+  min-width: 0;
+  margin-top: 3px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #253a59;
+  font: 600 10px Inter, Arial, sans-serif;
+  cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .catalog-search-resumes {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .catalog-search-resumes button {
+    min-height: 46px;
+  }
+}
+
+@media (max-width: 700px) {
+  .catalog-search-resumes {
+    grid-template-columns: 1fr;
+  }
+
+  .catalog-help-filter select {
+    min-height: 24px;
+  }
+}

@@ -44,6 +44,24 @@ function HomeSearch() {
   )
 }
 
+function HomeFooter() {
+  const year = new Date().getFullYear()
+  return (
+    <footer className="home-footer">
+      <div className="container home-footer-main">
+        <div className="home-footer-about"><a className="home-footer-brand" href="/" aria-label="FinTalent — главная"><span className="home-footer-logo"><img src="/static/logo.png" alt="" /></span><span className="home-footer-brand-copy"><b>Fin<span>Talent</span></b><small>Биржа вакансий для бухгалтеров</small></span></a><p>Платформа для бухгалтеров и финансовых специалистов</p></div>
+        <nav className="home-footer-nav" aria-label="Разделы сайта"><b>Разделы</b><div><a href="/vacancies">Вакансии</a><a href="/resumes">Профили</a><a href="/marketplace">Тесты</a><a href="/profimarket">ПрофиМаркет</a><a href="/client-exchange">Клиентская биржа</a><a href="/publications">Публикации</a></div></nav>
+        <div className="home-footer-help"><b>Помощь</b><a href="mailto:info@fintalent.ru">info@fintalent.ru</a><a href="/profile?section=help">Обратная связь</a><span>Частые вопросы</span></div>
+      </div>
+      <div className="container home-footer-legal"><span>Пользовательское соглашение</span><span>Политика конфиденциальности</span><span>Обработка персональных данных</span></div>
+      <div className="container home-footer-bottom">
+        <div><b>© {year}</b><span>Все торговые марки являются собственностью их правообладателей</span></div>
+        <address>ООО «Финансово-Инновационное Партнерство», ИНН: 7717583711.<br />107564, г. Москва, ул. Краснобогатырская, д. 38, стр. 2, эт. 2, комн. 17, оф. 8</address>
+      </div>
+    </footer>
+  )
+}
+
 export default function HomePage() {
   usePageStyles([
     '/static/hero-typing.css?v=1',
@@ -51,6 +69,7 @@ export default function HomePage() {
     '/static/profimarket-hero.css?v=1',
     '/static/geography.css',
     '/static/searchable-select.css',
+    '/static/home-showcase-react.css?v=13',
   ])
   useDocumentPage({
     title: 'FinTalent — биржа вакансий для бухгалтеров',
@@ -59,11 +78,12 @@ export default function HomePage() {
 
   return (
     <PublicLayout>
-      <main>
+      <main className="home-page">
         <HeroRotator />
         <HomeSearch />
         <HomeShowcase />
       </main>
+      <HomeFooter />
     </PublicLayout>
   )
 }

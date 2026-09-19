@@ -17,6 +17,7 @@ type adminUser struct {
 	FullName  string    `json:"full_name"`
 	IsBlocked bool      `json:"is_blocked"`
 	CreatedAt time.Time `json:"created_at"`
+	ResumeID  *int64    `json:"resume_id,omitempty"`
 }
 
 func adminUsers(w http.ResponseWriter, r *http.Request) {
@@ -27,7 +28,10 @@ func adminUsers(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusMethodNotAllowed, "Метод не поддерживается")
 		return
 	}
-	rows, err := db.QueryContext(r.Context(), `SELECT id,email,full_name,is_blocked,created_at FROM users WHERE NOT is_system ORDER BY created_at DESC,id DESC`)
+	rows, err := db.QueryContext(r.Context(), `SELECT u.id,u.email,u.full_name,u.is_blocked,u.created_at,r.id
+		FROM users u
+		LEFT JOIN resumes r ON r.user_id=u.id AND r.status='published' AND r.deleted_at IS NULL
+		WHERE NOT u.is_system ORDER BY u.created_at DESC,u.id DESC`)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, "Не удалось загрузить пользователей")
 		return
@@ -36,7 +40,7 @@ func adminUsers(w http.ResponseWriter, r *http.Request) {
 	users := []adminUser{}
 	for rows.Next() {
 		var item adminUser
-		if err = rows.Scan(&item.ID, &item.Email, &item.FullName, &item.IsBlocked, &item.CreatedAt); err != nil {
+		if err = rows.Scan(&item.ID, &item.Email, &item.FullName, &item.IsBlocked, &item.CreatedAt, &item.ResumeID); err != nil {
 			writeJSON(w, http.StatusInternalServerError, "Не удалось загрузить пользователей")
 			return
 		}

@@ -408,7 +408,7 @@ func helpRequests(w http.ResponseWriter, r *http.Request) {
 		err = db.QueryRowContext(r.Context(), `SELECT r.user_id
 			FROM resumes r JOIN resume_help_topics rht ON rht.resume_id=r.id
 			JOIN help_topics t ON t.id=rht.topic_id
-			WHERE r.id=$1 AND rht.topic_id=$2 AND r.status='published' AND r.visibility='public' AND r.deleted_at IS NULL AND t.is_active=TRUE AND t.deleted_at IS NULL`, payload.ResumeID, payload.TopicID).Scan(&expertID)
+			WHERE r.id=$1 AND rht.topic_id=$2 AND r.status='published' AND r.deleted_at IS NULL AND t.is_active=TRUE AND t.deleted_at IS NULL`, payload.ResumeID, payload.TopicID).Scan(&expertID)
 		if err == sql.ErrNoRows {
 			writeJSON(w, http.StatusBadRequest, "Это направление недоступно у выбранного специалиста")
 			return

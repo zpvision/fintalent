@@ -239,7 +239,7 @@ func (p *Postgres) SoftDelete(ctx context.Context, id, user int64, admin bool) e
 	return nil
 }
 func (p *Postgres) Moderate(ctx context.Context, id int64, action, reason string) error {
-	status := map[string]string{"publish": "published", "block": "blocked", "archive": "archived"}[action]
+	status := map[string]string{"publish": "published", "draft": "draft", "block": "blocked", "archive": "archived"}[action]
 	if status == "" {
 		return errors.New("invalid action")
 	}

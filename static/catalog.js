@@ -11,6 +11,7 @@
   const render=async()=>{
     list.innerHTML='<div class="catalog-empty">Загружаем предложения…</div>';
     const params=new URLSearchParams({kind:type,q:form.q.value.trim(),city:form.city.value.trim()});
+    if(type==='resumes'&&form.help_topic?.value)params.set('help_topic',form.help_topic.value);
     try{
       const data=await fetch('/api/public/catalog?'+params,{cache:'no-store'}).then(r=>r.json());
       meta.textContent=`Найдено: ${data.total||0}`;
@@ -20,8 +21,11 @@
       list.innerHTML='<div class="catalog-empty">Не удалось загрузить каталог</div>';
     }
   };
-  form.onsubmit=e=>{e.preventDefault();render()};
+  form.onsubmit=event=>{event.preventDefault();render()};
   let timer;
   form.querySelectorAll('input').forEach(input=>input.oninput=()=>{clearTimeout(timer);timer=setTimeout(render,300)});
-  render();
+  if(type==='resumes'&&form.help_topic){
+    form.help_topic.onchange=()=>{const url=new URL(location.href);form.help_topic.value?url.searchParams.set('help_topic',form.help_topic.value):url.searchParams.delete('help_topic');history.replaceState({},'',url);render()};
+    fetch('/api/public/help-topics',{cache:'no-store'}).then(response=>response.json()).then(items=>{form.help_topic.insertAdjacentHTML('beforeend',(Array.isArray(items)?items:[]).map(item=>`<option value="${Number(item.id)}">${esc(item.name)}</option>`).join(''));form.help_topic.value=new URLSearchParams(location.search).get('help_topic')||'';render()}).catch(render);
+  }else render();
 })();

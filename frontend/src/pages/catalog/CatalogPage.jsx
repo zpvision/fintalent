@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { apiClient } from '../../api/client'
 import PublicLayout from '../../layouts/PublicLayout'
 import { useDocumentPage } from '../../hooks/useDocumentPage'
@@ -60,19 +61,23 @@ function CatalogCard({ item, type, incomeLabel }) {
 
 export default function CatalogPage({ type }) {
   const copy = catalogCopy[type]
+  const [searchParams, setSearchParams] = useSearchParams()
   const [query, setQuery] = useState('')
   const [city, setCity] = useState('')
+  const [helpTopic, setHelpTopic] = useState(type === 'resumes' ? searchParams.get('help_topic') || '' : '')
+  const [helpTopics, setHelpTopics] = useState([])
   const [items, setItems] = useState([])
   const [total, setTotal] = useState(0)
   const [status, setStatus] = useState('loading')
   const firstRequest = useRef(true)
   const activeRequest = useRef(null)
-  usePageStyles(['/static/catalog.css'])
+  usePageStyles(['/static/catalog.css?v=2', '/static/catalog-help.css?v=1'])
   useDocumentPage({ title: copy.title, bodyData: { catalog: type } })
 
   const loadCatalog = useCallback(async (signal) => {
     setStatus('loading')
     const params = new URLSearchParams({ kind: type, q: query.trim(), city: city.trim() })
+    if (type === 'resumes' && helpTopic) params.set('help_topic', helpTopic)
     try {
       const data = await apiClient.get(`/api/public/catalog?${params}`, { cache: 'no-store', signal, redirectOnUnauthorized: false })
       setItems(Array.isArray(data?.items) ? data.items : [])
@@ -81,7 +86,24 @@ export default function CatalogPage({ type }) {
     } catch (error) {
       if (error.name !== 'AbortError') setStatus('error')
     }
-  }, [city, query, type])
+  }, [city, helpTopic, query, type])
+
+  useEffect(() => {
+    if (type !== 'resumes') return
+    const controller = new AbortController()
+    apiClient.get('/api/public/help-topics', { signal: controller.signal, redirectOnUnauthorized: false }).then((data) => setHelpTopics(Array.isArray(data) ? data : [])).catch(() => {})
+    return () => controller.abort()
+  }, [type])
+
+  function selectHelpTopic(value) {
+    setHelpTopic(value)
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current)
+      if (value) next.set('help_topic', value)
+      else next.delete('help_topic')
+      return next
+    }, { replace: true })
+  }
 
   useEffect(() => {
     activeRequest.current?.abort()
@@ -112,9 +134,10 @@ export default function CatalogPage({ type }) {
             <div><small>{copy.eyebrow}</small><h1>{copy.heading}</h1><p>{copy.description}</p></div>
             <a className="catalog-create" href={copy.createHref}>{copy.createLabel}</a>
           </section>
-          <form className="catalog-search" onSubmit={handleSubmit}>
+          <form className={`catalog-search${type === 'resumes' ? ' catalog-search-resumes' : ''}`} onSubmit={handleSubmit}>
             <label>⌕<input name="q" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.queryPlaceholder} /></label>
             <label>⌖<input name="city" value={city} onChange={(event) => setCity(event.target.value)} placeholder="Город" /></label>
+            {type === 'resumes' ? <label className="catalog-help-filter"><span>Найти специалиста по профилю</span><select value={helpTopic} onChange={(event) => selectHelpTopic(event.target.value)}><option value="">Любое направление</option>{helpTopics.map((topic) => <option value={topic.id} key={topic.id}>{topic.name}</option>)}</select></label> : null}
             <button>Найти</button>
           </form>
           <p className="catalog-meta">{status === 'ready' ? `Найдено: ${total}` : ''}</p>

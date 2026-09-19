@@ -1,4 +1,4 @@
-document.head.insertAdjacentHTML('beforeend','<link rel="stylesheet" href="/static/admin-users.css?v=1">');
+document.head.insertAdjacentHTML('beforeend','<link rel="stylesheet" href="/static/admin-users.css?v=2">');
 const usersNav=document.querySelector('#users-nav'),usersSection=document.querySelector('#users-section'),usersList=document.querySelector('#users-list'),usersEmpty=document.querySelector('#users-empty'),userModal=document.querySelector('#user-modal'),userForm=document.querySelector('#user-form'),passwordModal=document.querySelector('#password-modal'),passwordForm=document.querySelector('#password-form');
 let adminUsers=[];
 
@@ -15,7 +15,7 @@ async function showUsers(){
 
 function renderUsers(){
   usersEmpty.classList.toggle('hidden',adminUsers.length!==0);document.querySelector('.users-table-wrap').classList.toggle('hidden',adminUsers.length===0);
-  usersList.innerHTML=adminUsers.map(user=>`<tr class="${user.is_blocked?'blocked':''}" data-id="${user.id}"><td><b>${esc(user.email)}</b>${user.is_blocked?'<small>Аккаунт заблокирован</small>':''}</td><td>${esc(user.full_name)}</td><td><button class="secondary user-edit">Изменить</button></td><td><button class="${user.is_blocked?'secondary':'danger'} user-block">${user.is_blocked?'Разблокировать':'Заблокировать'}</button></td><td><button class="secondary user-password">Изменить пароль</button></td></tr>`).join('');
+  usersList.innerHTML=adminUsers.map(user=>`<tr class="${user.is_blocked?'blocked':''}" data-id="${user.id}"><td><b>${esc(user.email)}</b>${user.is_blocked?'<small>Аккаунт заблокирован</small>':''}</td><td>${esc(user.full_name)}</td><td>${user.resume_id?`<a class="secondary user-profile" href="/resume/view/${user.resume_id}" target="_blank" rel="noopener">Открыть профиль ↗</a>`:'<span class="user-profile-empty">Нет опубликованного профиля</span>'}</td><td><button class="secondary user-edit">Изменить</button></td><td><button class="${user.is_blocked?'secondary':'danger'} user-block">${user.is_blocked?'Разблокировать':'Заблокировать'}</button></td><td><button class="secondary user-password">Изменить пароль</button></td></tr>`).join('');
   usersList.querySelectorAll('.user-edit').forEach(button=>button.onclick=()=>openUserModal(button.closest('tr')));
   usersList.querySelectorAll('.user-block').forEach(button=>button.onclick=()=>toggleUserBlock(button.closest('tr')));
   usersList.querySelectorAll('.user-password').forEach(button=>button.onclick=()=>openPasswordModal(button.closest('tr')));
@@ -24,7 +24,7 @@ function renderUsers(){
 function openUserModal(row){const user=adminUsers.find(item=>item.id===Number(row.dataset.id));userForm.elements.user_id.value=user.id;userForm.elements.full_name.value=user.full_name;userForm.elements.email.value=user.email;userModal.classList.remove('hidden');userForm.elements.full_name.focus()}
 document.querySelector('#close-user-modal').onclick=()=>userModal.classList.add('hidden');
 userModal.addEventListener('click',event=>{if(event.target===userModal)userModal.classList.add('hidden')});
-userForm.addEventListener('submit',async event=>{event.preventDefault();const userID=Number(userForm.elements.user_id.value),full_name=userForm.elements.full_name.value,email=userForm.elements.email.value;const submit=userForm.querySelector('button[type="submit"],button:not([type])');submit.disabled=true;try{const updated=await api(`/api/admin/users/${userID}/profile`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({full_name,email})});const index=adminUsers.findIndex(item=>item.id===userID);if(index>=0)adminUsers[index]=updated;userModal.classList.add('hidden');renderUsers();notify('Данные пользователя изменены')}catch(error){notify(error.message,true)}finally{submit.disabled=false}});
+userForm.addEventListener('submit',async event=>{event.preventDefault();const userID=Number(userForm.elements.user_id.value),full_name=userForm.elements.full_name.value,email=userForm.elements.email.value;const submit=userForm.querySelector('button[type="submit"],button:not([type])');submit.disabled=true;try{const updated=await api(`/api/admin/users/${userID}/profile`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({full_name,email})});const index=adminUsers.findIndex(item=>item.id===userID);if(index>=0)adminUsers[index]={...adminUsers[index],...updated};userModal.classList.add('hidden');renderUsers();notify('Данные пользователя изменены')}catch(error){notify(error.message,true)}finally{submit.disabled=false}});
 
 async function toggleUserBlock(row){
   const user=adminUsers.find(item=>item.id===Number(row.dataset.id)),next=!user.is_blocked;

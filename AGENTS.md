@@ -1,77 +1,90 @@
-# AGENTS.md — постоянная инструкция FinTalent
+# AGENTS.md — FinTalent
 
-## Проект и стек
+## Главное правило
 
-FinTalent — русскоязычная платформа для бухгалтеров и финансовых специалистов: вакансии и профессиональные профили, тесты, тестирование сотрудников, публикации, маркетплейсы, клиентская биржа, каталог бухгалтерских компаний и взаимопомощь.
+Работай локально по задаче: сначала найди связанные файлы и существующий аналог, затем меняй только необходимое.
 
-Репозиторий — каталог с `go.mod`, `main.go`, `static/` и этим файлом. Запускай команды именно отсюда: пути приложения относительные. Перед задачей также прочитай [docs/CODEX_CONTEXT.md](docs/CODEX_CONTEXT.md).
+Не сканируй весь репозиторий, не читай все `docs/` и не запускай полный набор проверок без необходимости.
 
+`docs/CODEX_CONTEXT.md`, `docs/REACT_MIGRATION.md` и другие документы читай только если они относятся к текущей задаче или без них не хватает контекста.
+
+## Проект
+
+FinTalent — русскоязычная платформа для бухгалтеров и финансовых специалистов: вакансии/профили, тесты, публикации, маркетплейсы, клиентская биржа, каталог бухгалтерских компаний и взаимопомощь.
+
+Стек:
 - Backend: Go 1.26, `net/http`, `http.DefaultServeMux`, `database/sql`.
-- БД: PostgreSQL через `pgx/v5/stdlib`, ручной SQL, без ORM/migration CLI.
-- Auth: DB-сессии, cookie `fintalent_session`, bcrypt; отдельная admin-сессия.
-- Frontend: поэтапная гибридная миграция с legacy HTML/CSS/vanilla JS на React 19 + Vite + React Router; внешний вид и публичные URL сохраняются.
-- Frontend-сборка: `npm run build` собирает Editor.js через esbuild и React в `static/react/`; `npm run dev:react` запускает Vite с proxy на Go.
-- Тесты: `go test`; часть integration-тестов требует `DATABASE_URL`.
+- PostgreSQL: `pgx/v5/stdlib`, ручной SQL, без ORM.
+- Auth: DB-сессии, cookie `fintalent_session`, bcrypt; admin-сессия отдельно.
+- Frontend: React 19 + Vite + React Router и legacy HTML/CSS/vanilla JS в процессе миграции.
+- React build: `npm run build` → `static/react/`; dev: `npm run dev:react`.
+- Тесты: Go tests; часть integration-тестов требует `DATABASE_URL`.
+
+Команды запускай из корня репозитория с `go.mod`, `main.go`, `static/`, `frontend/`.
 
 ## Структура
 
-- `main.go` — запуск, env, БД, users/sessions, auth/HTTP helpers, страницы и регистрация модулей.
-- Корневые `*.go` — исторические модули `package main`: admin, профиль (`resume`), survey, география, публикации, ПрофиМаркет и др.
-- `internal/testmodule/` — domain/dto/validation/repository/service/handler тестов.
-- `internal/vacancymodule/` — domain/dto/matching/repository/service/handler вакансий.
-- `internal/clientexchange/`, `internal/accountingcompany/` — feature-пакеты; корневые `*_module.go` связывают их с user/admin resolvers.
-- `migrations/` — идемпотентные SQL-схемы/demo seed; файл сам не исполняется.
-- `static/` — legacy-страницы, CSS/JS, общие browser-компоненты, изображения и собранные frontend assets; `static/react/` генерируется Vite и не коммитится.
-- `frontend/` — React/Vite-приложение и исходник Editor.js; `data/` — ОКВЭД; `docs/` — OpenAPI тестов, Codex-контекст и карта React-миграции.
+- `main.go` — запуск, env, БД, auth/helpers, страницы и регистрация модулей.
+- Корневые `*.go` — исторические модули `package main`.
+- `internal/<module>/` — новые/выделенные feature-модули. Ориентиры: `testmodule`, `vacancymodule`, `clientexchange`, `accountingcompany`.
+- `migrations/` — идемпотентные SQL-схемы и seed.
+- `frontend/` — React/Vite и исходники frontend.
+- `static/` — legacy frontend и собранные assets; `static/react/` генерируется и не коммитится.
+- `docs/` — дополнительный контекст; открывай только релевантные файлы.
 
-## Архитектура
+Архитектура — модульный монолит в переходном состоянии. Не переносить legacy-код в `internal/` попутно с feature-задачей.
 
-Это модульный монолит в переходном состоянии. Старый код использует функции и глобальный `db` в `package main`; новые части выделены в `internal/`. Не переносить старые модули попутно с feature-задачей.
+## Как работать с задачей
 
-Routes регистрируются на `http.DefaultServeMux`; internal-пакеты получают `*sql.DB` и resolvers через корневой adapter. HTML раздаёт `servePage`, данные приходят через JSON API. Одновременно существуют `/api`, `/api/v1`, `/api/public`, `/api/admin`; сохраняй соглашение модуля. Ошибка API обычно `{"error":"..."}`. Ownership, статусы, soft delete и переходы проверяются на backend. Связанные записи меняются транзакционно; SQL параметризован `$1...`, списки имеют стабильный `ORDER BY`.
+1. Найди точку входа через точечный `rg` по route, таблице, компоненту, тексту или похожей функции.
+2. Посмотри связанные файлы и при необходимости 1–2 существующих аналога.
+3. Сохрани стиль текущего модуля и существующие контракты.
+4. Сделай минимальный diff без unrelated refactoring.
+5. Проверь только затронутую область; расширяй проверки только если изменение действительно сквозное.
+6. В финале кратко укажи изменённые файлы и выполненные/невыполненные проверки.
+
+Если задача полностью понятна по найденному коду, не продолжай исследование проекта «на всякий случай».
+
+Не пересказывай найденный код и архитектуру перед реализацией, если пользователь этого не просил.
 
 ## Backend
 
-- Сначала найди аналог. Крупный новый домен обычно оформляй как `internal/<module>` (образцы: `testmodule`, `vacancymodule`) плюс тонкий корневой adapter; малое расширение сохраняет стиль текущего файла.
-- Routes держи в `register<Module>Routes()` и подключай в `main()`. DB init подключай из `prepareDatabase()`.
-- Переиспользуй `userFromRequest`, `isAdmin`/`requireAdmin`, `contextWithTimeout`, `servePage`, JSON helpers слоя и resolver adapters. Internal-пакет не импортирует `package main`.
-- Ограничивай methods/размер body, нормализуй ввод, проверяй owner/admin и `RowsAffected`. Не выдавай внутреннюю DB error клиенту.
-- Upload: проверяй размер, MIME по содержимому, размеры изображения, безопасное случайное имя; используй uploads-структуру модуля.
-- Не вводи новый router, ORM, DI, auth или response envelope без отдельной задачи.
+- Малое изменение делай в стиле текущего модуля.
+- Новый существенный домен обычно: `internal/<module>` + тонкий adapter в `package main`.
+- Routes регистрируй через существующий `http.DefaultServeMux`; сохраняй API namespace модуля (`/api`, `/api/v1`, `/api/public`, `/api/admin`).
+- Переиспользуй существующие auth/session, JSON, timeout, page и resolver helpers. `internal/` не импортирует `package main`.
+- Проверяй method, input limits, validation, owner/admin, status transitions и `RowsAffected`.
+- SQL параметризованный; списки со стабильным `ORDER BY`; связанные записи при необходимости меняй транзакционно.
+- Не возвращай клиенту внутренние DB errors.
+- Не добавляй новый router, ORM, DI, auth-механизм или response envelope без отдельной задачи.
+- Upload: лимит размера, MIME по содержимому, безопасное имя; используй существующий механизм модуля.
 
 ## Frontend
 
-- Миграция идёт по маршрутам согласно `docs/REACT_MIGRATION.md`: не удаляй legacy HTML/CSS/JS, пока React-версия не перенесена и не проверена. Go `serveFrontendPage` автоматически возвращает legacy при отсутствии React build; `REACT_FRONTEND=false` принудительно включает legacy.
-- Для React сохраняй существующие DOM-структуру и CSS-классы, подключай page CSS через `usePageStyles`, запросы делай через `src/api/client.js` с `credentials: "include"`, общие layout — через React-компоненты. Не меняй URL, auth-модель и дизайн.
-- Для legacy страница остаётся связкой `static/<feature>.html/.css/.js`; сохраняй порядок зависимостей/cache-busting `?v=N` и переиспользуй `site-header`, `site-errors`, `fintalent-theme`, `layout-safety`, `searchable-select`, `geography`, `duty-picker`, `catalog`, profile sidebar/buttons/avatar и `*-components.js`.
-- `site-errors.js` глобально оборачивает `fetch`; не создавай второй global patch. Ожидаемые validation errors можно показывать локально.
-- Пользовательский текст в legacy вставляй через `textContent`/escape helper, не напрямую в `innerHTML`; в React используй обычный JSX, не `dangerouslySetInnerHTML` без обязательной санитизации.
-- Не правь `static/vendor/publication-editor-editorjs.js`: меняй `frontend/...`, затем `npm run build`.
-- После frontend-изменений запускай `npm run build`; крупные страницы визуально сравнивай со старой версией на 375, 768, 1024 и 1440 px.
+- Сохраняй публичные URL, auth-модель и текущий дизайн, если задача явно не требует редизайна.
+- При React-миграции не удаляй legacy-версию, пока новая не перенесена и не проверена; `REACT_FRONTEND=false` сохраняет legacy fallback.
+- Для React переиспользуй существующие компоненты и стили; page CSS подключай существующим способом, API — через `src/api/client.js` с `credentials: "include"`.
+- Для legacy сохраняй существующие shared components/helpers и cache-busting подход.
+- Не создавай второй global `fetch` patch.
+- Не вставляй пользовательский текст через небезопасный `innerHTML`; в React не используй `dangerouslySetInnerHTML` без санитизации.
+- Не правь generated/vendor bundle вручную; меняй исходник и пересобирай.
+- Перед созданием нового UI-компонента сначала найди существующий похожий.
+- Для адаптивности не допускай horizontal overflow; существенный UI проверяй на mobile/tablet/desktop.
 
 ## PostgreSQL и миграции
 
-- Для локальной разработки, запуска приложения, тестов и любых проверок используй только удалённую облачную PostgreSQL, заданную через `DATABASE_URL` в локальном `.env`. Не запускай и не используй локальный PostgreSQL; приложение намеренно не имеет локального DB fallback.
-- Строка подключения содержит секреты: не добавляй её в документацию, код, логи или Git. В документации указывай только имя переменной `DATABASE_URL`; `.env` должен оставаться локальным и игнорироваться Git.
-- `prepareDatabase()` применяет схему при каждом старте; таблицы версий нет. SQL обязан быть повторяемым: `IF NOT EXISTS`, `ADD COLUMN IF NOT EXISTS`, безопасные `DO $$`, `ON CONFLICT`.
-- Новый файл: очередной номер + имя. Номера `011`, `012`, `040`, `041` уже повторяются — проверяй полное имя.
-- Миграция не запускается автоматически. Нужна цепочка: `//go:embed` → Exec в `prepare<Module>Database()` → вызов из `prepareDatabase()` по зависимостям.
-- Ранние схемы частично продублированы inline DDL; `001...`/`002...` не проигрываются автоматически. Это особенность, не повод для рефакторинга.
-- Не меняй применённую миграцию, если можно добавить forward-only. Destructive schema/data changes запрещены без явного указания и backup plan.
-- Учитывай FK/`ON DELETE`; для бизнес-сущностей типичен soft delete/status. Demo seed идемпотентен и учитывает `SEED_DEMO_DATA=false`; география — `SYNC_GEOGRAPHY`.
+Для разработки, запуска и проверок всегда используй только удалённую облачную PostgreSQL из локального `DATABASE_URL`; локальный PostgreSQL не запускать. Секреты из `.env` не выводить, не документировать и не коммитить.
 
-## Общие механизмы — переиспользовать
+- `prepareDatabase()` применяет схему при старте; version table нет.
+- Новые SQL-изменения должны быть повторяемыми (`IF NOT EXISTS`, безопасный `DO $$`, `ON CONFLICT` и т.п.).
+- Не изменяй применённую migration, если можно добавить forward-only migration; перед номером проверь существующие имена.
+- Новую migration обязательно подключи полной цепочкой `//go:embed` → `Exec` → `prepare<Module>Database()` → `prepareDatabase()`.
+- Учитывай FK, soft delete/status и зависимости порядка инициализации.
+- Destructive schema/data changes запрещены без явного указания и backup plan.
 
-- user/admin auth и sessions из `main.go`/`admin.go`;
-- JSON/decode helpers текущего слоя, без дублей;
-- `dictionaries`/`dictionary_items`, survey blocks/admin CRUD;
-- ОКВЭД, geography, duties/duty picker;
-- `internal/testmodule` и результаты тестов для вакансий/resume/компаний;
-- catalog, header, error toast, searchable select;
-- Editor.js и legacy↔Editor.js преобразование публикаций;
-- adapters/resolvers между internal-пакетами и общими сессиями.
+## Справочники и общие механизмы
 
-## Основные модули
+Перед созданием нового механизма проверь, нет ли уже подходящего: auth/sessions, JSON helpers, `dictionaries` / `dictionary_items`, admin CRUD, geography/ОКВЭД/duties, test results/matching, shared catalog/header/errors/selects, adapters/resolvers и UI components.
 
 - auth, профиль/avatar/settings; admin/пользователи;
 - справочники, ОКВЭД, география, обязанности, survey;
@@ -105,38 +118,40 @@ Routes регистрируются на `http.DefaultServeMux`; internal-пак
 
 UI проверяй на ~360 px, 760–1100 px и desktop. Используй breakpoints модуля, `minmax(0,1fr)`, stacking/wrapping; не допускай horizontal overflow. На mobile формы/actions обычно одноколоночные/полноширинные; sticky, modal, table и длинные строки остаются в viewport. Не скрывай критическую функцию. Сохраняй viewport meta, labels, focus и удобные touch targets.
 
+Не дублируй models, DTO, services, helpers, справочники и компоненты.
+
 ## Проверки
 
-Из корня выполняй соразмерно изменению:
+Проверки должны быть соразмерны изменению.
 
-```bash
-gofmt -w <изменённые .go>
-go test ./...
-go vet ./...
-go build ./...
-npm run build  # если менялся исходник/dependencies Editor.js
-```
+Всегда:
+- `gofmt` для изменённых `.go`;
+- релевантные Go tests для изменённого package/module;
+- `npm run build`, если менялся React/Vite/Editor.js frontend.
 
-DB-тесты запускай на отдельной БД. Миграцию проверь на пустой и повторно на мигрированной БД. UI проверь вручную mobile/desktop. Невыполненную проверку и причину сообщай явно.
+Дополнительно при необходимости:
+- `go test ./...`, `go vet ./...`, `go build ./...` — для сквозных, архитектурных или release-критичных backend-изменений;
+- DB integration tests — когда затронут SQL/repository/migrations;
+- визуальная проверка mobile/desktop — когда существенно менялся UI.
 
-## Нельзя без отдельного указания
+Не запускай полный test/vet/build цикл многократно без причины. Если проверку нельзя выполнить, сообщи почему.
+
+## Запрещено без отдельного указания
 
 - Менять бизнес-правила, scoring/matching, статусы, права или публичный API вне задачи.
-- Делать массовый refactor, переносить все модули в `internal`, менять router/ORM/framework/архитектуру.
-- Удалять/обнулять БД, таблицы, migrations, uploads/данные; выполнять destructive migration.
-- Менять auth/session/cookie/security headers/admin credentials; коммитить `.env`, секреты/персональные данные.
-- Перезаписывать dirty worktree, вручную править generated/vendor bundle, форматировать несвязанные файлы.
-- Добавлять CDN/сервис/dependency/telemetry без необходимости и согласования.
-- Массово исправлять mojibake: терминал может неверно показывать корректный UTF-8. Сначала проверь кодировку.
+- Делать массовый refactor, переносить модули между архитектурными слоями, менять framework/router/ORM.
+- Удалять/обнулять БД, таблицы, migrations, uploads или пользовательские данные.
+- Менять auth/session/cookie/security/admin credentials без необходимости задачи.
+- Коммитить `.env`, секреты или персональные данные.
+- Перезаписывать чужой dirty worktree, форматировать несвязанные файлы.
+- Править generated/vendor файлы вручную.
+- Добавлять dependency/CDN/service/telemetry без необходимости.
+- Массово исправлять encoding/mojibake без проверки реальной кодировки.
 
-## Правила для Codex
+## Документация
 
-- Перед каждой задачей читай `AGENTS.md`, затем релевантный `docs/CODEX_CONTEXT.md`.
-- Не исследуй весь проект заново, если достаточно связанных файлов.
-- Сначала ищи аналог (`rg` по route/table/component/UI pattern).
-- Не дублируй components, models, DTO, services, helpers, CRUD/справочники.
-- Не переписывай рабочую архитектуру; `package main` + `internal/` — текущее состояние.
-- Делай минимальные изменения, сохраняй чужой dirty worktree.
-- После задачи проверяй build/tests; сообщай пропуски/причины.
-- В финале перечисляй изменённые файлы и результаты проверок.
-- После крупного модуля, существенной архитектурной правки или важного общего механизма кратко обновляй `docs/CODEX_CONTEXT.md`. Не заноси мелочи, не делай changelog и не пересказывай очевидный код — храни только полезное следующему агенту.
+Не обновляй документацию после обычных мелких задач.
+
+`docs/CODEX_CONTEXT.md` обновляй только после нового крупного модуля, существенного изменения архитектуры или нового общего механизма, который важно знать следующим агентам.
+
+Записывай только устойчивый контекст, а не changelog и не пересказ кода.

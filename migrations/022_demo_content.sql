@@ -114,6 +114,6 @@ BEGIN
   SET avatar_url = ''
   FROM resumes r
   WHERE r.user_id = u.id
-    AND u.email IN (SELECT n||'@'||n||'.ru' FROM generate_series(4,51) n)
+    AND u.email IN (SELECT series.value||'@'||series.value||'.ru' FROM generate_series(4,51) AS series(value))
     AND u.avatar_url = '/static/profile-3-avatar.png';
 END $demo$;
