@@ -1,4 +1,7 @@
 (() => {
+  if (window.__fintalentAdminRouting) return
+  window.__fintalentAdminRouting = true
+
   const navRoutes = {
     'dictionary-nav': '/admin/dictionaries',
     'users-nav': '/admin/users',
@@ -46,6 +49,25 @@
     return element
   }
 
+  function waitForNavHandler(id, timeout = 15000) {
+    return new Promise((resolve, reject) => {
+      const started = Date.now()
+      const check = () => {
+        const element = document.getElementById(id)
+        if (element && typeof element.onclick === 'function') {
+          resolve(element)
+          return
+        }
+        if (Date.now() - started >= timeout) {
+          reject(new Error(`Admin navigation handler not ready: ${id}`))
+          return
+        }
+        setTimeout(check, 50)
+      }
+      check()
+    })
+  }
+
   async function restoreRoute() {
     restoring = true
     try {
@@ -61,7 +83,9 @@
         'client-exchange': 'client-exchange-nav', 'accounting-companies': 'accounting-company-nav',
         'help-topics': 'help-topics-nav', profimarket: 'profimarket-admin-nav',
       }
-      await clickWhenReady(`#${navBySection[section] || 'dictionary-nav'}`)
+      const navID = navBySection[section] || 'dictionary-nav'
+      const navButton = await waitForNavHandler(navID)
+      navButton.click()
 
       if (section === 'dictionaries' && /^\d+$/.test(detail || '')) {
         await clickWhenReady(`.dictionary-card[data-id="${detail}"]`)
