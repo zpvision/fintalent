@@ -41,6 +41,23 @@ function solutionTone(type) {
   return { AI_ASSISTANT: 'ai', REGULATION: 'regulation', AUTOMATION: 'automation', TEMPLATE: 'template', CHECKLIST: 'checklist' }[type] || type || 'instruction'
 }
 
+function pickHomepageSolutions(items, limit = 3) {
+  const shuffled = [...items]
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1))
+    const current = shuffled[index]
+    shuffled[index] = shuffled[swapIndex]
+    shuffled[swapIndex] = current
+  }
+  const owners = new Set()
+  return shuffled.filter((item, index) => {
+    const owner = item.author_user_id ? `owner:${item.author_user_id}` : `solution:${item.id || item.slug || index}`
+    if (owners.has(owner)) return false
+    owners.add(owner)
+    return true
+  }).slice(0, limit)
+}
+
 function clientDeal(item) {
   if (item.transferLabel) return item.transferLabel
   if (item.transfer_type?.code === 'fixed') return `${money(item.transfer_price)} ₽`
@@ -66,7 +83,7 @@ export default function HomeShowcase() {
       setTests(values.sort(() => Math.random() - 0.5).slice(0, 8))
     }).catch(() => {})
     getProfiMarketSolutions({}, { signal: controller.signal }).then((data) => {
-      if (data?.items?.length) setSolutions(data.items.slice(0, 3))
+      if (data?.items?.length) setSolutions(pickHomepageSolutions(data.items))
     }).catch(() => {})
     getClientExchangeListings('page=1&limit=4&sort=new', { signal: controller.signal, redirectOnUnauthorized: false }).then((data) => {
       if (data?.items?.length) setClients(data.items.slice(0, 4))
@@ -103,7 +120,7 @@ export default function HomeShowcase() {
               <div><small>{productLabels[item.type] || item.type}</small><b>{item.title}</b><p>{item.short_description}</p></div>
             </a>)}
           </div>
-          <a className="home-section-link" href="/profimarket">Перейти в раздел <span>→</span></a>
+          <a className="more" href="/profimarket">Перейти в раздел →</a>
         </article>
       </section>
 
