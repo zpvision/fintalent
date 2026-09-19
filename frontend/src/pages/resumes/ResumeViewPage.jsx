@@ -155,7 +155,7 @@ function ResumeHero({ data, title }) {
         {data.available_immediately || data.is_owner ? (
           <div className="resume-hero-controls">
             {data.available_immediately ? <span className="resume-ready-control"><i>✓</i><span><small>Готовность к работе</small><b>Может выйти сразу</b></span></span> : null}
-            {data.is_owner ? <a className="resume-owner-edit" href="/resume/create" title="Редактировать профиль" aria-label="Редактировать профиль"><span>✎</span></a> : null}
+            {data.is_owner ? <a className="resume-owner-edit" href="/profiles/create" title="Редактировать профиль" aria-label="Редактировать профиль"><span>✎</span></a> : null}
           </div>
         ) : null}
         <div className="resume-avatar-wrap"><img className="resume-avatar" src={data.avatar || '/static/profile-3-avatar.png'} alt={data.name} /><i className="resume-online" /></div>
@@ -316,7 +316,7 @@ function ResumeHelp({ data }) {
       <section className="resume-card resume-help-public" id="help">
         <div className="resume-help-top"><div className="resume-card-head"><i>🤝</i><div><h2>Могу помочь</h2><small>Темы, по которым специалист готов подсказать коллегам</small></div></div><div className="resume-help-stats"><button className="resume-help-stat" type="button" onClick={() => setModal('reviews')}><small>Помог(ла)</small><b>{completed} коллегам</b></button><button className="resume-help-stat" type="button" onClick={() => setModal('reviews')}><small>Отзывы</small><b>{reviews}{reviews ? ` · ${average.toFixed(1)}` : ''}</b></button></div></div>
         <div className="resume-help-cards">{topics.map((item) => <article className="resume-help-card" key={item.id}><i><HelpIcon item={item} /></i><span><b>{item.name}</b><small>{item.short_description || item.category || 'Готов(а) помочь по этому направлению'}</small></span></article>)}</div>
-        <div className="resume-help-cta"><span>Опишите ситуацию, а специалист сможет принять запрос и продолжить общение внутри обращения.</span>{data.is_owner ? <a href="/resume/create">Редактировать направления</a> : <button type="button" onClick={() => setModal('request')}>Попросить помощи</button>}</div>
+        <div className="resume-help-cta"><span>Опишите ситуацию, а специалист сможет принять запрос и продолжить общение внутри обращения.</span>{data.is_owner ? <a href="/profiles/create">Редактировать направления</a> : <button type="button" onClick={() => setModal('request')}>Попросить помощи</button>}</div>
       </section>
       {modal ? <HelpModal data={data} mode={modal} onClose={() => setModal('')} /> : null}
     </>

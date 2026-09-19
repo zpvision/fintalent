@@ -64,6 +64,12 @@ type adminProfiMarketSolution struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+type adminProfiMarketOwner struct {
+	ID    int64  `json:"id"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
 func adminProfiMarketSolutions(w http.ResponseWriter, r *http.Request) {
 	if !requireAdmin(w, r) {
 		return
@@ -72,10 +78,47 @@ func adminProfiMarketSolutions(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
+	search := strings.TrimSpace(r.URL.Query().Get("q"))
+	status := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("status")))
+	if len(search) > 240 {
+		writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": "Поисковый запрос слишком длинный"})
+		return
+	}
+	validStatuses := map[string]bool{"": true, "DRAFT": true, "MODERATION": true, "PUBLISHED": true, "ARCHIVED": true}
+	if !validStatuses[status] {
+		writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": "Некорректный статус карточки"})
+		return
+	}
+	ownerValue := strings.TrimSpace(r.URL.Query().Get("owner_id"))
+	ownerID := int64(0)
+	if ownerValue != "" {
+		var parseErr error
+		ownerID, parseErr = strconv.ParseInt(ownerValue, 10, 64)
+		if parseErr != nil || ownerID <= 0 {
+			writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": "Некорректный аккаунт"})
+			return
+		}
+	}
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page < 1 {
+		page = 1
+	}
+	const limit = 100
+	where := `s.deleted_at IS NULL
+		AND ($1='' OR s.title ILIKE '%'||$1||'%')
+		AND ($2='' OR s.status=$2)
+		AND ($3=0 OR s.author_user_id=$3)`
+
+	var total int
+	if err := db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM profimarket_solutions s WHERE `+where, search, status, ownerID).Scan(&total); err != nil {
+		writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить количество карточек"})
+		return
+	}
+
 	rows, err := db.QueryContext(r.Context(), `SELECT s.id,s.title,s.slug,s.type,COALESCE(s.cover_image,''),u.full_name,u.email,s.status,
 		(SELECT COUNT(*) FROM profimarket_purchases p WHERE p.solution_id=s.id),s.updated_at
 		FROM profimarket_solutions s JOIN users u ON u.id=s.author_user_id
-		WHERE s.deleted_at IS NULL ORDER BY s.updated_at DESC,s.id DESC`)
+		WHERE `+where+` ORDER BY s.updated_at DESC,s.id DESC LIMIT $4 OFFSET $5`, search, status, ownerID, limit, (page-1)*limit)
 	if err != nil {
 		writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить карточки ПрофиМаркета"})
 		return
@@ -94,7 +137,56 @@ func adminProfiMarketSolutions(w http.ResponseWriter, r *http.Request) {
 		writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить карточки ПрофиМаркета"})
 		return
 	}
-	writeAdminJSON(w, http.StatusOK, map[string]any{"items": items})
+	statusCounts := map[string]int{"DRAFT": 0, "MODERATION": 0, "PUBLISHED": 0, "ARCHIVED": 0}
+	statusRows, err := db.QueryContext(r.Context(), `SELECT s.status,COUNT(*) FROM profimarket_solutions s
+		WHERE s.deleted_at IS NULL AND ($1='' OR s.title ILIKE '%'||$1||'%') AND ($2=0 OR s.author_user_id=$2)
+		GROUP BY s.status`, search, ownerID)
+	if err != nil {
+		writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить статистику карточек"})
+		return
+	}
+	defer statusRows.Close()
+	for statusRows.Next() {
+		var key string
+		var count int
+		if err = statusRows.Scan(&key, &count); err != nil {
+			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить статистику карточек"})
+			return
+		}
+		statusCounts[key] = count
+	}
+	if err = statusRows.Err(); err != nil {
+		writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить статистику карточек"})
+		return
+	}
+
+	ownerRows, err := db.QueryContext(r.Context(), `SELECT u.id,u.full_name,u.email FROM users u
+		WHERE EXISTS(SELECT 1 FROM profimarket_solutions s WHERE s.author_user_id=u.id AND s.deleted_at IS NULL)
+		ORDER BY LOWER(u.full_name),LOWER(u.email),u.id`)
+	if err != nil {
+		writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить список аккаунтов"})
+		return
+	}
+	defer ownerRows.Close()
+	owners := make([]adminProfiMarketOwner, 0)
+	for ownerRows.Next() {
+		var owner adminProfiMarketOwner
+		if err = ownerRows.Scan(&owner.ID, &owner.Name, &owner.Email); err != nil {
+			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить список аккаунтов"})
+			return
+		}
+		owners = append(owners, owner)
+	}
+	if err = ownerRows.Err(); err != nil {
+		writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить список аккаунтов"})
+		return
+	}
+
+	allTotal := 0
+	for _, count := range statusCounts {
+		allTotal += count
+	}
+	writeAdminJSON(w, http.StatusOK, map[string]any{"items": items, "total": total, "all_total": allTotal, "page": page, "limit": limit, "status_counts": statusCounts, "owners": owners})
 }
 
 func adminProfiMarketSolutionAction(w http.ResponseWriter, r *http.Request) {

@@ -50,7 +50,7 @@ function HomeFooter() {
     <footer className="home-footer">
       <div className="container home-footer-main">
         <div className="home-footer-about"><a className="home-footer-brand" href="/" aria-label="FinTalent — главная"><span className="home-footer-logo"><img src="/static/logo.png" alt="" /></span><span className="home-footer-brand-copy"><b>Fin<span>Talent</span></b><small>Биржа вакансий для бухгалтеров</small></span></a><p>Платформа для бухгалтеров и финансовых специалистов</p></div>
-        <nav className="home-footer-nav" aria-label="Разделы сайта"><b>Разделы</b><div><a href="/vacancies">Вакансии</a><a href="/resumes">Профили</a><a href="/marketplace">Тесты</a><a href="/profimarket">ПрофиМаркет</a><a href="/client-exchange">Клиентская биржа</a><a href="/publications">Публикации</a></div></nav>
+        <nav className="home-footer-nav" aria-label="Разделы сайта"><b>Разделы</b><div><a href="/vacancies">Вакансии</a><a href="/profiles">Профили</a><a href="/marketplace">Тесты</a><a href="/profimarket">ПрофиМаркет</a><a href="/client-exchange">Клиентская биржа</a><a href="/publications">Публикации</a></div></nav>
         <div className="home-footer-help"><b>Помощь</b><a href="mailto:info@fintalent.ru">info@fintalent.ru</a><a href="/profile?section=help">Обратная связь</a><span>Частые вопросы</span></div>
       </div>
       <div className="container home-footer-legal"><span>Пользовательское соглашение</span><span>Политика конфиденциальности</span><span>Обработка персональных данных</span></div>

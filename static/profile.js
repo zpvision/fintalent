@@ -15,7 +15,7 @@ const companyGroup=document.querySelectorAll('.profile-menu .menu-group')[2];if(
    const title=link.querySelector('b'),description=link.querySelector('small');
    if(title)title.textContent='Мой профиль (просмотр)';
    if(description)description.textContent='Посмотреть опубликованный профиль';
-   link.href=`/resume/view/${resume.id}`;
+   link.href=`/profiles/view/${resume.id}`;
    link.setAttribute('aria-label','Мой профиль — просмотр');
   });
  }catch{}

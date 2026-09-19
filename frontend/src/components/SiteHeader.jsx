@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 
 const navigation = [
   { href: '/vacancies', label: 'Вакансии', paths: ['/vacancies'] },
-  { href: '/resumes', label: 'Профили', paths: ['/resumes', '/resume'] },
+  { href: '/profiles', label: 'Профили', paths: ['/profiles', '/resume'] },
   { href: '/marketplace', label: 'Тесты', paths: ['/marketplace', '/tests'] },
   { href: '/profimarket', label: 'ПрофиМаркет', paths: ['/profimarket'] },
   { href: '/publications', label: 'Публикации', paths: ['/publications'] },

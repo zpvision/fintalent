@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react'
 import { useDocumentPage } from '../../hooks/useDocumentPage'
 import usePageStyles from '../../hooks/usePageStyles'
 
-const scripts = ['/static/admin.js?v=6','/static/admin-survey.js?v=8','/static/admin-users.js?v=3','/static/admin-publications.js?v=1','/static/admin-client-exchange.js?v=1','/static/admin-accounting-company.js?v=1','/static/admin-help.js?v=1','/static/admin-profimarket.js?v=5']
+const scripts = ['/static/admin.js?v=6','/static/admin-survey.js?v=8','/static/admin-users.js?v=3','/static/admin-publications.js?v=1','/static/admin-client-exchange.js?v=1','/static/admin-accounting-company.js?v=1','/static/admin-help.js?v=1','/static/admin-profimarket.js?v=6','/static/admin-routing.js?v=1']
 function loadScript(src) { return new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = src; script.dataset.reactAdmin = 'true'; script.onload = () => resolve(script); script.onerror = () => reject(new Error('Не удалось загрузить административный модуль')); document.body.append(script) }) }
 
 export default function AdminPage() {
-  useDocumentPage({ title: 'Админ-панель — FinTalent' }); usePageStyles(['/static/admin.css','/static/admin-survey.css?v=3'])
+  useDocumentPage({ title: 'Админ-панель — FinTalent' }); usePageStyles(['/static/admin.css','/static/admin-survey.css?v=3','/static/admin-sidebar-scroll.css?v=1'])
   const [error, setError] = useState('')
   useEffect(() => { let cancelled = false; const loaded = []; (async () => { try { for (const src of scripts) { if (cancelled) return; loaded.push(await loadScript(src)) } } catch (loadError) { if (!cancelled) setError(loadError.message) } })(); return () => { cancelled = true; loaded.forEach((script) => script.remove()); document.querySelectorAll('script[src*="/static/admin-"],.ce-admin-modal').forEach((element) => element.remove()) } }, [])
   return <><section id="login-screen" className="login-screen"><form id="admin-login" className="admin-login"><div className="admin-logo">F</div><h1>Админ-панель</h1><p>Управление платформой FinTalent</p><label>Логин<input name="login" autoComplete="username" required placeholder="Введите логин" /></label><label>Пароль<input type="password" name="password" autoComplete="current-password" required placeholder="Введите пароль" /></label><div id="login-error" className="error">{error}</div><button type="submit">Войти в панель <span>→</span></button><a href="/">← Вернуться на сайт</a></form></section>

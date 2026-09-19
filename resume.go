@@ -30,8 +30,10 @@ type publicDictionaryItem struct {
 }
 
 func registerResumeRoutes() {
-	http.HandleFunc("/resume/create", serveFrontendPage("static/resume-create.html"))
-	http.HandleFunc("/resume/view/", serveFrontendPage("static/resume-view.html"))
+	http.HandleFunc("/profiles/create", serveFrontendPage("static/resume-create.html"))
+	http.HandleFunc("/profiles/view/", serveFrontendPage("static/resume-view.html"))
+	http.HandleFunc("/resume/create", redirectFrontendPath("/profiles/create"))
+	http.HandleFunc("/resume/view/", redirectFrontendPrefix("/resume/view/", "/profiles/view/"))
 	http.HandleFunc("/api/public/resumes/", publicResumeHandler)
 	http.HandleFunc("/api/resumes/", resumeKnowledgeActionHandler)
 	http.HandleFunc("/api/public/dictionaries/", publicDictionaryHandler)

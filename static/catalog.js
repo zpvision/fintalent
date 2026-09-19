@@ -15,7 +15,7 @@
     try{
       const data=await fetch('/api/public/catalog?'+params,{cache:'no-store'}).then(r=>r.json());
       meta.textContent=`Найдено: ${data.total||0}`;
-      list.innerHTML=data.items?.length?data.items.map(item=>`<a class="catalog-card" href="${type==='resumes'?`/resume/view/${item.id}`:`/vacancies/view?id=${item.id}`}">${avatar(item)}<div><h2>${esc(item.title)}</h2><span class="company">${esc(item.name)} · ${esc(item.city||'Россия')}</span>${item.description?`<p>${esc(item.description)}</p>`:''}<div class="catalog-tags">${(item.tags||[]).map(tag=>`<span>${esc(tag)}</span>`).join('')}</div></div><div class="catalog-side"><strong>${money(item.salary)} ₽</strong><small>${type==='resumes'?'желаемый доход':'зарплата от'}</small></div></a>`).join(''):'<div class="catalog-empty">По вашему запросу ничего не найдено</div>';
+      list.innerHTML=data.items?.length?data.items.map(item=>`<a class="catalog-card" href="${type==='resumes'?`/profiles/view/${item.id}`:`/vacancies/view?id=${item.id}`}">${avatar(item)}<div><h2>${esc(item.title)}</h2><span class="company">${esc(item.name)} · ${esc(item.city||'Россия')}</span>${item.description?`<p>${esc(item.description)}</p>`:''}<div class="catalog-tags">${(item.tags||[]).map(tag=>`<span>${esc(tag)}</span>`).join('')}</div></div><div class="catalog-side"><strong>${money(item.salary)} ₽</strong><small>${type==='resumes'?'желаемый доход':'зарплата от'}</small></div></a>`).join(''):'<div class="catalog-empty">По вашему запросу ничего не найдено</div>';
       list.querySelectorAll('.catalog-card-icon img').forEach(image=>image.onerror=()=>image.remove());
     }catch{
       list.innerHTML='<div class="catalog-empty">Не удалось загрузить каталог</div>';

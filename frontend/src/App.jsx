@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { matchPath, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { matchPath, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom'
 import LoginPage from './pages/auth/LoginPage'
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage'
 import RegisterPage from './pages/auth/RegisterPage'
@@ -37,7 +37,7 @@ import PublicLayout from './layouts/PublicLayout'
 
 const reactPaths = [
   '/', '/login', '/register', '/forgot-password', '/vacancies', '/vacancies/view', '/vacancies/create',
-  '/resumes', '/resume/view/:id', '/resume/create', '/marketplace', '/marketplace/create-test',
+  '/profiles', '/profiles/view/:id', '/profiles/create', '/resumes', '/resume/view/:id', '/resume/create', '/marketplace', '/marketplace/create-test',
   '/accounting-companies', '/accounting-companies/view', '/accounting-companies/passport', '/accounting-companies/create',
   '/profimarket', '/profimarket/my', '/profimarket/solution/:key', '/profimarket/create', '/profimarket/regulation/edit', '/profimarket/product/edit',
   '/publications', '/publications/saved', '/publications/create', '/publications/analytics', '/publications/:id/edit',
@@ -46,7 +46,7 @@ const reactPaths = [
 
 const isolatedPaths = [
   '/profimarket/regulation/edit',
-  '/resume/create',
+  '/profiles/create',
   '/publications/create',
   '/publications/:id/edit',
   '/admin/*',
@@ -123,6 +123,13 @@ function ProfileRoute() {
   return <ProfilePage />
 }
 
+function LegacyProfilesRoute({ page }) {
+  const location = useLocation()
+  const { id } = useParams()
+  const target = page === 'view' ? `/profiles/view/${encodeURIComponent(id)}` : page === 'create' ? '/profiles/create' : '/profiles'
+  return <Navigate to={`${target}${location.search}${location.hash}`} replace />
+}
+
 function ProfiMarketMyRoute() {
   const location = useLocation()
   const tab = new URLSearchParams(location.search).get('tab')
@@ -140,8 +147,10 @@ export default function App() {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/vacancies" element={<CatalogPage type="vacancies" />} />
       <Route path="/vacancies/view" element={<VacancyViewPage />} />
-      <Route path="/resumes" element={<CatalogPage type="resumes" />} />
-      <Route path="/resume/view/:id" element={<ResumeViewPage />} />
+      <Route path="/profiles" element={<CatalogPage type="resumes" />} />
+      <Route path="/profiles/view/:id" element={<ResumeViewPage />} />
+      <Route path="/resumes" element={<LegacyProfilesRoute />} />
+      <Route path="/resume/view/:id" element={<LegacyProfilesRoute page="view" />} />
       <Route path="/marketplace" element={<MarketplacePage />} />
       <Route path="/accounting-companies" element={<AccountingCompaniesPage />} />
       <Route path="/accounting-companies/view" element={<AccountingCompanyViewPage />} />
@@ -163,7 +172,8 @@ export default function App() {
       <Route path="/profimarket/create" element={<ProfiMarketCreatePage />} />
       <Route path="/profimarket/regulation/edit" element={<ProfiMarketRegulationEditPage />} />
       <Route path="/profimarket/product/edit" element={<ProfiMarketProductEditPage />} />
-      <Route path="/resume/create" element={<PublicLayout><ResumeCreatePage /></PublicLayout>} />
+      <Route path="/profiles/create" element={<PublicLayout><ResumeCreatePage /></PublicLayout>} />
+      <Route path="/resume/create" element={<LegacyProfilesRoute page="create" />} />
       <Route path="/marketplace/create-test" element={<MarketplaceCreateTestPage />} />
       <Route path="/profile" element={<ProfileRoute />} />
       <Route path="/publications/create" element={<PublicationEditorPage />} />

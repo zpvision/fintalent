@@ -3,7 +3,7 @@
   const workspace = document.querySelector('.workspace');
   if (!nav || !workspace) return;
 
-  document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="/static/admin-profimarket.css?v=4">');
+  document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="/static/admin-profimarket.css?v=4"><link rel="stylesheet" href="/static/admin-profimarket-solutions.css?v=1">');
   nav.insertAdjacentHTML('beforeend', '<small>ПРОФИМАРКЕТ</small><button id="profimarket-admin-nav">✦ <span>ПрофиМаркет</span></button>');
   workspace.insertAdjacentHTML('beforeend', `
     <section id="profimarket-admin" class="pm-admin-section hidden">
@@ -34,11 +34,14 @@
     CHECKLIST: 'Чек-листы'
   };
   const statusNames = {PENDING: 'Ожидает', COMPLETED: 'Оформлена', CANCELLED: 'Отменена', REFUNDED: 'Возврат'};
+  const solutionStatusNames = {PUBLISHED:'Опубликованы', DRAFT:'Черновики', MODERATION:'На модерации', ARCHIVED:'Сняты'};
   let activeTab = 'purchases';
   let platforms = [];
   let onecConfigurations = [];
   let query = {q: '', status: '', type: '', page: 1};
+  let solutionQuery = {q: '', status: '', owner_id: '', page: 1};
   let searchTimer;
+  let solutionSearchTimer;
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const formatDate = value => new Intl.DateTimeFormat('ru-RU', {dateStyle:'medium', timeStyle:'short'}).format(new Date(value));
@@ -180,14 +183,60 @@
   async function loadSolutions() {
     solutionsView.innerHTML = '<div class="pm-loading"><span></span>Загружаем карточки…</div>';
     try {
-      const items = (await request('/api/admin/profimarket/solutions')).items || [];
-      solutionsView.innerHTML = `<div class="pm-admin-head"><div><small>УПРАВЛЕНИЕ КАТАЛОГОМ</small><h2>Все карточки</h2><p>Снимайте решения с публикации или удаляйте их из сервиса.</p></div><div class="pm-purchase-total"><span>Всего карточек</span><b>${items.length.toLocaleString('ru-RU')}</b></div></div><div class="pm-admin-table pm-solutions-table"><table><thead><tr><th>Карточка</th><th>Владелец</th><th>Статус</th><th>Покупки</th><th>Обновлена</th><th>Действия</th></tr></thead><tbody>${items.map(solutionRow).join('') || '<tr><td colspan="6"><div class="pm-table-empty"><b>Карточек пока нет</b></div></td></tr>'}</tbody></table></div>`;
+      const parameters = new URLSearchParams({...solutionQuery, page: String(solutionQuery.page)});
+      const data = await request('/api/admin/profimarket/solutions?' + parameters);
+      const items = data.items || [];
+      const counts = data.status_counts || {};
+      const pages = Math.max(1, Math.ceil(Number(data.total || 0) / Number(data.limit || 100)));
+      solutionsView.innerHTML = `
+        <div class="pm-admin-head"><div><small>УПРАВЛЕНИЕ КАТАЛОГОМ</small><h2>Все карточки</h2><p>Снимайте решения с публикации или удаляйте их из сервиса.</p></div></div>
+        <div class="pm-solution-summary">
+          <div class="pm-purchase-total"><span>Всего карточек</span><b>${Number(data.all_total || 0).toLocaleString('ru-RU')}</b></div>
+          ${solutionStatusCard('PUBLISHED', solutionStatusNames.PUBLISHED, counts.PUBLISHED)}
+          ${solutionStatusCard('DRAFT', solutionStatusNames.DRAFT, counts.DRAFT)}
+          ${solutionStatusCard('MODERATION', solutionStatusNames.MODERATION, counts.MODERATION)}
+          ${solutionStatusCard('ARCHIVED', solutionStatusNames.ARCHIVED, counts.ARCHIVED)}
+        </div>
+        <div class="pm-solution-filters">
+          <label class="pm-search"><span>⌕</span><input type="search" value="${esc(solutionQuery.q)}" placeholder="Поиск карточки по названию"></label>
+          <select data-solution-filter="owner_id" aria-label="Аккаунт владельца">
+            <option value="">Все аккаунты</option>${(data.owners || []).map(owner => `<option value="${owner.id}" ${String(solutionQuery.owner_id)===String(owner.id)?'selected':''}>${esc(owner.name || owner.email)} · ${esc(owner.email)}</option>`).join('')}
+          </select>
+          <select data-solution-filter="status" aria-label="Статус карточки">
+            <option value="">Все статусы</option>${Object.entries(solutionStatusNames).map(([value,label]) => `<option value="${value}" ${solutionQuery.status===value?'selected':''}>${label}</option>`).join('')}
+          </select>
+          ${(solutionQuery.q || solutionQuery.status || solutionQuery.owner_id) ? '<button class="pm-clear" data-solution-clear>Сбросить</button>' : ''}
+        </div>
+        <div class="pm-results-line"><span>Найдено: <b>${Number(data.total || 0).toLocaleString('ru-RU')}</b></span><span>По 100 карточек на странице</span></div>
+        <div class="pm-admin-table pm-solutions-table"><table><thead><tr><th>Карточка</th><th>Владелец</th><th>Статус</th><th>Покупки</th><th>Обновлена</th><th>Действия</th></tr></thead><tbody>${items.map(solutionRow).join('') || '<tr><td colspan="6"><div class="pm-table-empty"><b>Карточки не найдены</b><span>Измените поиск или фильтры.</span></div></td></tr>'}</tbody></table></div>
+        ${pages > 1 ? `<div class="pm-pagination"><button data-solution-page="${solutionQuery.page-1}" ${solutionQuery.page<=1?'disabled':''}>← Назад</button><span>Страница <b>${solutionQuery.page}</b> из ${pages}</span><button data-solution-page="${solutionQuery.page+1}" ${solutionQuery.page>=pages?'disabled':''}>Вперёд →</button></div>` : ''}`;
       solutionsView.querySelectorAll('[data-unpublish-solution]').forEach(button => button.onclick = () => unpublishSolution(button));
       solutionsView.querySelectorAll('[data-delete-solution]').forEach(button => button.onclick = () => deleteSolution(button));
+      const search = solutionsView.querySelector('.pm-search input');
+      search.oninput = event => {
+        clearTimeout(solutionSearchTimer);
+        solutionSearchTimer = setTimeout(() => { solutionQuery.q = event.target.value.trim(); solutionQuery.page = 1; loadSolutions(); }, 350);
+      };
+      solutionsView.querySelectorAll('[data-solution-filter]').forEach(select => select.onchange = () => {
+        solutionQuery[select.dataset.solutionFilter] = select.value;
+        solutionQuery.page = 1;
+        loadSolutions();
+      });
+      solutionsView.querySelectorAll('[data-solution-status]').forEach(button => button.onclick = () => {
+        solutionQuery.status = button.dataset.solutionStatus;
+        solutionQuery.page = 1;
+        loadSolutions();
+      });
+      solutionsView.querySelector('[data-solution-clear]')?.addEventListener('click', () => { solutionQuery = {q:'', status:'', owner_id:'', page:1}; loadSolutions(); });
+      solutionsView.querySelectorAll('[data-solution-page]').forEach(button => button.onclick = () => { solutionQuery.page = Number(button.dataset.solutionPage); loadSolutions(); });
     } catch (error) {
       solutionsView.innerHTML = `<div class="pm-empty"><b>Не удалось загрузить карточки</b><p>${esc(error.message)}</p><button data-retry>Повторить</button></div>`;
       solutionsView.querySelector('[data-retry]').onclick = loadSolutions;
     }
+  }
+
+  function solutionStatusCard(status, label, count = 0) {
+    return `<button class="pm-solution-count status-${status.toLowerCase() || 'all'} ${solutionQuery.status===status?'active':''}" data-solution-status="${status}"><span>${esc(label)}</span><b>${Number(count || 0).toLocaleString('ru-RU')}</b></button>`;
   }
 
   function solutionRow(item) {

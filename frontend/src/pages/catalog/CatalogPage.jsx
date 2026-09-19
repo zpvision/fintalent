@@ -11,7 +11,7 @@ const catalogCopy = {
     eyebrow: 'КАТАЛОГ FINTALENT',
     heading: 'Вакансии в финансах и учёте',
     description: 'Найдите работу, которая соответствует вашим навыкам и ожиданиям.',
-    createHref: '/resume/create',
+    createHref: '/profiles/create',
     createLabel: 'Разместить профиль',
     queryPlaceholder: 'Должность, навык или ключевое слово',
     incomeLabel: 'зарплата от',
@@ -44,7 +44,7 @@ function CatalogAvatar({ item, type }) {
 }
 
 function CatalogCard({ item, type, incomeLabel }) {
-  const href = type === 'resumes' ? `/resume/view/${item.id}` : `/vacancies/view?id=${item.id}`
+  const href = type === 'resumes' ? `/profiles/view/${item.id}` : `/vacancies/view?id=${item.id}`
   return (
     <a className="catalog-card" href={href}>
       <CatalogAvatar item={item} type={type} />

@@ -9,7 +9,7 @@
   document.querySelector('.publish-success-modal')?.remove();
   const modal=document.createElement('div');
   modal.className='publish-success-modal';
-  const viewURL=resumeID?`/resume/view/${encodeURIComponent(resumeID)}`:'/profile';
+  const viewURL=resumeID?`/profiles/view/${encodeURIComponent(resumeID)}`:'/profile';
   modal.innerHTML=`<div class="publish-confetti" aria-hidden="true">${Array.from({length:18},(_,index)=>`<i style="--i:${index}"></i>`).join('')}</div><section role="dialog" aria-modal="true" aria-labelledby="resume-publish-success-title"><button type="button" class="publish-success-close" data-resume-publish-close aria-label="Закрыть">×</button><div class="publish-success-mark" aria-hidden="true"><span>✓</span></div><small>ПРОФИЛЬ ОПУБЛИКОВАН</small><h2 id="resume-publish-success-title">Отличное начало!</h2><p>Вы проделали большую работу — профиль уже доступен работодателям и готов привести вас к новым возможностям.</p><div class="publish-success-wish"><i>✦</i><span><b>Мы верим в ваш талант</b><small>Желаем найти работу, на которой вас будут ценить.</small></span></div><div class="publish-success-actions"><a href="${viewURL}">Перейти к просмотру профиля <span>→</span></a><button type="button" data-resume-publish-close>Остаться здесь</button></div></section>`;
   document.body.append(modal);
   const close=()=>{modal.classList.add('closing');setTimeout(()=>modal.remove(),180)};

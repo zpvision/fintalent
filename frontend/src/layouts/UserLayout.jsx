@@ -33,7 +33,7 @@ export default function UserLayout({ children, active = '' }) {
   }
 
   if (loading || !user) return <><SiteHeader /><div className="loading">Загрузка…</div></>
-  const resumeHref = resume?.published ? `/resume/view/${resume.id}` : '/resume/create'
+  const resumeHref = resume?.published ? `/profiles/view/${resume.id}` : '/profiles/create'
 
   return <>
     <SiteHeader />

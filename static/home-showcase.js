@@ -14,7 +14,7 @@
     if(candidates&&data.resumes?.length){
       candidates.querySelectorAll('.candidate').forEach(item=>item.remove());
       const more=candidates.querySelector('.more');
-      data.resumes.slice(0,4).reverse().forEach((item,index)=>more.insertAdjacentHTML('beforebegin',`<a class="candidate" href="/resume/view/${item.id}"><div class="avatar av${index%3+1}">${esc(item.name.split(' ').map(part=>part[0]).slice(0,2).join(''))}</div><div><b>${esc(item.name)}</b><small>${esc(item.title)}</small><span>⌖ ${esc(item.city||'Россия')}</span><i>${(item.tags||[]).slice(0,4).map(esc).join('　')}</i></div><strong>${money(item.salary)} ₽</strong></a>`));
+      data.resumes.slice(0,4).reverse().forEach((item,index)=>more.insertAdjacentHTML('beforebegin',`<a class="candidate" href="/profiles/view/${item.id}"><div class="avatar av${index%3+1}">${esc(item.name.split(' ').map(part=>part[0]).slice(0,2).join(''))}</div><div><b>${esc(item.name)}</b><small>${esc(item.title)}</small><span>⌖ ${esc(item.city||'Россия')}</span><i>${(item.tags||[]).slice(0,4).map(esc).join('　')}</i></div><strong>${money(item.salary)} ₽</strong></a>`));
     }
   }
 

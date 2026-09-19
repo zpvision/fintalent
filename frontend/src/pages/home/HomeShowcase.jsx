@@ -110,8 +110,8 @@ export default function HomeShowcase() {
       <section className="container home-promo-row">
         <article className="home-consultation">
           <header><span>ПОМОЩЬ КОЛЛЕГ</span><h2>Нужна консультация?</h2></header>
-          <div className="home-consultation-grid">{helpTopics.map((topic) => <a href={`/resumes?help_topic=${topic.id}`} key={topic.id}><i>{/^\/|^https?:\/\//i.test(topic.icon || '') ? <img src={topic.icon} alt="" /> : (topic.icon || '◇')}</i><b>{topic.name}</b><small>{topic.category || 'Консультация'}</small></a>)}</div>
-          <a className="home-consultation-more" href="/resumes">Найдите специалиста по нужному направлению <span>→</span></a>
+          <div className="home-consultation-grid">{helpTopics.map((topic) => <a href={`/profiles?help_topic=${topic.id}`} key={topic.id}><i>{/^\/|^https?:\/\//i.test(topic.icon || '') ? <img src={topic.icon} alt="" /> : (topic.icon || '◇')}</i><b>{topic.name}</b><small>{topic.category || 'Консультация'}</small></a>)}</div>
+          <a className="home-consultation-more" href="/profiles">Найдите специалиста по нужному направлению <span>→</span></a>
         </article>
         <a className="skills-promo home-skills-banner" href="/marketplace"><span className="promo-kicker">ПРОФЕССИОНАЛЬНОЕ РАЗВИТИЕ</span><h2>Подтвердите навыки —<br />получайте больше приглашений</h2><p>Пройдите профессиональный тест и покажите работодателям свой реальный уровень.</p><strong>Выбрать тест <i>→</i></strong></a>
       </section>
