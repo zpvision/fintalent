@@ -121,6 +121,8 @@ export default function ProfiMarketPage() {
   const counts = useMemo(() => Object.fromEntries((meta.categories || []).map((item) => [item.type, item.count])), [meta])
 
   function selectType(type) {
+    setQuery('')
+    setSubmittedQuery('')
     setSelectedType(type || '')
     window.setTimeout(() => popularRef.current?.scrollIntoView({ behavior: 'smooth' }), 0)
   }
