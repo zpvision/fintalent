@@ -59,7 +59,7 @@ function Hero({ query, setQuery, submitQuery }) {
   }
 
   return (
-    <section className="pmh-hero">
+    <section className="pmh-hero pmh-hero-v2">
       <div className="pmh-hero-copy">
         <h1>ПрофиМаркет</h1><p>Готовые решения и наработки<br />от профессионалов для профессионалов</p>
         <form id="pmh-search" onSubmit={submit}><span><Icon name="search" /></span><input name="q" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Что вы ищете?" /><button>Найти</button></form>
@@ -99,7 +99,7 @@ export default function ProfiMarketPage() {
   const [error, setError] = useState('')
   const popularRef = useRef(null)
 
-  usePageStyles(['/static/profimarket.css?v=1', '/static/profimarket-regulation.css?v=12', '/static/profimarket-home.css?v=6', '/static/profimarket-product.css?v=3'])
+  usePageStyles(['/static/profimarket.css?v=1', '/static/profimarket-regulation.css?v=12', '/static/profimarket-home.css?v=9', '/static/profimarket-product.css?v=3'])
   useDocumentPage({ title: 'ПрофиМаркет — FinTalent' })
 
   useEffect(() => {

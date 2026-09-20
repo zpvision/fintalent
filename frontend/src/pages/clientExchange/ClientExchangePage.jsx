@@ -5,7 +5,7 @@ import { useDocumentPage } from '../../hooks/useDocumentPage'
 import usePageStyles from '../../hooks/usePageStyles'
 import PublicLayout from '../../layouts/PublicLayout'
 
-const styles=['/static/client-exchange.css?v=1','/static/client-exchange-list.css?v=1','/static/client-exchange-detail.css?v=1']
+const styles=['/static/client-exchange.css?v=1','/static/client-exchange-list.css?v=2','/static/client-exchange-detail.css?v=1']
 const money=value=>value==null?'—':`${new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).format(value)} ₽`
 const date=value=>value?new Date(value).toLocaleDateString('ru-RU'):'—'
 const initialFilters={q:'',region:'',tax_system_id:'',industry_id:'',revenue_range_id:'',employee_range_id:'',fee_preset:'',transfer_type_id:'',accounting_state_id:'',marketplace_id:'',edo_provider_id:'',fee_from:'',fee_to:'',price_from:'',price_to:'',foreign_trade:false}

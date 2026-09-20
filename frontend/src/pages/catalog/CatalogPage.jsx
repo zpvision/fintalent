@@ -72,7 +72,7 @@ export default function CatalogPage({ type }) {
   const [status, setStatus] = useState('loading')
   const firstRequest = useRef(true)
   const activeRequest = useRef(null)
-  usePageStyles(['/static/catalog.css?v=3', '/static/catalog-help.css?v=1'])
+  usePageStyles(['/static/catalog.css?v=4', '/static/catalog-help.css?v=1'])
   useDocumentPage({ title: copy.title, bodyData: { catalog: type } })
 
   const loadCatalog = useCallback(async (signal) => {

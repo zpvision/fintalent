@@ -73,7 +73,7 @@ export default function MarketplacePage() {
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState('popular')
   usePageStyles([
-    '/static/marketplace.css?v=2',
+    '/static/marketplace.css?v=3',
     '/static/marketplace-filters.css?v=1',
     '/static/marketplace-home-background.css?v=1',
     '/static/marketplace-create-promo.css?v=1',

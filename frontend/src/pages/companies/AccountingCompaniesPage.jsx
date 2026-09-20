@@ -104,7 +104,7 @@ export default function AccountingCompaniesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  usePageStyles(['/static/accounting-company.css?v=5'])
+  usePageStyles(['/static/accounting-company.css?v=6'])
   useDocumentPage({ title: 'Бухгалтерские компании — FinTalent' })
 
   useEffect(() => {
