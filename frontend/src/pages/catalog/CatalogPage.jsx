@@ -43,11 +43,11 @@ function CatalogAvatar({ item, type }) {
   )
 }
 
-function CatalogCard({ item, type, incomeLabel }) {
+function CatalogCard({ item, type, incomeLabel, triggerRef }) {
   const href = type === 'resumes' ? `/profiles/view/${item.id}` : `/vacancies/view?id=${item.id}`
   const professional = type === 'resumes' && item.profile_mode === 'professional'
   return (
-    <a className="catalog-card" href={href}>
+    <a className="catalog-card" href={href} ref={triggerRef}>
       <CatalogAvatar item={item} type={type} />
       <div>
         <h2>{item.title}</h2>
@@ -70,24 +70,39 @@ export default function CatalogPage({ type }) {
   const [items, setItems] = useState([])
   const [total, setTotal] = useState(0)
   const [status, setStatus] = useState('loading')
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(false)
   const firstRequest = useRef(true)
   const activeRequest = useRef(null)
-  usePageStyles(['/static/catalog.css?v=4', '/static/catalog-help.css?v=1'])
+  const loadTriggerRef = useRef(null)
+  usePageStyles(['/static/catalog.css?v=5', '/static/catalog-help.css?v=1'])
   useDocumentPage({ title: copy.title, bodyData: { catalog: type } })
 
-  const loadCatalog = useCallback(async (signal) => {
-    setStatus('loading')
-    const params = new URLSearchParams({ kind: type, q: query.trim(), city: city.trim() })
+  const loadCatalog = useCallback(async (signal, offset = 0, append = false) => {
+    if (append) setLoadingMore(true)
+    else setStatus('loading')
+    const params = new URLSearchParams({ kind: type, q: query.trim(), city: city.trim(), limit: '30', offset: String(offset) })
     if (type === 'resumes' && helpTopic) params.set('help_topic', helpTopic)
     try {
       const data = await apiClient.get(`/api/public/catalog?${params}`, { cache: 'no-store', signal, redirectOnUnauthorized: false })
-      setItems(Array.isArray(data?.items) ? data.items : [])
+      const nextItems = Array.isArray(data?.items) ? data.items : []
+      setItems((current) => append ? [...current, ...nextItems] : nextItems)
       setTotal(Number(data?.total) || 0)
+      setHasMore(Boolean(data?.has_more))
       setStatus('ready')
     } catch (error) {
-      if (error.name !== 'AbortError') setStatus('error')
+      if (error.name !== 'AbortError' && !append) setStatus('error')
+    } finally {
+      if (append && !signal.aborted) setLoadingMore(false)
     }
   }, [city, helpTopic, query, type])
+
+  const loadMore = useCallback(() => {
+    if (loadingMore || !hasMore || status !== 'ready') return
+    const controller = new AbortController()
+    activeRequest.current = controller
+    loadCatalog(controller.signal, items.length, true)
+  }, [hasMore, items.length, loadCatalog, loadingMore, status])
 
   useEffect(() => {
     if (type !== 'resumes') return
@@ -119,6 +134,16 @@ export default function CatalogPage({ type }) {
     }
   }, [loadCatalog])
 
+  useEffect(() => {
+    const target = loadTriggerRef.current
+    if (!target || !hasMore || loadingMore || status !== 'ready') return undefined
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) loadMore()
+    }, { rootMargin: '0px 0px 240px' })
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [hasMore, items.length, loadMore, loadingMore, status])
+
   function handleSubmit(event) {
     event.preventDefault()
     activeRequest.current?.abort()
@@ -146,7 +171,8 @@ export default function CatalogPage({ type }) {
             {status === 'loading' ? <div className="catalog-empty">Загружаем предложения…</div> : null}
             {status === 'error' ? <div className="catalog-empty">Не удалось загрузить каталог</div> : null}
             {status === 'ready' && !items.length ? <div className="catalog-empty">По вашему запросу ничего не найдено</div> : null}
-            {status === 'ready' ? items.map((item) => <CatalogCard item={item} type={type} incomeLabel={copy.incomeLabel} key={item.id} />) : null}
+            {status === 'ready' ? items.map((item, index) => <CatalogCard item={item} type={type} incomeLabel={copy.incomeLabel} triggerRef={hasMore && index === Math.max(0, items.length - 10) ? loadTriggerRef : undefined} key={item.id} />) : null}
+            {loadingMore ? <div className="catalog-loading-more">Загружаем ещё…</div> : null}
           </section>
         </div>
       </main>
