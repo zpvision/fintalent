@@ -5,7 +5,7 @@ import usePageStyles from '../../hooks/usePageStyles'
 import PublicLayout from '../../layouts/PublicLayout'
 
 const editorStyles = [
-  '/static/profimarket.css?v=1',
+  '/static/profimarket.css?v=2',
   '/static/vacancy-publish-success.css?v=1',
   '/static/profimarket-regulation-editor.css?v=2',
   '/static/profimarket-regulation-editor-v2.css?v=2',
@@ -41,8 +41,10 @@ export default function ProfiMarketRegulationEditPage() {
         if (presets) loaded.push(presets)
         const components = await loadScript('/static/profimarket-components.js?v=35', () => window.ProfiMarketUI?.version >= 35)
         if (components) loaded.push(components)
+        const cropper = await loadScript('/static/profimarket-cover-cropper.js?v=1', () => window.ProfiMarketCoverCropper)
+        if (cropper) loaded.push(cropper)
         if (cancelled) return
-        const editor = await loadScript('/static/profimarket-regulation-editor.js?v=40')
+        const editor = await loadScript('/static/profimarket-regulation-editor.js?v=41')
         if (editor) loaded.push(editor)
       } catch (loadError) { if (!cancelled) setError(loadError.message) }
     }

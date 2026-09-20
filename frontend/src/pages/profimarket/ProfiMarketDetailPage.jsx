@@ -30,6 +30,17 @@ function Notice({ value }) {
   return <div className={`pm-notice${value.bad ? ' bad' : ''}`}>{value.text}</div>
 }
 
+function DetailImageLightbox({ image, close }) {
+  useEffect(() => {
+    const keydown = (event) => { if (event.key === 'Escape') close() }
+    document.addEventListener('keydown', keydown)
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.removeEventListener('keydown', keydown); document.body.style.overflow = previous }
+  }, [close])
+  return <div className="pmp-image-lightbox" role="dialog" aria-modal="true" aria-label="Просмотр изображения" onMouseDown={(event) => event.target === event.currentTarget && close()}><button type="button" onClick={close} aria-label="Закрыть">×</button><img src={image.src} alt={image.alt} /></div>
+}
+
 function PurchaseModal({ solution, close, done, fail }) {
   const [crms, setCrms] = useState(solution.crms || []), [crmID, setCrmID] = useState(''), [submitting, setSubmitting] = useState(false)
   useEffect(() => {
@@ -49,9 +60,9 @@ function PurchaseModal({ solution, close, done, fail }) {
 }
 
 export default function ProfiMarketDetailPage() {
-  usePageStyles(['/static/profimarket.css?v=1','/static/profimarket-product.css?v=1','/static/vacancy-publish-success.css?v=1'])
+  usePageStyles(['/static/profimarket.css?v=2','/static/profimarket-product.css?v=2','/static/vacancy-publish-success.css?v=1'])
   const { key } = useParams(), location = useLocation(), root = useRef(null)
-  const [solution, setSolution] = useState(null), [html, setHTML] = useState(''), [error, setError] = useState(''), [modal, setModal] = useState(false), [notice, setNotice] = useState(null), [purchaseSuccess, setPurchaseSuccess] = useState(null)
+  const [solution, setSolution] = useState(null), [html, setHTML] = useState(''), [error, setError] = useState(''), [modal, setModal] = useState(false), [notice, setNotice] = useState(null), [purchaseSuccess, setPurchaseSuccess] = useState(null), [expandedImage, setExpandedImage] = useState(null)
   useDocumentPage({ title: solution ? `${solution.title} — ПрофиМаркет` : 'Решение — ПрофиМаркет' })
   const preview = new URLSearchParams(location.search).get('preview') === '1'
   function notify(text, bad = false) { setNotice({ text, bad }); window.setTimeout(() => setNotice(null), 3000) }
@@ -87,8 +98,9 @@ export default function ProfiMarketDetailPage() {
     try { const data = await purchaseProfiMarketSolution(solution.id); setPurchaseSuccess(data) } catch (requestError) { notify(requestError.message, true) }
   }
   function interact(event) {
-    const favoriteButton = event.target.closest('[data-favorite]'), buyButton = event.target.closest('[data-buy]'), tabButton = event.target.closest('[data-section-tab]')
-    if (favoriteButton) favorite(favoriteButton)
+    const legacyImage = event.target.closest('.pm-ai-visual>img,.pm-video-stage>img,.pmr-product-art.has-cover>img,.pmr-section-image img'), favoriteButton = event.target.closest('[data-favorite]'), buyButton = event.target.closest('[data-buy]'), tabButton = event.target.closest('[data-section-tab]')
+    if (legacyImage) setExpandedImage({ src: legacyImage.currentSrc || legacyImage.src, alt: legacyImage.alt || solution.title })
+    else if (favoriteButton) favorite(favoriteButton)
     else if (buyButton) buy()
     else if (tabButton) { root.current.querySelectorAll('[data-section-tab]').forEach((item) => item.classList.toggle('active', item === tabButton)); root.current.querySelectorAll('[data-section]').forEach((item) => item.classList.toggle('hidden', item.dataset.section !== tabButton.dataset.sectionTab)) }
   }
@@ -98,5 +110,5 @@ export default function ProfiMarketDetailPage() {
     if (!['AUTOMATION','INSTRUCTION','ONEC_INTEGRATION','TEMPLATE','CHECKLIST'].includes(next.type) && window.ProfiMarketUI) setHTML(window.ProfiMarketUI.solutionView(next, preview))
   }
   const modern=solution&&['AUTOMATION','INSTRUCTION','ONEC_INTEGRATION','TEMPLATE','CHECKLIST'].includes(solution.type)
-  return <PublicLayout><main ref={root} id="pm-detail" className="pm-detail-page" onClick={interact}>{error ? <div className="pm-detail-loading"><h1>Решение не найдено</h1><p>{error}</p><a href="/profimarket">Вернуться в ПрофиМаркет</a></div> : !solution ? <div className="pm-detail-loading"><i /><b>Загружаем решение…</b></div> : modern?<ProfiMarketProductDetail solution={solution}/>:<div dangerouslySetInnerHTML={{ __html: html }} />}{solution && <ProfiMarketReviews solution={solution} onChanged={reviewsChanged} />}</main>{modal && <PurchaseModal solution={solution} close={() => setModal(false)} done={(text) => { setModal(false); setPurchaseSuccess({ message: text }) }} fail={(text) => notify(text, true)} />}{purchaseSuccess && <PublishSuccessModal eyebrow={solution?.trial_days ? 'БЕСПЛАТНЫЙ ПЕРИОД' : 'ЗАЯВКА ОФОРМЛЕНА'} title="Поздравляем, всё получилось!" description={purchaseSuccess.message || 'Автор получил ваши контакты и свяжется с вами.'} wishTitle="Автор уже получил уведомление" wishText="Ваши контакты сохранены в его кабинете, также ему отправлено письмо." primaryHref="/profile?section=profimarket-purchases" primaryText="Перейти в мои покупки" onClose={() => setPurchaseSuccess(null)} />}<Notice value={notice} /></PublicLayout>
+  return <PublicLayout><main ref={root} id="pm-detail" className="pm-detail-page" onClick={interact}>{error ? <div className="pm-detail-loading"><h1>Решение не найдено</h1><p>{error}</p><a href="/profimarket">Вернуться в ПрофиМаркет</a></div> : !solution ? <div className="pm-detail-loading"><i /><b>Загружаем решение…</b></div> : modern?<ProfiMarketProductDetail solution={solution}/>:<div dangerouslySetInnerHTML={{ __html: html }} />}{solution && <ProfiMarketReviews solution={solution} onChanged={reviewsChanged} />}</main>{modal && <PurchaseModal solution={solution} close={() => setModal(false)} done={(text) => { setModal(false); setPurchaseSuccess({ message: text }) }} fail={(text) => notify(text, true)} />}{purchaseSuccess && <PublishSuccessModal eyebrow={solution?.trial_days ? 'БЕСПЛАТНЫЙ ПЕРИОД' : 'ЗАЯВКА ОФОРМЛЕНА'} title="Поздравляем, всё получилось!" description={purchaseSuccess.message || 'Автор получил ваши контакты и свяжется с вами.'} wishTitle="Автор уже получил уведомление" wishText="Ваши контакты сохранены в его кабинете, также ему отправлено письмо." primaryHref="/profile?section=profimarket-purchases" primaryText="Перейти в мои покупки" onClose={() => setPurchaseSuccess(null)} />}{expandedImage && <DetailImageLightbox image={expandedImage} close={() => setExpandedImage(null)} />}<Notice value={notice} /></PublicLayout>
 }
