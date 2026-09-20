@@ -284,7 +284,7 @@ export default function AccountingCompanyViewPage() {
   const [status, setStatus] = useState('loading')
   const [error, setError] = useState('')
 
-  usePageStyles(['/static/accounting-company.css?v=1', '/static/accounting-company-profile.css?v=3'])
+  usePageStyles(['/static/accounting-company.css?v=1', '/static/accounting-company-profile.css?v=4'])
   useDocumentPage({ title: company ? `${company.name} — FinTalent` : 'Бухгалтерская компания — FinTalent' })
 
   useEffect(() => {

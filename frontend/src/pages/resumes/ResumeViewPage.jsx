@@ -412,7 +412,7 @@ export default function ResumeViewPage() {
   const title = resume ? (positions.join(', ') || resume.experiences?.[0]?.position || 'Финансовый специалист') : ''
 
   usePageStyles([
-    '/static/resume-view.css?v=2',
+    '/static/resume-view.css?v=3',
     '/static/resume-view-header.css?v=2',
     '/static/resume-knowledge.css?v=3',
     '/static/resume-knowledge-empty.css?v=2',

@@ -1,8 +1,26 @@
+.dashboard-layout {
+  width: min(1380px, calc(100% - 60px));
+  margin-right: auto;
+  margin-left: auto;
+}
+
 .dashboard-layout > .dashboard-main {
   width: 100%;
   min-width: 0;
   justify-self: stretch;
   align-self: stretch;
+}
+
+@media (max-width: 1000px) {
+  .dashboard-layout {
+    width: min(100% - 36px, 1380px);
+  }
+}
+
+@media (max-width: 550px) {
+  .dashboard-layout {
+    width: 100%;
+  }
 }
 
 .dashboard-main > .my-vacancies-page,
