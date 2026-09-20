@@ -10,7 +10,7 @@ import ProfiMarketReviews from '../../components/ProfiMarketReviews'
 
 let uiPromise
 function loadPresentation() {
-  if (window.ProfiMarketUI?.version >= 35) return Promise.resolve(window.ProfiMarketUI)
+  if (window.ProfiMarketUI?.version >= 36) return Promise.resolve(window.ProfiMarketUI)
   if (!uiPromise) uiPromise = new Promise((resolve, reject) => {
     const load = (src, done) => {
       const script = document.createElement('script')
@@ -18,7 +18,7 @@ function loadPresentation() {
       script.onerror = () => reject(new Error('Не удалось загрузить компоненты страницы'))
       document.head.append(script)
     }
-    const loadComponents = () => load('/static/profimarket-components.js?v=35', () => resolve(window.ProfiMarketUI))
+    const loadComponents = () => load('/static/profimarket-components.js?v=36', () => resolve(window.ProfiMarketUI))
     if (window.ProfiMarketStylePresets) loadComponents()
     else load('/static/profimarket-style-presets.js?v=3', loadComponents)
   })
@@ -60,7 +60,7 @@ function PurchaseModal({ solution, close, done, fail }) {
 }
 
 export default function ProfiMarketDetailPage() {
-  usePageStyles(['/static/profimarket.css?v=2','/static/profimarket-product.css?v=2','/static/vacancy-publish-success.css?v=1'])
+  usePageStyles(['/static/profimarket.css?v=3','/static/profimarket-product.css?v=2','/static/vacancy-publish-success.css?v=1'])
   const { key } = useParams(), location = useLocation(), root = useRef(null)
   const [solution, setSolution] = useState(null), [html, setHTML] = useState(''), [error, setError] = useState(''), [modal, setModal] = useState(false), [notice, setNotice] = useState(null), [purchaseSuccess, setPurchaseSuccess] = useState(null), [expandedImage, setExpandedImage] = useState(null)
   useDocumentPage({ title: solution ? `${solution.title} — ПрофиМаркет` : 'Решение — ПрофиМаркет' })
@@ -98,8 +98,15 @@ export default function ProfiMarketDetailPage() {
     try { const data = await purchaseProfiMarketSolution(solution.id); setPurchaseSuccess(data) } catch (requestError) { notify(requestError.message, true) }
   }
   function interact(event) {
-    const legacyImage = event.target.closest('.pm-ai-visual>img,.pm-video-stage>img,.pmr-product-art.has-cover>img,.pmr-section-image img'), favoriteButton = event.target.closest('[data-favorite]'), buyButton = event.target.closest('[data-buy]'), tabButton = event.target.closest('[data-section-tab]')
-    if (legacyImage) setExpandedImage({ src: legacyImage.currentSrc || legacyImage.src, alt: legacyImage.alt || solution.title })
+    const demoImage = event.target.closest('[data-demo-image]'), legacyImage = event.target.closest('.pm-ai-visual>img,.pm-video-stage>img,.pmr-product-art.has-cover>img,.pmr-section-image img'), favoriteButton = event.target.closest('[data-favorite]'), buyButton = event.target.closest('[data-buy]'), tabButton = event.target.closest('[data-section-tab]')
+    if (demoImage) {
+      const gallery = demoImage.closest('.pm-ai-demo'), stage = gallery?.querySelector('.pm-video-stage'), image = document.createElement('img')
+      if (!stage) return
+      image.src = demoImage.dataset.demoImage; image.alt = demoImage.querySelector('img')?.alt || 'Демонстрация'
+      stage.replaceChildren(image)
+      gallery.querySelectorAll('[data-demo-image]').forEach((button) => { const active = button === demoImage; button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active)) })
+    }
+    else if (legacyImage) setExpandedImage({ src: legacyImage.currentSrc || legacyImage.src, alt: legacyImage.alt || solution.title })
     else if (favoriteButton) favorite(favoriteButton)
     else if (buyButton) buy()
     else if (tabButton) { root.current.querySelectorAll('[data-section-tab]').forEach((item) => item.classList.toggle('active', item === tabButton)); root.current.querySelectorAll('[data-section]').forEach((item) => item.classList.toggle('hidden', item.dataset.section !== tabButton.dataset.sectionTab)) }
