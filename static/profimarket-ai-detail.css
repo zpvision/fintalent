@@ -19,3 +19,6 @@
 .pm-ai-detail-v2 .pm-ai-platform-showcase span em{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pm-ai-detail-v2 .pm-ai-platform-showcase span.empty{width:auto;min-width:0;flex-basis:auto}
 @media(max-width:560px){.pm-ai-detail-v2 .pm-ai-platform-showcase span{width:150px;min-width:150px;flex-basis:150px}}
+
+/* Keep uploaded covers and demonstration screenshots fully visible. */
+.pm-ai-detail-v2 .pm-ai-visual img,.pm-ai-detail-v2 .pm-video-stage>img{object-fit:contain;background:#f3f6fb}

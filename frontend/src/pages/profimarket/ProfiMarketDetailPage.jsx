@@ -10,7 +10,7 @@ import ProfiMarketReviews from '../../components/ProfiMarketReviews'
 
 let uiPromise
 function loadPresentation() {
-  if (window.ProfiMarketUI?.version >= 36) return Promise.resolve(window.ProfiMarketUI)
+  if (window.ProfiMarketUI?.version >= 37) return Promise.resolve(window.ProfiMarketUI)
   if (!uiPromise) uiPromise = new Promise((resolve, reject) => {
     const load = (src, done) => {
       const script = document.createElement('script')
@@ -18,7 +18,7 @@ function loadPresentation() {
       script.onerror = () => reject(new Error('Не удалось загрузить компоненты страницы'))
       document.head.append(script)
     }
-    const loadComponents = () => load('/static/profimarket-components.js?v=36', () => resolve(window.ProfiMarketUI))
+    const loadComponents = () => load('/static/profimarket-components.js?v=37', () => resolve(window.ProfiMarketUI))
     if (window.ProfiMarketStylePresets) loadComponents()
     else load('/static/profimarket-style-presets.js?v=3', loadComponents)
   })
