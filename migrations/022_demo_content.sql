@@ -70,7 +70,7 @@ BEGIN
       NOW()-(n||' hours')::interval,
       (ARRAY['Ищу команду с понятными процессами и возможностью профессионального роста.','Ценю самостоятельность, доверие и интересные задачи.','Готов(а) развивать учёт и автоматизировать регулярные операции.'])[1+((n-28)%3)],
       NOW()-(n||' days')::interval,NOW())
-    ON CONFLICT(user_id) DO UPDATE SET status='published',visibility='public',preferred_city_id=EXCLUDED.preferred_city_id,published_at=EXCLUDED.published_at
+    ON CONFLICT(user_id) DO UPDATE SET preferred_city_id=EXCLUDED.preferred_city_id,published_at=EXCLUDED.published_at
     RETURNING id INTO entity_id;
     DELETE FROM resume_categories WHERE resume_id=entity_id;
     INSERT INTO resume_categories(resume_id,category_id,block_id,sort_order)

@@ -10,7 +10,7 @@ BEGIN
     '15 регламентов для работы с Wildberries и Ozon в 1С:Бухгалтерия 8.3.',
     'Готовый пакет рабочих процессов для внедрения в CRM бухгалтерской компании.',17900,21900,'ONE_TIME',
     ARRAY['Wildberries','Ozon','1С:Бухгалтерия 8.3'],ARRAY['Маркетплейсы','Бухгалтерский учёт'],ARRAY['Бухгалтерские компании','Бухгалтеры маркетплейсов'],TRUE,FALSE,NOW()-INTERVAL '8 days')
-  ON CONFLICT(slug) DO UPDATE SET author_user_id=EXCLUDED.author_user_id,status='PUBLISHED',title=EXCLUDED.title,short_description=EXCLUDED.short_description,description=EXCLUDED.description,price=EXCLUDED.price,old_price=EXCLUDED.old_price,pricing_type=EXCLUDED.pricing_type,tags=EXCLUDED.tags,topics=EXCLUDED.topics,audiences=EXCLUDED.audiences,is_featured=TRUE,published_at=COALESCE(profimarket_solutions.published_at,NOW())
+  ON CONFLICT(slug) DO UPDATE SET author_user_id=EXCLUDED.author_user_id,title=EXCLUDED.title,short_description=EXCLUDED.short_description,description=EXCLUDED.description,price=EXCLUDED.price,old_price=EXCLUDED.old_price,pricing_type=EXCLUDED.pricing_type,tags=EXCLUDED.tags,topics=EXCLUDED.topics,audiences=EXCLUDED.audiences,is_featured=TRUE,published_at=COALESCE(profimarket_solutions.published_at,NOW())
   RETURNING id INTO regulation_id;
   DELETE FROM profimarket_regulation_sections WHERE solution_id=regulation_id;
   DELETE FROM profimarket_access_features WHERE solution_id=regulation_id;
@@ -37,7 +37,7 @@ BEGIN
     'Анализирует требования из ФНС, выделяет суть запроса, сроки и риски. Помогает подготовить ответ и собрать необходимые документы.',
     'Профессиональный ИИ-помощник для ежедневной работы бухгалтера с требованиями ФНС.',490,'MONTHLY',3,'LINK','https://t.me/',
     ARRAY['ФНС','Telegram','ИИ'],ARRAY['Налоговые требования','Автоматизация'],ARRAY['Бухгалтеры','Налоговые консультанты'],TRUE,TRUE,NOW()-INTERVAL '2 days')
-  ON CONFLICT(slug) DO UPDATE SET author_user_id=EXCLUDED.author_user_id,status='PUBLISHED',title=EXCLUDED.title,short_description=EXCLUDED.short_description,description=EXCLUDED.description,price=EXCLUDED.price,pricing_type=EXCLUDED.pricing_type,trial_days=3,tags=EXCLUDED.tags,topics=EXCLUDED.topics,audiences=EXCLUDED.audiences,is_featured=TRUE,published_at=COALESCE(profimarket_solutions.published_at,NOW())
+  ON CONFLICT(slug) DO UPDATE SET author_user_id=EXCLUDED.author_user_id,title=EXCLUDED.title,short_description=EXCLUDED.short_description,description=EXCLUDED.description,price=EXCLUDED.price,pricing_type=EXCLUDED.pricing_type,trial_days=3,tags=EXCLUDED.tags,topics=EXCLUDED.topics,audiences=EXCLUDED.audiences,is_featured=TRUE,published_at=COALESCE(profimarket_solutions.published_at,NOW())
   RETURNING id INTO ai_id;
   DELETE FROM profimarket_ai_features WHERE solution_id=ai_id;
   DELETE FROM profimarket_solution_platforms WHERE solution_id=ai_id;

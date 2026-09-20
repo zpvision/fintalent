@@ -143,7 +143,7 @@ CREATE TABLE IF NOT EXISTS profimarket_implementation_requests (
 
 INSERT INTO profimarket_crm(code,name,sort_order) VALUES
 ('finkoper','FinKoper',10),('other','Другая CRM',100)
-ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,active=TRUE,sort_order=EXCLUDED.sort_order;
+ON CONFLICT(code) DO NOTHING;
 INSERT INTO profimarket_platforms(code,name,sort_order) VALUES
 ('telegram','Telegram',10),('max','MAX',20),('web','Web',30),('finkoper','FinKoper',40),('other','Другое',100)
-ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,active=TRUE,sort_order=EXCLUDED.sort_order;
+ON CONFLICT(code) DO NOTHING;
