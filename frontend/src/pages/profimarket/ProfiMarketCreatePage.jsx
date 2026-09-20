@@ -79,7 +79,7 @@ function Pricing({ value, change }) {
 }
 
 export default function ProfiMarketCreatePage() {
-  usePageStyles(['/static/profimarket.css?v=2', '/static/profimarket-ai-editor.css?v=4', '/static/profimarket-product.css?v=2']); useDocumentPage({ title: 'Разместить решение — ПрофиМаркет' })
+  usePageStyles(['/static/profimarket.css?v=2', '/static/profimarket-ai-editor.css?v=4', '/static/profimarket-product.css?v=3']); useDocumentPage({ title: 'Разместить решение — ПрофиМаркет' })
   const navigate = useNavigate()
   const [params] = useSearchParams(), editID = params.get('id'), [solution, setSolution] = useState(null), [meta, setMeta] = useState({}), [step, setStep] = useState(0), [busy, setBusy] = useState(false), [notice, setNotice] = useState(''), [error, setError] = useState(''), [coverFile, setCoverFile] = useState(null)
   useEffect(() => { setError(''); Promise.all([getProfiMarketMeta(), editID ? getProfiMarketSolution(editID) : null]).then(([dictionary, current]) => { setMeta(dictionary); if (current?.type === 'REGULATION') navigate(`/profimarket/regulation/edit?id=${current.id}`, { replace: true }); else if(current&&current.type!=='AI_ASSISTANT')navigate(`/profimarket/product/edit?id=${current.id}`,{replace:true});else if (current) { setSolution({ ...current, platform_ids: (current.platforms || []).map((item) => item.id), ai_features: current.ai_features || [], how_it_works: current.how_it_works?.length ? current.how_it_works : defaultHowItWorks(), media: current.media || [] }); setBusy(false) } }).catch((requestError) => { setError(requestError.message); setBusy(false) }) }, [editID, navigate])

@@ -60,7 +60,7 @@ function PurchaseModal({ solution, close, done, fail }) {
 }
 
 export default function ProfiMarketDetailPage() {
-  usePageStyles(['/static/profimarket.css?v=3','/static/profimarket-product.css?v=2','/static/vacancy-publish-success.css?v=1'])
+  usePageStyles(['/static/profimarket.css?v=3','/static/profimarket-product.css?v=3','/static/vacancy-publish-success.css?v=1'])
   const { key } = useParams(), location = useLocation(), root = useRef(null)
   const [solution, setSolution] = useState(null), [html, setHTML] = useState(''), [error, setError] = useState(''), [modal, setModal] = useState(false), [notice, setNotice] = useState(null), [purchaseSuccess, setPurchaseSuccess] = useState(null), [expandedImage, setExpandedImage] = useState(null)
   useDocumentPage({ title: solution ? `${solution.title} — ПрофиМаркет` : 'Решение — ПрофиМаркет' })
