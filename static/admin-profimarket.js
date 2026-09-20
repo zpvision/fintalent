@@ -38,6 +38,7 @@
   let activeTab = 'purchases';
   let platforms = [];
   let onecConfigurations = [];
+  let compatibilityOptions = [];
   let query = {q: '', status: '', type: '', page: 1};
   let solutionQuery = {q: '', status: '', owner_id: '', page: 1};
   let searchTimer;
@@ -245,10 +246,15 @@
   }
 
   async function unpublishSolution(button) {
-    if (!confirm(`Снять с публикации карточку «${button.dataset.title}»? Она исчезнет из каталога.`)) return;
     button.disabled = true;
-    try { await request(`/api/admin/profimarket/solutions/${button.dataset.unpublishSolution}/unpublish`, {method:'POST'}); loadSolutions(); }
-    catch (error) { alert(error.message); button.disabled = false; }
+    try {
+      await request(`/api/admin/profimarket/solutions/${button.dataset.unpublishSolution}/unpublish`, {method:'POST'});
+      await loadSolutions();
+      notify('Карточка снята с публикации');
+    } catch (error) {
+      notify(error.message, true);
+      button.disabled = false;
+    }
   }
 
   async function deleteSolution(button) {
@@ -259,16 +265,56 @@
   }
 
   async function loadDictionaries() {
-    dictionariesView.innerHTML = '<div class="pm-loading"><span></span>Загружаем конфигурации 1С…</div>';
+    dictionariesView.innerHTML = '<div class="pm-loading"><span></span>Загружаем справочники…</div>';
     try {
-      onecConfigurations = (await request('/api/admin/profimarket/onec-configurations')).items || [];
-      dictionariesView.innerHTML = `<div class="pm-admin-head"><div><small>ПРОФИМАРКЕТ → СПРАВОЧНИКИ</small><h2>Конфигурации 1С</h2><p>Список используется при заполнении совместимости карточек 1С. Переименование автоматически обновит уже заполненные карточки.</p></div><button class="primary" id="pm-onec-new">＋ Добавить конфигурацию</button></div><div class="pm-admin-table"><table><thead><tr><th>Порядок</th><th>Логотип</th><th>Название</th><th>Code</th><th>Статус</th><th>Использование</th><th></th></tr></thead><tbody>${onecConfigurations.map(onecConfigurationRow).join('') || '<tr><td colspan="7">Конфигураций пока нет</td></tr>'}</tbody></table></div>`;
+      const [onecData, compatibilityData] = await Promise.all([
+        request('/api/admin/profimarket/onec-configurations'),
+        request('/api/admin/profimarket/compatibility')
+      ]);
+      onecConfigurations = onecData.items || [];
+      compatibilityOptions = compatibilityData.items || [];
+      dictionariesView.innerHTML = `<section class="pm-dictionary-section"><div class="pm-admin-head"><div><small>АВТОМАТИЗАЦИИ</small><h2>Совместимость</h2><p>Варианты показываются на шаге «Совместимость». Переименование автоматически обновит уже заполненные карточки.</p></div><button class="primary" id="pm-compatibility-new">＋ Добавить вариант</button></div><div class="pm-admin-table"><table><thead><tr><th>Порядок</th><th>Название</th><th>Code</th><th>Статус</th><th>Использование</th><th></th></tr></thead><tbody>${compatibilityOptions.map(compatibilityRow).join('') || '<tr><td colspan="6">Вариантов пока нет</td></tr>'}</tbody></table></div></section><section class="pm-dictionary-section"><div class="pm-admin-head"><div><small>1С ИНТЕГРАЦИИ</small><h2>Конфигурации 1С</h2><p>Список используется при заполнении совместимости карточек 1С. Переименование автоматически обновит уже заполненные карточки.</p></div><button class="primary" id="pm-onec-new">＋ Добавить конфигурацию</button></div><div class="pm-admin-table"><table><thead><tr><th>Порядок</th><th>Логотип</th><th>Название</th><th>Code</th><th>Статус</th><th>Использование</th><th></th></tr></thead><tbody>${onecConfigurations.map(onecConfigurationRow).join('') || '<tr><td colspan="7">Конфигураций пока нет</td></tr>'}</tbody></table></div></section>`;
+      dictionariesView.querySelector('#pm-compatibility-new').onclick = () => editCompatibilityOption();
+      dictionariesView.querySelectorAll('[data-compatibility-edit]').forEach(button => button.onclick = () => editCompatibilityOption(compatibilityOptions.find(item => item.id === Number(button.dataset.compatibilityEdit))));
+      dictionariesView.querySelectorAll('[data-compatibility-delete]').forEach(button => button.onclick = () => removeCompatibilityOption(Number(button.dataset.compatibilityDelete)));
       dictionariesView.querySelector('#pm-onec-new').onclick = () => editOneCConfiguration();
       dictionariesView.querySelectorAll('[data-onec-edit]').forEach(button => button.onclick = () => editOneCConfiguration(onecConfigurations.find(item => item.id === Number(button.dataset.onecEdit))));
       dictionariesView.querySelectorAll('[data-onec-delete]').forEach(button => button.onclick = () => removeOneCConfiguration(Number(button.dataset.onecDelete)));
     } catch (error) {
-      dictionariesView.innerHTML = `<div class="pm-empty"><b>Не удалось загрузить конфигурации 1С</b><p>${esc(error.message)}</p></div>`;
+      dictionariesView.innerHTML = `<div class="pm-empty"><b>Не удалось загрузить справочники</b><p>${esc(error.message)}</p></div>`;
     }
+  }
+
+  function compatibilityRow(item) {
+    return `<tr class="${item.active?'':'inactive'}"><td>${item.sort_order}</td><td><b>${esc(item.name)}</b></td><td><code>${esc(item.code)}</code></td><td>${item.active?'Активен':'Отключён'}</td><td>${item.used?'Есть в карточках':'Не используется'}</td><td><button data-compatibility-edit="${item.id}">Изменить</button> <button class="delete" data-compatibility-delete="${item.id}">${item.used?'Отключить':'Удалить'}</button></td></tr>`;
+  }
+
+  function editCompatibilityOption(item = {name:'',code:'',sort_order:compatibilityOptions.length+1,active:true}) {
+    const modal = document.createElement('div');
+    modal.className = 'pm-admin-modal';
+    modal.innerHTML = `<form><h2>${item.id?'Изменить вариант':'Новый вариант совместимости'}</h2><p>Название появится на шаге «Совместимость» при создании автоматизации.</p><div class="grid"><label>Название<input name="name" maxlength="160" required value="${esc(item.name)}" placeholder="Например, FinKoper"></label><label>Code<input name="code" maxlength="80" required pattern="[a-z][a-z0-9_-]*" value="${esc(item.code)}" placeholder="finkoper"></label></div><div class="grid"><label>Порядок<input name="sort_order" type="number" value="${item.sort_order||0}"></label><label class="check"><input name="active" type="checkbox" ${item.active!==false?'checked':''}> Показывать в редакторе карточки</label></div><footer><button type="button" data-cancel>Отмена</button><button class="primary">Сохранить</button></footer></form>`;
+    document.body.append(modal);
+    modal.querySelector('[data-cancel]').onclick = () => modal.remove();
+    modal.onclick = event => { if (event.target === modal) modal.remove(); };
+    modal.querySelector('form').onsubmit = async event => {
+      event.preventDefault();
+      const form = new FormData(event.currentTarget);
+      const payload = {name:form.get('name').trim(),code:form.get('code').trim(),sort_order:Number(form.get('sort_order') || 0),active:form.has('active')};
+      try {
+        await request(item.id?`/api/admin/profimarket/compatibility/${item.id}`:'/api/admin/profimarket/compatibility', {method:item.id?'PUT':'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+        modal.remove(); loadDictionaries();
+      } catch (error) { alert(error.message); }
+    };
+  }
+
+  async function removeCompatibilityOption(id) {
+    const item = compatibilityOptions.find(value => value.id === id);
+    const message = item?.used
+      ? `Вариант «${item.name}» используется в карточках и будет отключён для нового выбора. Продолжить?`
+      : `Удалить вариант «${item?.name || ''}»?`;
+    if (!confirm(message)) return;
+    try { await request(`/api/admin/profimarket/compatibility/${id}`, {method:'DELETE'}); loadDictionaries(); }
+    catch (error) { alert(error.message); }
   }
 
   function onecConfigurationRow(item) {

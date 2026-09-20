@@ -30,6 +30,15 @@ type adminProfiMarketOneCConfiguration struct {
 	Used      bool   `json:"used"`
 }
 
+type adminProfiMarketCompatibilityOption struct {
+	ID        int64  `json:"id"`
+	Code      string `json:"code"`
+	Name      string `json:"name"`
+	SortOrder int    `json:"sort_order"`
+	Active    bool   `json:"active"`
+	Used      bool   `json:"used"`
+}
+
 var profiMarketPlatformCodePattern = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 
 type adminProfiMarketPurchase struct {
@@ -531,4 +540,118 @@ func validProfiMarketOneCConfiguration(item *adminProfiMarketOneCConfiguration) 
 	item.Name = strings.TrimSpace(item.Name)
 	item.Logo = strings.TrimSpace(item.Logo)
 	return item.Name != "" && profiMarketPlatformCodePattern.MatchString(item.Code) && len(item.Name) <= 160 && len(item.Code) <= 80 && len(item.Logo) <= 1000
+}
+
+func adminProfiMarketCompatibilityOptions(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) {
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		rows, err := db.QueryContext(r.Context(), `SELECT o.id,o.code,o.name,o.sort_order,o.active,EXISTS(
+			SELECT 1 FROM profimarket_solutions s WHERE s.type='AUTOMATION' AND s.deleted_at IS NULL AND COALESCE(s.product_data->'compatibility','[]'::jsonb) ? o.name
+		) FROM profimarket_compatibility_options o ORDER BY o.sort_order,o.id`)
+		if err != nil {
+			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить варианты совместимости"})
+			return
+		}
+		defer rows.Close()
+		items := make([]adminProfiMarketCompatibilityOption, 0)
+		for rows.Next() {
+			var item adminProfiMarketCompatibilityOption
+			if err = rows.Scan(&item.ID, &item.Code, &item.Name, &item.SortOrder, &item.Active, &item.Used); err != nil {
+				writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить варианты совместимости"})
+				return
+			}
+			items = append(items, item)
+		}
+		if err = rows.Err(); err != nil {
+			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить варианты совместимости"})
+			return
+		}
+		writeAdminJSON(w, http.StatusOK, map[string]any{"items": items})
+	case http.MethodPost:
+		var item adminProfiMarketCompatibilityOption
+		if json.NewDecoder(r.Body).Decode(&item) != nil || !validProfiMarketCompatibilityOption(&item) {
+			writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": "Укажите название и корректный code"})
+			return
+		}
+		if err := db.QueryRowContext(r.Context(), `INSERT INTO profimarket_compatibility_options(code,name,sort_order,active) VALUES($1,$2,$3,$4) RETURNING id`, item.Code, item.Name, item.SortOrder, item.Active).Scan(&item.ID); err != nil {
+			writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": "Вариант с таким code или названием уже существует"})
+			return
+		}
+		writeAdminJSON(w, http.StatusCreated, item)
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func adminProfiMarketCompatibilityOptionItem(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) {
+		return
+	}
+	id, err := strconv.ParseInt(strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/admin/profimarket/compatibility/"), "/"), 10, 64)
+	if err != nil || id <= 0 {
+		writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": "Некорректный вариант совместимости"})
+		return
+	}
+	switch r.Method {
+	case http.MethodPut:
+		var item adminProfiMarketCompatibilityOption
+		if json.NewDecoder(r.Body).Decode(&item) != nil || !validProfiMarketCompatibilityOption(&item) {
+			writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": "Укажите название и корректный code"})
+			return
+		}
+		tx, err := db.BeginTx(r.Context(), nil)
+		if err != nil {
+			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось сохранить вариант совместимости"})
+			return
+		}
+		defer tx.Rollback()
+		var oldName string
+		if err = tx.QueryRowContext(r.Context(), `SELECT name FROM profimarket_compatibility_options WHERE id=$1 FOR UPDATE`, id).Scan(&oldName); err != nil {
+			writeAdminJSON(w, http.StatusNotFound, map[string]string{"error": "Вариант совместимости не найден"})
+			return
+		}
+		if _, err = tx.ExecContext(r.Context(), `UPDATE profimarket_compatibility_options SET code=$1,name=$2,sort_order=$3,active=$4,updated_at=NOW() WHERE id=$5`, item.Code, item.Name, item.SortOrder, item.Active, id); err != nil {
+			writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": "Вариант с таким code или названием уже существует"})
+			return
+		}
+		if oldName != item.Name {
+			_, err = tx.ExecContext(r.Context(), `UPDATE profimarket_solutions s SET product_data=jsonb_set(s.product_data,'{compatibility}',COALESCE((SELECT jsonb_agg(CASE WHEN value=$1 THEN to_jsonb($2::text) ELSE to_jsonb(value) END) FROM jsonb_array_elements_text(COALESCE(s.product_data->'compatibility','[]'::jsonb)) value),'[]'::jsonb)),updated_at=NOW() WHERE s.type='AUTOMATION' AND s.deleted_at IS NULL AND COALESCE(s.product_data->'compatibility','[]'::jsonb) ? $1`, oldName, item.Name)
+			if err != nil {
+				writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось обновить заполненные карточки"})
+				return
+			}
+		}
+		if err = tx.Commit(); err != nil {
+			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось сохранить вариант совместимости"})
+			return
+		}
+		writeAdminJSON(w, http.StatusOK, map[string]string{"message": "Вариант совместимости сохранён"})
+	case http.MethodDelete:
+		var used bool
+		if err = db.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM profimarket_solutions s JOIN profimarket_compatibility_options o ON o.id=$1 WHERE s.type='AUTOMATION' AND s.deleted_at IS NULL AND COALESCE(s.product_data->'compatibility','[]'::jsonb) ? o.name)`, id).Scan(&used); err != nil {
+			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось удалить вариант совместимости"})
+			return
+		}
+		if used {
+			_, err = db.ExecContext(r.Context(), `UPDATE profimarket_compatibility_options SET active=FALSE,updated_at=NOW() WHERE id=$1`, id)
+		} else {
+			_, err = db.ExecContext(r.Context(), `DELETE FROM profimarket_compatibility_options WHERE id=$1`, id)
+		}
+		if err != nil {
+			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось удалить вариант совместимости"})
+			return
+		}
+		writeAdminJSON(w, http.StatusOK, map[string]string{"message": map[bool]string{true: "Вариант отключён", false: "Вариант удалён"}[used]})
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func validProfiMarketCompatibilityOption(item *adminProfiMarketCompatibilityOption) bool {
+	item.Code = strings.ToLower(strings.TrimSpace(item.Code))
+	item.Name = strings.TrimSpace(item.Name)
+	return item.Name != "" && profiMarketPlatformCodePattern.MatchString(item.Code) && len(item.Name) <= 160 && len(item.Code) <= 80
 }

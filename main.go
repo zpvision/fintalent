@@ -93,6 +93,7 @@ func main() {
 	http.HandleFunc("/register", serveFrontendPage("static/register.html"))
 	http.HandleFunc("/login", serveFrontendPage("static/login.html"))
 	http.HandleFunc("/forgot-password", serveFrontendPage("static/login.html"))
+	http.HandleFunc("/profile-purpose", serveFrontendPage("static/profile-purpose.html"))
 	http.HandleFunc("/profile", serveFrontendPage("static/profile.html"))
 	http.HandleFunc("/tests", serveFrontendPage("static/tests.html"))
 	http.HandleFunc("/tests/create", serveFrontendPage("static/test-create.html"))
@@ -114,6 +115,7 @@ func main() {
 	http.HandleFunc("/api/logout", logoutUser)
 	http.HandleFunc("/api/me", currentUser)
 	registerPasswordResetRoutes()
+	registerProfilePurposeRoutes()
 	http.HandleFunc("/api/profile/avatar", profileAvatar)
 	registerProfileSettingsRoutes()
 	registerAdminRoutes()
@@ -214,6 +216,9 @@ func prepareDatabase() error {
 		return err
 	}
 	if err := preparePasswordResetDatabase(ctx); err != nil {
+		return err
+	}
+	if err := prepareProfilePurposeDatabase(ctx); err != nil {
 		return err
 	}
 	if err := prepareAdminDatabase(ctx); err != nil {

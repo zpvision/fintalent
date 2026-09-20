@@ -162,6 +162,8 @@ func registerAdminRoutes() {
 	http.HandleFunc("/api/admin/profimarket/platforms/", adminProfiMarketPlatform)
 	http.HandleFunc("/api/admin/profimarket/onec-configurations", adminProfiMarketOneCConfigurations)
 	http.HandleFunc("/api/admin/profimarket/onec-configurations/", adminProfiMarketOneCConfigurationItem)
+	http.HandleFunc("/api/admin/profimarket/compatibility", adminProfiMarketCompatibilityOptions)
+	http.HandleFunc("/api/admin/profimarket/compatibility/", adminProfiMarketCompatibilityOptionItem)
 	http.HandleFunc("/api/admin/profimarket/purchases", adminProfiMarketPurchases)
 	http.HandleFunc("/api/admin/profimarket/solutions", adminProfiMarketSolutions)
 	http.HandleFunc("/api/admin/profimarket/solutions/", adminProfiMarketSolutionAction)

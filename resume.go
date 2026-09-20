@@ -922,6 +922,13 @@ func resumePublishHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	userID := u.ID
 
+	var profileMode sql.NullString
+	if err := db.QueryRowContext(r.Context(), `SELECT profile_mode FROM users WHERE id=$1`, userID).Scan(&profileMode); err != nil {
+		writeJSON(w, http.StatusInternalServerError, "Не удалось проверить назначение профиля")
+		return
+	}
+	isProfessional := profileMode.Valid && profileMode.String == profileModeProfessional
+
 	var salary sql.NullFloat64
 	var status sql.NullString
 	var hasCity bool
@@ -941,11 +948,11 @@ func resumePublishHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, "Не удалось проверить профиль")
 		return
 	}
-	if !salary.Valid || salary.Float64 <= 0 || !status.Valid || status.String == "" {
+	if !isProfessional && (!salary.Valid || salary.Float64 <= 0 || !status.Valid || status.String == "") {
 		writeJSON(w, http.StatusBadRequest, "Заполните шаг «Финансы»")
 		return
 	}
-	if !hasCity || !hasWorkFormat {
+	if !isProfessional && (!hasCity || !hasWorkFormat) {
 		writeJSON(w, http.StatusBadRequest, "Выберите город и формат работы на шаге «Финансы»")
 		return
 	}
@@ -954,12 +961,13 @@ func resumePublishHandler(w http.ResponseWriter, r *http.Request) {
 	err = db.QueryRow(`
 		UPDATE resumes
 		SET status = 'published',
-			visibility = CASE WHEN search_status_code = 'hidden' THEN 'private' ELSE 'public' END,
+			search_status_code = CASE WHEN $2 THEN 'not_active' ELSE search_status_code END,
+			visibility = CASE WHEN $2 THEN 'public' WHEN search_status_code = 'hidden' THEN 'private' ELSE 'public' END,
 			published_at = NOW(),
 			updated_at = NOW()
 		WHERE user_id = $1
 		RETURNING id`,
-		userID,
+		userID, isProfessional,
 	).Scan(&resumeID)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, "Не удалось опубликовать профиль")

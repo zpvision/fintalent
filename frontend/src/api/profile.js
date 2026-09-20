@@ -10,6 +10,8 @@ export const updateProfileAvatar = (file, options) => {
   return apiClient.post('/api/profile/avatar', body, options)
 }
 export const updateProfilePassword = (currentPassword, newPassword, options) => apiClient.post('/api/profile/password', { current_password: currentPassword, new_password: newPassword }, options)
+export const getProfilePurpose = options => apiClient.get('/api/profile-purpose', options)
+export const updateProfilePurpose = (mode, options) => apiClient.put('/api/profile-purpose', { mode }, options)
 export const getHelpRequests = (scope = 'incoming', options) => apiClient.get(`/api/v1/help/requests?scope=${encodeURIComponent(scope)}`, options)
 export const runHelpRequestAction = (id, action, options) => apiClient.post(`/api/v1/help/requests/${encodeURIComponent(id)}/${action}`, null, options)
 export const getHelpNotifications = options => apiClient.get('/api/v1/help/notifications', options)

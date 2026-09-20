@@ -22,7 +22,10 @@ export default function RegisterPage() {
       await apiClient.post('/api/register', new FormData(form), { redirectOnUnauthorized: false })
       await refresh()
       const next = searchParams.get('next')
-      navigateInApp(next?.startsWith('/') && !next.startsWith('//') ? next : '/')
+      const purposeURL = next?.startsWith('/') && !next.startsWith('//')
+        ? `/profile-purpose?next=${encodeURIComponent(next)}`
+        : '/profile-purpose'
+      navigateInApp(purposeURL)
     } catch (requestError) {
       setError(requestError.message || 'Не удалось зарегистрироваться')
       setSubmitting(false)
@@ -35,11 +38,11 @@ export default function RegisterPage() {
       aside={(
         <aside className="register-aside">
           <div className="aside-glow" />
-          <h2>Найдите работу,<br />которая подходит <span>именно вам</span></h2>
-          <AuthFeature title="Точный подбор вакансий">Рекомендации на основе навыков и опыта</AuthFeature>
-          <AuthFeature title="Подтверждение квалификации">Тесты помогут выделиться среди кандидатов</AuthFeature>
-          <AuthFeature title="Проверенные работодатели">Только надежные компании и честные условия</AuthFeature>
-          <div className="match-card"><small>Совпадение с вакансией</small><strong>94%</strong><div><span /></div><p>Ваши навыки отлично подходят</p></div>
+          <h2>Развивайте карьеру<br />и профессиональную <span>репутацию</span></h2>
+          <AuthFeature title="Профессиональный профиль">Представьте опыт, навыки и направления экспертизы</AuthFeature>
+          <AuthFeature title="Материалы и тесты">Делитесь наработками и подтверждайте компетенции</AuthFeature>
+          <AuthFeature title="Вакансии и коллеги">Находите новые возможности и полезные контакты</AuthFeature>
+          <div className="match-card"><small>Ваш профиль в FinTalent</small><strong>Вместе</strong><div><span /></div><p>Опыт, знания и возможности в одном месте</p></div>
         </aside>
       )}
     >
@@ -47,7 +50,7 @@ export default function RegisterPage() {
         <div className="register-intro">
           <span className="register-icon">♙</span>
           <h1>Создайте аккаунт</h1>
-          <p>Откройте доступ к проверенным вакансиям<br />и специалистам в сфере финансов</p>
+          <p>Присоединяйтесь к сообществу специалистов<br />в сфере финансов и учёта</p>
         </div>
         <form className="register-form" method="post" action="/api/register" noValidate onSubmit={handleSubmit}>
           <label>

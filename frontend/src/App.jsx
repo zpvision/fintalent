@@ -31,12 +31,13 @@ import ProfiMarketProductEditPage from './pages/profimarket/ProfiMarketProductEd
 import ResumeCreatePage from './pages/resumes/ResumeCreatePage'
 import MarketplaceCreateTestPage from './pages/marketplace/MarketplaceCreateTestPage'
 import ProfilePage from './pages/profile/ProfilePage'
+import ProfilePurposePage from './pages/profile/ProfilePurposePage'
 import PublicationEditorPage from './pages/publications/PublicationEditorPage'
 import AdminPage from './pages/admin/AdminPage'
 import PublicLayout from './layouts/PublicLayout'
 
 const reactPaths = [
-  '/', '/login', '/register', '/forgot-password', '/vacancies', '/vacancies/view', '/vacancies/create',
+  '/', '/login', '/register', '/forgot-password', '/profile-purpose', '/vacancies', '/vacancies/view', '/vacancies/create',
   '/profiles', '/profiles/view/:id', '/profiles/create', '/resumes', '/resume/view/:id', '/resume/create', '/marketplace', '/marketplace/create-test',
   '/accounting-companies', '/accounting-companies/view', '/accounting-companies/passport', '/accounting-companies/create',
   '/profimarket', '/profimarket/my', '/profimarket/solution/:key', '/profimarket/create', '/profimarket/regulation/edit', '/profimarket/product/edit',
@@ -145,6 +146,7 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/profile-purpose" element={<PublicLayout><ProfilePurposePage /></PublicLayout>} />
       <Route path="/vacancies" element={<CatalogPage type="vacancies" />} />
       <Route path="/vacancies/view" element={<VacancyViewPage />} />
       <Route path="/profiles" element={<CatalogPage type="resumes" />} />

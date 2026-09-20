@@ -126,3 +126,5 @@
 @media(max-width:650px){
  .resume-view-shell{min-height:calc(100vh - 69px)}
 }
+.resume-professional-summary{background:linear-gradient(145deg,#fff 10%,#eefaf6)!important}.resume-hero-rail .resume-professional-summary>strong{background:linear-gradient(100deg,#0a9873,#1559ec);background-clip:text;-webkit-background-clip:text}.resume-professional-reputation{display:flex;flex-direction:column;justify-content:center;padding:20px}.resume-professional-reputation>span{display:grid;place-items:center;width:34px;height:34px;margin-bottom:12px;border-radius:11px;background:#e5f8f1;color:#078d69;font-size:17px}.resume-professional-reputation h2{margin:0 0 8px;color:#16305d;font-size:14px}.resume-professional-reputation p{margin:0;color:#71809b;font-size:9px;line-height:1.6}
+.resume-hero-stats.professional{grid-template-columns:repeat(2,minmax(0,1fr))}

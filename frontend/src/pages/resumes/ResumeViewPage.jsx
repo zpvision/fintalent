@@ -24,6 +24,7 @@ function allDictionaries(data) {
 }
 
 function positionNames(data) {
+  if (data?.profile_mode === 'professional') return []
   const dictionary = allDictionaries(data).find((item) => /position|должност/i.test(`${item.alias} ${item.name}`))
   return dictionary?.items?.map((item) => item.value) || []
 }
@@ -106,7 +107,7 @@ function Sidebar({ data, knowledgeAvailable }) {
           </a>
         ))}
       </nav>
-      <div className="resume-contact-card"><span>✦</span><b>Заинтересовал кандидат?</b><p>Свяжитесь и предложите обсудить профессиональные возможности.</p><button type="button">Связаться</button></div>
+      <div className="resume-contact-card"><span>✦</span><b>{data.profile_mode === 'professional' ? 'Хотите обсудить задачу?' : 'Заинтересовал специалист?'}</b><p>{data.profile_mode === 'professional' ? 'Свяжитесь со специалистом и обсудите опыт или возможное сотрудничество.' : 'Свяжитесь и предложите обсудить профессиональные возможности.'}</p><button type="button">Связаться</button></div>
     </aside>
   )
 }
@@ -144,6 +145,7 @@ function HeroMetric({ dictionary, value, fallback, defaultIcon }) {
 }
 
 function ResumeHero({ data, title }) {
+  const professional = data.profile_mode === 'professional'
   const experience = findResumeDictionary(data, /^experience |опыт работы/i)
   const legal = findResumeDictionary(data, /legal_entities_managed_total|юридических лиц/i)
   const turnover = findResumeDictionary(data, /maximum_company_turnover|максимальн.*оборот/i)
@@ -152,32 +154,31 @@ function ResumeHero({ data, title }) {
   return (
     <section className="resume-hero" id="overview">
       <div className="resume-hero-main">
-        {data.available_immediately || data.is_owner ? (
+        {(!professional && data.available_immediately) || data.is_owner ? (
           <div className="resume-hero-controls">
-            {data.available_immediately ? <span className="resume-ready-control"><i>✓</i><span><small>Готовность к работе</small><b>Может выйти сразу</b></span></span> : null}
+            {!professional && data.available_immediately ? <span className="resume-ready-control"><i>✓</i><span><small>Готовность к работе</small><b>Может выйти сразу</b></span></span> : null}
             {data.is_owner ? <a className="resume-owner-edit" href="/profiles/create" title="Редактировать профиль" aria-label="Редактировать профиль"><span>✎</span></a> : null}
           </div>
         ) : null}
         <div className="resume-avatar-wrap"><img className="resume-avatar" src={data.avatar || '/static/profile-3-avatar.png'} alt={data.name} /><i className="resume-online" /></div>
         <div className="resume-identity">
-          <small className="resume-status-kicker">{data.search_status || 'Готов(а) к предложениям'}</small>
+          <small className="resume-status-kicker">{professional ? 'Профессиональный профиль' : data.search_status || 'Готов(а) к предложениям'}</small>
           <div className="resume-name-line"><h1>{data.name}</h1><ZodiacBadge zodiac={data.zodiac} /></div>
           <p className="resume-title">{title}</p>
-          <ResumePreferences data={data} />
-          <WorkPreferences text={data.work_preferences} />
+          {!professional ? <ResumePreferences data={data} /> : null}
+          {!professional ? <WorkPreferences text={data.work_preferences} /> : null}
         </div>
-        <div className="resume-hero-stats">
+        <div className={`resume-hero-stats${professional ? ' professional' : ''}`}>
           <h2>Ключевые показатели</h2>
           <HeroMetric dictionary={experience} value={totalExperience(data.experiences)} fallback="Опыт работы" defaultIcon="◷" />
-          <HeroMetric dictionary={legal} value={maximumNumber(legal?.items?.map((item) => item.value))} fallback="На обслуживании" defaultIcon="▦" />
-          <HeroMetric dictionary={turnover} value={turnover?.items?.map((item) => item.value).join(', ')} fallback="Максимальный оборот" defaultIcon="↗" />
-          <HeroMetric dictionary={audits} value={audits?.items?.map((item) => item.value).join(', ')} fallback="Налоговые проверки" defaultIcon="✓" />
+          {!professional ? <HeroMetric dictionary={legal} value={maximumNumber(legal?.items?.map((item) => item.value))} fallback="На обслуживании" defaultIcon="▦" /> : null}
+          {!professional ? <HeroMetric dictionary={turnover} value={turnover?.items?.map((item) => item.value).join(', ')} fallback="Максимальный оборот" defaultIcon="↗" /> : null}
+          {!professional ? <HeroMetric dictionary={audits} value={audits?.items?.map((item) => item.value).join(', ')} fallback="Налоговые проверки" defaultIcon="✓" /> : null}
           <HeroMetric dictionary={languages} value={String(data.languages?.length || 0)} fallback="Знание языков" defaultIcon="文" />
         </div>
       </div>
       <div className="resume-hero-rail">
-        <aside className="resume-hero-side resume-salary-redesign"><small>ЖЕЛАЕМАЯ ЗАРПЛАТА</small><strong>{formatMoney(data.desired_salary)} ₽</strong><p>на руки в месяц</p></aside>
-        <section className="resume-hero-rail-empty resume-match-preview"><h2>Почему кандидат вам подходит</h2><div className="resume-match-summary"><div className="resume-match-ring"><span>86%</span></div><p>Ваше соответствие<br />на основе навыков<br />и опыта работы</p></div><div className="resume-match-scale"><i /></div><button type="button">Подробнее о соответствии <span>→</span></button></section>
+        {professional ? <><aside className="resume-hero-side resume-salary-redesign resume-professional-summary"><small>ПРОФЕССИОНАЛЬНАЯ СТРАНИЦА</small><strong>Экспертиза</strong><p>Навыки, опыт и знания специалиста</p></aside><section className="resume-hero-rail-empty resume-professional-reputation"><span>✦</span><h2>Профессиональная репутация</h2><p>Результаты тестов, материалы и помощь коллегам собраны в одном профиле.</p></section></> : <><aside className="resume-hero-side resume-salary-redesign"><small>ЖЕЛАЕМАЯ ЗАРПЛАТА</small><strong>{formatMoney(data.desired_salary)} ₽</strong><p>на руки в месяц</p></aside><section className="resume-hero-rail-empty resume-match-preview"><h2>Почему специалист вам подходит</h2><div className="resume-match-summary"><div className="resume-match-ring"><span>86%</span></div><p>Ваше соответствие<br />на основе навыков<br />и опыта работы</p></div><div className="resume-match-scale"><i /></div><button type="button">Подробнее о соответствии <span>→</span></button></section></>}
       </div>
     </section>
   )
@@ -230,7 +231,7 @@ function Experience({ data }) {
 }
 
 function Languages({ data }) {
-  return <section className="resume-card" id="languages"><div className="resume-card-head"><i>文</i><div><h2>Языки</h2><small>Выбранные кандидатом</small></div></div><div className="language-list">{data.languages?.length ? data.languages.map((item) => <span key={item.id ?? item.name}>{item.name}</span>) : <p className="resume-empty">Не указаны</p>}</div></section>
+  return <section className="resume-card" id="languages"><div className="resume-card-head"><i>文</i><div><h2>Языки</h2><small>Выбранные специалистом</small></div></div><div className="language-list">{data.languages?.length ? data.languages.map((item) => <span key={item.id ?? item.name}>{item.name}</span>) : <p className="resume-empty">Не указаны</p>}</div></section>
 }
 
 function Education({ data }) {
@@ -412,7 +413,7 @@ export default function ResumeViewPage() {
 
   usePageStyles([
     '/static/resume-view.css?v=2',
-    '/static/resume-view-header.css?v=1',
+    '/static/resume-view-header.css?v=2',
     '/static/resume-knowledge.css?v=3',
     '/static/resume-knowledge-empty.css?v=2',
     '/static/resume-zodiac.css?v=2',

@@ -20,7 +20,7 @@ const catalogCopy = {
     title: 'Профиль — FinTalent',
     eyebrow: 'БАЗА СПЕЦИАЛИСТОВ',
     heading: 'Профили финансовых специалистов',
-    description: 'Ищите кандидатов по должности, навыкам и предпочтительному городу.',
+    description: 'Ищите специалистов по опыту, навыкам и направлениям экспертизы.',
     createHref: '/vacancies/create',
     createLabel: 'Разместить вакансию',
     queryPlaceholder: 'Должность, имя или профессиональный навык',
@@ -45,16 +45,17 @@ function CatalogAvatar({ item, type }) {
 
 function CatalogCard({ item, type, incomeLabel }) {
   const href = type === 'resumes' ? `/profiles/view/${item.id}` : `/vacancies/view?id=${item.id}`
+  const professional = type === 'resumes' && item.profile_mode === 'professional'
   return (
     <a className="catalog-card" href={href}>
       <CatalogAvatar item={item} type={type} />
       <div>
         <h2>{item.title}</h2>
         <span className="company">{item.name} · {item.city || 'Россия'}</span>
-        {item.description ? <p>{item.description}</p> : null}
+        {!professional && item.description ? <p>{item.description}</p> : null}
         <div className="catalog-tags">{(item.tags || []).map((tag, index) => <span key={`${tag}-${index}`}>{tag}</span>)}</div>
       </div>
-      <div className="catalog-side"><strong>{formatMoney(item.salary)} ₽</strong><small>{incomeLabel}</small></div>
+      <div className={`catalog-side${professional ? ' professional' : ''}`}>{professional ? <><strong>Профиль</strong><small>опыт и компетенции</small></> : <><strong>{formatMoney(item.salary)} ₽</strong><small>{incomeLabel}</small></>}</div>
     </a>
   )
 }
@@ -71,7 +72,7 @@ export default function CatalogPage({ type }) {
   const [status, setStatus] = useState('loading')
   const firstRequest = useRef(true)
   const activeRequest = useRef(null)
-  usePageStyles(['/static/catalog.css?v=2', '/static/catalog-help.css?v=1'])
+  usePageStyles(['/static/catalog.css?v=3', '/static/catalog-help.css?v=1'])
   useDocumentPage({ title: copy.title, bodyData: { catalog: type } })
 
   const loadCatalog = useCallback(async (signal) => {

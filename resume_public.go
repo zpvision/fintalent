@@ -74,6 +74,7 @@ type publicResumeView struct {
 	IsOwner              bool                     `json:"is_owner"`
 	Name                 string                   `json:"name"`
 	Avatar               string                   `json:"avatar"`
+	ProfileMode          string                   `json:"profile_mode"`
 	DesiredSalary        float64                  `json:"desired_salary"`
 	AvailableImmediately bool                     `json:"available_immediately"`
 	SearchStatus         string                   `json:"search_status"`
@@ -130,7 +131,7 @@ func loadPublicResume(r *http.Request, id int64) (*publicResumeView, error) {
 	var published sql.NullTime
 	var birthDay, birthMonth, birthYear sql.NullInt64
 	err := db.QueryRowContext(r.Context(), `
-		SELECT r.id,u.id,u.full_name,COALESCE(u.avatar_url,''),r.desired_salary,
+		SELECT r.id,u.id,u.full_name,COALESCE(u.avatar_url,''),COALESCE(u.profile_mode,'job_search'),r.desired_salary,
 			r.available_immediately,COALESCE(s.name,''),COALESCE(r.work_preferences,''),r.published_at,
 			r.birth_day,r.birth_month,r.birth_year
 		FROM resumes r
@@ -138,7 +139,7 @@ func loadPublicResume(r *http.Request, id int64) (*publicResumeView, error) {
 		LEFT JOIN resume_search_statuses s ON s.code=r.search_status_code
 		WHERE r.id=$1 AND r.status='published' AND r.deleted_at IS NULL`,
 		id,
-	).Scan(&view.ID, &view.OwnerID, &view.Name, &view.Avatar, &salary, &view.AvailableImmediately, &view.SearchStatus, &view.WorkPreferences, &published, &birthDay, &birthMonth, &birthYear)
+	).Scan(&view.ID, &view.OwnerID, &view.Name, &view.Avatar, &view.ProfileMode, &salary, &view.AvailableImmediately, &view.SearchStatus, &view.WorkPreferences, &published, &birthDay, &birthMonth, &birthYear)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +191,30 @@ func loadPublicResume(r *http.Request, id int64) (*publicResumeView, error) {
 	if err = loadPublicResumeHelp(r.Context(), view); err != nil {
 		return nil, err
 	}
+	applyProfessionalResumePresentation(view)
 	return view, nil
+}
+
+func applyProfessionalResumePresentation(view *publicResumeView) {
+	if view.ProfileMode != profileModeProfessional {
+		return
+	}
+	blocks := view.Blocks[:0]
+	for _, block := range view.Blocks {
+		name := strings.ToLower(block.Name)
+		if (strings.Contains(name, "желаем") && strings.Contains(name, "должност")) || strings.Contains(name, "общая информация") {
+			continue
+		}
+		blocks = append(blocks, block)
+	}
+	view.Blocks = blocks
+	view.Duties = []publicResumeDutyGroup{}
+	view.DesiredSalary = 0
+	view.AvailableImmediately = false
+	view.SearchStatus = "Профессиональный профиль"
+	view.WorkPreferences = ""
+	view.Cities = []resumeFinanceCity{}
+	view.WorkFormats = []resumeFinanceOption{}
 }
 
 func loadPublicResumeBlocks(r *http.Request, view *publicResumeView) error {
