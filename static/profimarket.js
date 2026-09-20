@@ -1,5 +1,5 @@
 (()=>{
-  if(!document.querySelector('link[href*="profimarket-home.css"]')){const link=document.createElement('link');link.rel='stylesheet';link.href='/static/profimarket-home.css?v=1';document.head.appendChild(link)}
+  if(!document.querySelector('link[href*="profimarket-home.css"]')){const link=document.createElement('link');link.rel='stylesheet';link.href='/static/profimarket-home.css?v=4';document.head.appendChild(link)}
   const iconStyle=document.createElement('style');iconStyle.textContent='.pmh-layout svg{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.pmh-card{min-width:0}.pmh-card h3,.pmh-card p{overflow-wrap:anywhere}@media(max-width:600px){.pmh-cards{grid-template-columns:1fr!important}}';document.head.appendChild(iconStyle);
   const UI=window.ProfiMarketUI;
   const root=document.querySelector('.pm-page');
