@@ -29,7 +29,7 @@ export default function SiteHeader() {
         <span className="ft-logo-crop"><img src="/static/logo.png" alt="" /></span>
         <span className="ft-brand-copy">
           <b>Fin<span>Talent</span></b>
-          <small>Биржа вакансий для бухгалтеров</small>
+          <small>Платформа профессиональных возможностей</small>
         </span>
       </Link>
       <button
