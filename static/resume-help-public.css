@@ -13,6 +13,7 @@
 .resume-help-card img{width:100%;height:100%;object-fit:cover}
 .resume-help-card b{display:block;color:#071541;font-size:13px}
 .resume-help-card small{display:block;margin-top:4px;color:#6d7da1;font-size:10px;line-height:1.35}
+@media(hover:hover){.resume-help-card{transition:border-color .18s ease,background .18s ease,box-shadow .18s ease,transform .18s ease}.resume-help-card>i{transition:color .18s ease,background .18s ease,transform .18s ease}.resume-help-card:hover{border-color:#9fc8ba;background:linear-gradient(145deg,#fff,#f1fbf7);box-shadow:0 10px 24px rgba(22,132,96,.11);transform:translateY(-2px)}.resume-help-card:hover>i{color:#087b5b;background:#dcf6ed;transform:scale(1.05)}}
 .resume-help-cta{margin-top:16px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px;border-radius:14px;background:#071541;color:#fff}
 .resume-help-cta span{font-size:12px;line-height:1.45;color:#dce8ff}
 .resume-help-cta button,.resume-help-cta a{height:40px;padding:0 16px;border:0;border-radius:10px;background:#19aa82;color:#fff;font:800 12px Inter;text-decoration:none;cursor:pointer;white-space:nowrap}

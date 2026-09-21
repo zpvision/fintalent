@@ -413,11 +413,11 @@ export default function ResumeViewPage() {
 
   usePageStyles([
     '/static/resume-view.css?v=3',
-    '/static/resume-view-header.css?v=2',
+    '/static/resume-view-header.css?v=3',
     '/static/resume-knowledge.css?v=3',
     '/static/resume-knowledge-empty.css?v=2',
     '/static/resume-zodiac.css?v=2',
-    '/static/resume-help-public.css?v=1',
+    '/static/resume-help-public.css?v=2',
   ])
   useDocumentPage({ title: resume ? `${resume.name} — ${title} | FinTalent` : 'Профиль — FinTalent' })
 

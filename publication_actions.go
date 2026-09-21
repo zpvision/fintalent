@@ -166,7 +166,11 @@ func publicationStateAction(w http.ResponseWriter, r *http.Request, id int64, ac
 		}
 		writeJSON(w, 200, "Публикация опубликована")
 	case "unpublish":
-		res, _ := db.ExecContext(r.Context(), `UPDATE publications SET status='draft',moderation_status='draft',visibility='draft',updated_at=NOW() WHERE id=$1 AND author_id=$2`, id, u.ID)
+		res, err := db.ExecContext(r.Context(), `UPDATE publications SET status='draft',moderation_status='draft',visibility='draft',updated_at=NOW() WHERE id=$1 AND author_id=$2 AND deleted_at IS NULL`, id, u.ID)
+		if err != nil {
+			writeJSON(w, 500, "Не удалось снять публикацию")
+			return
+		}
 		n, _ := res.RowsAffected()
 		if n == 0 {
 			writeJSON(w, 403, "Недостаточно прав")
