@@ -59,6 +59,7 @@ func TestDictionaryIconDefaultsIntegration(t *testing.T) {
 			(2006, 901, 'Аудитор', '/static/uploads/position-icons/custom.svg', 20, NULL),
 			(2007, 903, 'Диадок', 'https://example.com/custom.svg', 10, NULL),
 			(2008, 902, 'До 1 года', '', 0, NOW()),
+			(2009, 904, 'УСН', '/static/uploads/accounting-areas/custom-usn.svg', 5, NULL),
 			(14, 905, 'Новый ответ', '', 0, NULL);`)
 	if err != nil {
 		t.Fatal(err)
@@ -72,6 +73,7 @@ func TestDictionaryIconDefaultsIntegration(t *testing.T) {
 		2006: "/static/uploads/position-icons/custom.svg",
 		2007: "https://example.com/custom.svg",
 		2008: "",
+		2009: "/static/uploads/accounting-areas/custom-usn.svg",
 		14:   "",
 	}
 	for pass := 0; pass < 2; pass++ {
