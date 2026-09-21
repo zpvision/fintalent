@@ -535,24 +535,22 @@ func saveDictionary(ctx context.Context, id int64, name, alias, vacancyTitle, re
 	if _, err = tx.ExecContext(ctx, `UPDATE dictionary_items SET active=FALSE,deleted_at=NOW() WHERE dictionary_id=$1`, id); err != nil {
 		return err
 	}
-	order := 0
 	for _, item := range items {
 		value := strings.TrimSpace(item.Value)
 		if value == "" {
 			continue
 		}
 		if item.ID > 0 {
-			result, updateErr := tx.ExecContext(ctx, `UPDATE dictionary_items SET value=$1,comment=$2,icon=$3,sort_order=$4,active=TRUE,deleted_at=NULL WHERE id=$5 AND dictionary_id=$6`, value, strings.TrimSpace(item.Comment), strings.TrimSpace(item.Icon), order, item.ID, id)
+			result, updateErr := tx.ExecContext(ctx, `UPDATE dictionary_items SET value=$1,comment=$2,icon=$3,sort_order=$4,active=TRUE,deleted_at=NULL WHERE id=$5 AND dictionary_id=$6`, value, strings.TrimSpace(item.Comment), strings.TrimSpace(item.Icon), item.Order, item.ID, id)
 			if updateErr != nil {
 				return updateErr
 			}
 			if affected, _ := result.RowsAffected(); affected != 1 {
 				return errors.New("dictionary item not found")
 			}
-		} else if _, err = tx.ExecContext(ctx, `INSERT INTO dictionary_items(dictionary_id,value,comment,icon,sort_order,active,deleted_at) VALUES($1,$2,$3,$4,$5,TRUE,NULL)`, id, value, strings.TrimSpace(item.Comment), strings.TrimSpace(item.Icon), order); err != nil {
+		} else if _, err = tx.ExecContext(ctx, `INSERT INTO dictionary_items(dictionary_id,value,comment,icon,sort_order,active,deleted_at) VALUES($1,$2,$3,$4,$5,TRUE,NULL)`, id, value, strings.TrimSpace(item.Comment), strings.TrimSpace(item.Icon), item.Order); err != nil {
 			return err
 		}
-		order++
 	}
 	return tx.Commit()
 }

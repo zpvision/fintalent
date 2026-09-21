@@ -992,7 +992,7 @@ func publicDictionaryHandler(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, "Справочник не найден")
 		return
 	}
-	rows, err := db.QueryContext(ctx, `SELECT id,value,comment,icon FROM dictionary_items WHERE dictionary_id=(SELECT id FROM dictionaries WHERE alias=$1) ORDER BY sort_order,id`, alias)
+	rows, err := db.QueryContext(ctx, `SELECT id,value,comment,icon FROM dictionary_items WHERE dictionary_id=(SELECT id FROM dictionaries WHERE alias=$1) AND active=TRUE AND deleted_at IS NULL ORDER BY sort_order,id`, alias)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, "Не удалось загрузить варианты")
 		return
