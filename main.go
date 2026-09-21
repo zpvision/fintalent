@@ -86,8 +86,8 @@ func main() {
 		fs.ServeHTTP(w, r)
 	})))
 	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "image/png")
-		http.ServeFile(w, r, "static/favicon.png")
+		w.Header().Set("Content-Type", "image/x-icon")
+		http.ServeFile(w, r, "static/favicon.ico")
 	})
 	http.HandleFunc("/", serveFrontendRoot("static/index.html"))
 	http.HandleFunc("/register", serveFrontendPage("static/register.html"))
@@ -304,7 +304,7 @@ func servePage(filename string) http.HandlerFunc {
 				http.NotFound(w, r)
 				return
 			}
-			content = []byte(strings.Replace(string(content), "</head>", `<link rel="icon" href="/favicon.ico" type="image/png"><link rel="stylesheet" href="/static/layout-safety.css"><link rel="stylesheet" href="/static/site-header.css?v=2"><link rel="stylesheet" href="/static/site-background.css?v=1"><link rel="stylesheet" href="/static/accounting-company-responsive.css?v=1"><script src="/static/site-errors.js?v=1"></script></head>`, 1))
+			content = []byte(strings.Replace(string(content), "</head>", `<link rel="icon" href="/favicon.ico?v=2" type="image/x-icon"><link rel="stylesheet" href="/static/layout-safety.css"><link rel="stylesheet" href="/static/site-header.css?v=2"><link rel="stylesheet" href="/static/site-background.css?v=1"><link rel="stylesheet" href="/static/accounting-company-responsive.css?v=1"><script src="/static/site-errors.js?v=1"></script></head>`, 1))
 			if filepath.Base(filename) == "profile.html" {
 				content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/profile-avatar.js?v=1"></script><script src="/static/profile-client-exchange.js?v=1"></script><script src="/static/profile-accounting-company.js?v=1"></script><script src="/static/profile-help.js?v=1"></script></body>`, 1))
 			}
