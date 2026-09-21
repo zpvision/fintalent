@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
+import { apiClient } from '../../api/client'
 import { useDocumentPage } from '../../hooks/useDocumentPage'
 import usePageStyles from '../../hooks/usePageStyles'
+import { navigateInApp } from '../../navigation'
 
 function loadScript(src, ready) {
   if (ready?.()) return Promise.resolve(null)
@@ -22,12 +24,17 @@ export default function ResumeCreatePage() {
     const loaded = []
     async function start() {
       try {
+        const purpose = await apiClient.get('/api/profile-purpose')
+        if (!purpose.mode) {
+          navigateInApp('/profile-purpose?next=%2Fprofiles%2Fcreate', { replace: true })
+          return
+        }
         const success = await loadScript('/static/resume-publish-success.js?v=2', () => window.showResumePublishedModal)
         if (success) loaded.push(success)
         const picker = await loadScript('/static/duty-picker.js?v=4', () => window.DutyPicker)
         if (picker) loaded.push(picker)
         if (cancelled) return
-        const controller = await loadScript('/static/resume-create.js?v=26')
+        const controller = await loadScript('/static/resume-create.js?v=27')
         if (controller) loaded.push(controller)
       } catch (loadError) { if (!cancelled) setError(loadError.message) }
     }

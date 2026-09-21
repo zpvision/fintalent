@@ -61,7 +61,7 @@ export default function ProfilePurposePage() {
 
   function skip() {
     const next = searchParams.get('next')
-    navigateInApp(next?.startsWith('/') && !next.startsWith('//') ? next : '/profile')
+    navigateInApp(next?.startsWith('/') && !next.startsWith('//') && next !== '/profiles/create' ? next : '/profile')
   }
 
   return (
