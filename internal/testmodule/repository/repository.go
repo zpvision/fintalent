@@ -251,7 +251,7 @@ func (p *Postgres) Moderate(ctx context.Context, id int64, action, reason string
 	if status == "" {
 		return errors.New("invalid action")
 	}
-	_, err := p.db.ExecContext(ctx, `UPDATE tests SET status=$1,blocked_reason=$2,blocked_at=CASE WHEN $1='blocked' THEN NOW() ELSE NULL END,updated_at=NOW() WHERE id=$3`, status, reason, id)
+	_, err := p.db.ExecContext(ctx, `UPDATE tests SET status=$1::varchar,blocked_reason=$2,blocked_at=CASE WHEN $1::varchar='blocked' THEN NOW() ELSE NULL END,updated_at=NOW() WHERE id=$3`, status, reason, id)
 	return err
 }
 

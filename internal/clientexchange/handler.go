@@ -14,15 +14,31 @@ import (
 
 type UserResolver func(*http.Request) (UserIdentity, error)
 type AdminResolver func(*http.Request) bool
+type ResponseNotifier func(ResponseEmail)
+
+type ResponseEmail struct {
+	RecipientName  string
+	RecipientEmail string
+	BuyerName      string
+	ListingTitle   string
+	OfferText      string
+	Comment        string
+	ListingID      int64
+}
 
 type Handler struct {
-	db    *sql.DB
-	user  UserResolver
-	admin AdminResolver
+	db             *sql.DB
+	user           UserResolver
+	admin          AdminResolver
+	notifyResponse ResponseNotifier
 }
 
 func New(db *sql.DB, user UserResolver, admin AdminResolver) *Handler {
 	return &Handler{db: db, user: user, admin: admin}
+}
+
+func (h *Handler) SetResponseNotifier(notifier ResponseNotifier) {
+	h.notifyResponse = notifier
 }
 
 func (h *Handler) Register(mux *http.ServeMux) {

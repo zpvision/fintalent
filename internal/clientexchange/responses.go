@@ -21,10 +21,10 @@ func (h *Handler) createResponse(w http.ResponseWriter, r *http.Request, u UserI
 		return
 	}
 	var seller int64
-	var title, status string
+	var title, status, sellerName, sellerEmail string
 	var original sql.NullFloat64
 	var bargain bool
-	if err := h.db.QueryRowContext(r.Context(), `SELECT seller_user_id,COALESCE(NULLIF(title,''),'Клиент'),status,transfer_price,bargain_allowed FROM client_exchange_listings WHERE id=$1 AND deleted_at IS NULL`, listingID).Scan(&seller, &title, &status, &original, &bargain); err != nil {
+	if err := h.db.QueryRowContext(r.Context(), `SELECT l.seller_user_id,COALESCE(NULLIF(l.title,''),'Клиент'),l.status,l.transfer_price,l.bargain_allowed,u.full_name,u.email FROM client_exchange_listings l JOIN users u ON u.id=l.seller_user_id WHERE l.id=$1 AND l.deleted_at IS NULL`, listingID).Scan(&seller, &title, &status, &original, &bargain, &sellerName, &sellerEmail); err != nil {
 		fail(w, 404, "Объявление не найдено")
 		return
 	}
@@ -77,6 +77,9 @@ func (h *Handler) createResponse(w http.ResponseWriter, r *http.Request, u UserI
 	if err = tx.Commit(); err != nil {
 		fail(w, 500, "Не удалось отправить предложение")
 		return
+	}
+	if h.notifyResponse != nil {
+		h.notifyResponse(ResponseEmail{RecipientName: sellerName, RecipientEmail: sellerEmail, BuyerName: u.FullName, ListingTitle: title, OfferText: message, Comment: clean(in.Comment, 3000), ListingID: listingID})
 	}
 	respond(w, 201, map[string]any{"id": id, "status": "pending", "message": "Предложение отправлено"})
 }

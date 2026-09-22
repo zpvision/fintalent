@@ -10,8 +10,16 @@
 .profile-help-card>header{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:12px;align-items:start}
 .profile-help-card img{width:44px;height:44px;border-radius:50%;object-fit:cover;background:#eef4ff}
 .profile-help-card h2{margin:0;color:#071541;font-size:15px}
+.profile-help-person-link{color:#071541;text-decoration:none}.profile-help-person-link:hover{color:#1559f6;text-decoration:underline;text-underline-offset:3px}
 .profile-help-card small{display:block;margin-top:4px;color:#6d7da1;font-size:11px}
 .profile-help-card p{margin:12px 0 0;color:#33435f;font-size:12px;line-height:1.55}
+.profile-help-error{padding:11px 14px;border:1px solid #ffd5dc;border-radius:10px;background:#fff5f7;color:#ad2940!important}
+.profile-help-decline-reason{margin-top:14px;padding:13px 15px;border:1px solid #f4dce1;border-radius:12px;background:linear-gradient(135deg,#fff7f8,#fff)}
+.profile-help-decline-reason span{color:#a5384b;font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+.profile-help-decline-reason p{margin:6px 0 0;color:#5b3540;font-size:12px}
+.profile-help-accept-message{margin-top:14px;padding:13px 15px;border:1px solid #cdebe1;border-radius:12px;background:linear-gradient(135deg,#eefaf6,#fff)}
+.profile-help-accept-message span{color:#087b5b;font-size:10px;font-weight:800;letter-spacing:.05em;text-transform:uppercase}
+.profile-help-accept-message p{margin:6px 0 0;color:#245347;font-size:12px;white-space:pre-wrap}
 .help-status{display:inline-flex;align-items:center;height:26px;padding:0 9px;border-radius:999px;background:#eef4ff;color:#1559f6;font-size:10px;font-weight:800}
 .help-status.accepted{background:#eaf7f2;color:#0b986c}.help-status.completed{background:#fff7df;color:#9d6a00}.help-status.declined,.help-status.cancelled{background:#fff0f2;color:#c7394d}
 .profile-help-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
@@ -31,6 +39,14 @@
 .profile-help-dialog footer{display:flex;justify-content:flex-end;gap:10px;margin-top:12px}
 .profile-help-dialog footer button,.profile-help-dialog footer a{height:38px;padding:0 14px;border:1px solid #dfe8f5;border-radius:9px;background:#fff;color:#1559f6;font:800 12px Inter;text-decoration:none;cursor:pointer}
 .profile-help-dialog footer .primary{border:0;background:#1559f6;color:#fff}
+.profile-help-decline-dialog,.profile-help-accept-dialog{width:min(500px,100%)}
+.profile-help-decline-dialog>header small,.profile-help-accept-dialog>header small{display:block;margin-bottom:6px;font-size:10px;font-weight:800;letter-spacing:.1em}
+.profile-help-decline-dialog>header small{color:#c7394d}.profile-help-accept-dialog>header small{color:#0b986c}
+.profile-help-decline-dialog textarea{min-height:120px}
+.profile-help-reason-count{margin-top:5px;color:#8a96aa;font-size:10px;text-align:right}
+.profile-help-dialog footer .danger-primary{border:0;background:#c7394d;color:#fff}
+.profile-help-dialog footer .accept-primary{border:0;background:#0b986c;color:#fff}
+.profile-help-dialog footer .danger-primary:disabled{background:#e5aeb7;cursor:not-allowed}.profile-help-dialog footer .accept-primary:disabled{background:#a9d8ca;cursor:not-allowed}
 .review-stars{display:flex;gap:6px;margin:8px 0 10px}.review-stars button{width:38px;height:38px;border:1px solid #dfe8f5;border-radius:9px;background:#fff;color:#d5a000;font-size:20px;cursor:pointer}.review-stars button.active{background:#fff7df;border-color:#f0d77b}
 .help-menu-badge{margin-left:auto;min-width:18px;height:18px;display:grid;place-items:center;border-radius:999px;background:#e83f5b;color:#fff;font-size:9px;font-weight:800}
 @media(max-width:700px){.profile-help-page>header,.profile-help-card>header{grid-template-columns:1fr;display:grid}.profile-help-tabs{width:100%}.profile-help-tabs button{flex:1}.profile-help-card>header{gap:8px}.help-status{width:max-content}.help-message{max-width:92%}}

@@ -35,6 +35,19 @@ func registerClientExchangeRoutes() {
 		}
 		return clientexchange.UserIdentity{ID: u.ID, FullName: u.FullName, Email: u.Email, Avatar: u.Avatar}, nil
 	}, isAdmin)
+	handler.SetResponseNotifier(func(event clientexchange.ResponseEmail) {
+		details := event.OfferText + "\nПокупатель: " + event.BuyerName
+		if event.Comment != "" {
+			details += "\nКомментарий: " + event.Comment
+		}
+		sendEventNotificationAsync("client exchange response", event.RecipientName, event.RecipientEmail, "Новый интерес к карточке клиента — FinTalent", eventNotificationEmailData{
+			Badge: "Клиентская биржа · Новый отклик", Title: "Ваш клиент заинтересовал покупателя",
+			Intro:     "Пользователь нажал «Мне интересен клиент» и отправил предложение. Посмотрите условия и выберите дальнейшее действие в личном кабинете.",
+			CardLabel: "Карточка клиента", CardTitle: event.ListingTitle, Details: details,
+			ButtonText: "Открыть предложения", ButtonURL: applicationBaseURL() + "/profile?section=client-exchange&tab=received",
+			Accent: "#1768f2", Footer: "Контакты и предложение также сохранены в разделе «Клиентская биржа».",
+		})
+	})
 	handler.Register(http.DefaultServeMux)
 }
 

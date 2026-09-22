@@ -1,5 +1,5 @@
 (()=>{
-  document.head.insertAdjacentHTML('beforeend','<link rel="stylesheet" href="/static/profile-help.css?v=1">')
+  document.head.insertAdjacentHTML('beforeend','<link rel="stylesheet" href="/static/profile-help.css?v=2">')
   const escapeHTML=value=>{const node=document.createElement('span');node.textContent=value??'';return node.innerHTML}
   const statusText={new:'Новое',accepted:'Принято',declined:'Отклонено',completed:'Завершено',cancelled:'Отменено'}
   let activeScope='incoming',me=null
@@ -28,8 +28,10 @@
   function card(item){
     const p=person(item),incoming=activeScope==='incoming'
     return`<article class="profile-help-card" data-request="${item.id}">
-      <header><img src="${escapeHTML(p.avatar||'/static/avatar-placeholder.svg')}" alt=""><div><h2>${escapeHTML(p.name)}</h2><small>${topicIcon(item.topic)} ${escapeHTML(item.topic.name)} · создано ${escapeHTML(date(item.created_at))}</small></div><span class="help-status ${escapeHTML(item.status)}">${escapeHTML(statusText[item.status]||item.status)}</span></header>
+      <header><img src="${escapeHTML(p.avatar||'/static/avatar-placeholder.svg')}" alt=""><div><h2>${p.profile_id?`<a class="profile-help-person-link" href="/profiles/view/${Number(p.profile_id)}">${escapeHTML(p.name)}</a>`:escapeHTML(p.name)}</h2><small>${topicIcon(item.topic)} ${escapeHTML(item.topic.name)} · создано ${escapeHTML(date(item.created_at))}</small></div><span class="help-status ${escapeHTML(item.status)}">${escapeHTML(statusText[item.status]||item.status)}</span></header>
       <p>${escapeHTML(item.text)}</p>
+      ${!incoming&&['accepted','completed'].includes(item.status)&&item.acceptance_message?`<div class="profile-help-accept-message"><span>Ответ специалиста</span><p>${escapeHTML(item.acceptance_message)}</p></div>`:''}
+      ${!incoming&&item.status==='declined'&&item.decline_reason?`<div class="profile-help-decline-reason"><span>Почему специалист не смог помочь</span><p>${escapeHTML(item.decline_reason)}</p></div>`:''}
       <div class="profile-help-actions">
         ${incoming&&item.status==='new'?`<button class="good" data-action="accept">Принять</button><button class="danger" data-action="decline">Отклонить</button>`:''}
         ${incoming&&item.status==='accepted'?`<button class="good" data-action="complete">Отметить завершенной</button>`:''}
@@ -47,19 +49,42 @@
       const items=await api(`/api/v1/help/requests?scope=${activeScope}`)
       const list=main.querySelector('.profile-help-list')
       list.innerHTML=items.length?items.map(card).join(''):`<div class="profile-help-empty">${activeScope==='incoming'?'Новых обращений пока нет':'Вы пока не отправляли запросы помощи'}</div>`
-      list.querySelectorAll('[data-action]').forEach(button=>button.onclick=()=>runAction(button.closest('[data-request]').dataset.request,button.dataset.action))
+      list.querySelectorAll('[data-action]').forEach(button=>button.onclick=()=>{const id=button.closest('[data-request]').dataset.request,action=button.dataset.action;action==='decline'?openDecline(id):action==='accept'?openAccept(id):runAction(id,action)})
       list.querySelectorAll('[data-open-messages]').forEach(button=>button.onclick=()=>openMessages(button.closest('[data-request]').dataset.request,items.find(item=>String(item.id)===String(button.closest('[data-request]').dataset.request))))
       list.querySelectorAll('[data-open-review]').forEach(button=>button.onclick=()=>openReview(button.closest('[data-request]').dataset.request))
     }catch(error){
       main.querySelector('.profile-help-list').innerHTML=`<div class="profile-help-empty">Не удалось загрузить обращения: ${escapeHTML(error.message)}</div>`
     }
   }
-  async function runAction(id,action){
+  function openDecline(id){
+    const modal=document.createElement('div')
+    modal.className='profile-help-modal'
+    modal.innerHTML=`<div class="profile-help-dialog profile-help-decline-dialog" role="dialog" aria-modal="true"><header><div><small>ОТКЛОНЕНИЕ ЗАПРОСА</small><h2>Коротко укажите причину</h2><p>Коллега увидит ваше пояснение и поймёт, почему сейчас вы не можете помочь.</p></div><button class="close" type="button" aria-label="Закрыть">×</button></header><textarea maxlength="500" placeholder="Например: сейчас нет возможности взять запрос или вопрос не относится к моей специализации"></textarea><div class="profile-help-reason-count">0 / 500</div><footer><button type="button" class="cancel">Отмена</button><button type="button" class="danger-primary" disabled>Отклонить запрос</button></footer></div>`
+    document.body.append(modal)
+    const textarea=modal.querySelector('textarea'),submit=modal.querySelector('.danger-primary'),close=()=>modal.remove()
+    modal.querySelector('.close').onclick=close;modal.querySelector('.cancel').onclick=close;modal.onclick=event=>{if(event.target===modal)close()}
+    textarea.oninput=()=>{modal.querySelector('.profile-help-reason-count').textContent=`${textarea.value.length} / 500`;submit.disabled=textarea.value.trim().length<3}
+    submit.onclick=async()=>{if(await runAction(id,'decline',{reason:textarea.value.trim()}))close()}
+    textarea.focus()
+  }
+  function openAccept(id){
+    const modal=document.createElement('div')
+    modal.className='profile-help-modal'
+    modal.innerHTML=`<div class="profile-help-dialog profile-help-accept-dialog" role="dialog" aria-modal="true"><header><div><small>ПРИНЯТИЕ ЗАПРОСА</small><h2>Ответьте коллеге</h2><p>Ваш ответ и контакты сразу увидит автор запроса. После этого откроется переписка.</p></div><button class="close" type="button" aria-label="Закрыть">×</button></header><textarea maxlength="1000" placeholder="Напишите ответ и укажите удобные контакты для связи"></textarea><div class="profile-help-reason-count">0 / 1000</div><footer><button type="button" class="cancel">Отмена</button><button type="button" class="accept-primary" disabled>Принять и отправить ответ</button></footer></div>`
+    document.body.append(modal)
+    const textarea=modal.querySelector('textarea'),submit=modal.querySelector('.accept-primary'),close=()=>modal.remove()
+    modal.querySelector('.close').onclick=close;modal.querySelector('.cancel').onclick=close;modal.onclick=event=>{if(event.target===modal)close()}
+    textarea.oninput=()=>{modal.querySelector('.profile-help-reason-count').textContent=`${textarea.value.length} / 1000`;submit.disabled=textarea.value.trim().length<3}
+    submit.onclick=async()=>{if(await runAction(id,'accept',{message:textarea.value.trim()}))close()}
+    textarea.focus()
+  }
+  async function runAction(id,action,payload=null){
     try{
-      await api(`/api/v1/help/requests/${id}/${action}`,{method:'POST'})
+      await api(`/api/v1/help/requests/${id}/${action}`,{method:'POST',body:payload?JSON.stringify(payload):null})
       notify('Статус обращения обновлен')
       render();updateBadge()
-    }catch(error){notify(error.message,true)}
+      return true
+    }catch(error){notify(error.message,true);return false}
   }
   async function openMessages(id,item){
     const modal=document.createElement('div')

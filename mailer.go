@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"log"
 	"mime"
 	"mime/multipart"
 	"mime/quotedprintable"
@@ -29,6 +30,9 @@ var passwordResetEmailTemplate string
 
 //go:embed mail/templates/profimarket_order.html
 var profiMarketOrderEmailTemplate string
+
+//go:embed mail/templates/event_notification.html
+var eventNotificationEmailTemplate string
 
 //go:embed mail/logo.png
 var emailLogo []byte
@@ -60,6 +64,28 @@ type profiMarketOrderEmailData struct {
 	PriceText    string
 	PurchaseID   int64
 	OrdersURL    string
+}
+
+type eventNotificationEmailData struct {
+	RecipientName string
+	Badge         string
+	Title         string
+	Intro         string
+	CardLabel     string
+	CardTitle     string
+	Details       string
+	ButtonText    string
+	ButtonURL     string
+	Accent        template.CSS
+	Footer        string
+}
+
+func applicationBaseURL() string {
+	baseURL := strings.TrimRight(strings.TrimSpace(os.Getenv("APP_BASE_URL")), "/")
+	if baseURL == "" {
+		return "https://fintalent.ru"
+	}
+	return baseURL
 }
 
 func loadSMTPConfig() (smtpConfig, error) {
@@ -157,6 +183,38 @@ func sendProfiMarketOrderEmail(recipientName, recipientEmail string, data profiM
 		return err
 	}
 	return sendSMTPMessage(config, recipientEmail, message)
+}
+
+func sendEventNotificationEmail(recipientName, recipientEmail, subject string, data eventNotificationEmailData) error {
+	config, err := loadSMTPConfig()
+	if err != nil {
+		return err
+	}
+	data.RecipientName = recipientName
+	if data.Accent == "" {
+		data.Accent = template.CSS("#1559f6")
+	}
+	tmpl, err := template.New("event-notification").Parse(eventNotificationEmailTemplate)
+	if err != nil {
+		return fmt.Errorf("шаблон уведомления: %w", err)
+	}
+	var htmlBody bytes.Buffer
+	if err = tmpl.Execute(&htmlBody, data); err != nil {
+		return fmt.Errorf("формирование уведомления: %w", err)
+	}
+	message, err := buildHTMLMessage(config.From, mail.Address{Name: recipientName, Address: recipientEmail}, subject, htmlBody.Bytes())
+	if err != nil {
+		return err
+	}
+	return sendSMTPMessage(config, recipientEmail, message)
+}
+
+func sendEventNotificationAsync(label, recipientName, recipientEmail, subject string, data eventNotificationEmailData) {
+	go func() {
+		if err := sendEventNotificationEmail(recipientName, recipientEmail, subject, data); err != nil {
+			log.Printf("email %s to %s failed: %v", label, recipientEmail, err)
+		}
+	}()
 }
 
 func buildHTMLMessage(from, to mail.Address, subject string, htmlBody []byte) ([]byte, error) {

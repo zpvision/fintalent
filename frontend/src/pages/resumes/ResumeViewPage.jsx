@@ -291,7 +291,15 @@ function HelpModal({ data, mode, onClose }) {
       <div className="resume-help-review-list"><ReviewList reviews={reviews} /></div>
     </div>
   ) : status === 'sent' ? (
-    <div className="resume-help-dialog" role="dialog" aria-modal="true"><header><div><h2>Запрос отправлен</h2><p>Статус обращения появится в личном кабинете в разделе “Помощь коллегам”.</p></div><button className="close" type="button" onClick={onClose}>×</button></header><footer><a className="primary" href="/profile?section=help" target="_self">Открыть обращения</a></footer></div>
+    <div className="resume-help-dialog resume-help-success" role="dialog" aria-modal="true">
+      <button className="close" type="button" aria-label="Закрыть" onClick={onClose}>×</button>
+      <div className="resume-help-success-art" aria-hidden="true"><span>✓</span><i /><i /></div>
+      <small className="resume-help-success-label">ЗАПРОС УСПЕШНО ОТПРАВЛЕН</small>
+      <h2>Теперь слово за специалистом</h2>
+      <p>Ваше обращение уже передано. Когда специалист примет запрос, его статус обновится в личном кабинете.</p>
+      <div className="resume-help-success-route"><span><i>1</i><b>Запрос отправлен</b></span><em>→</em><span><i>2</i><b>Ответ специалиста</b></span></div>
+      <footer><button className="cancel" type="button" onClick={onClose}>Закрыть</button><a className="primary" href="/profile?section=help" target="_self">Перейти к моим запросам <b>→</b></a></footer>
+    </div>
   ) : (
     <div className="resume-help-dialog" role="dialog" aria-modal="true">
       <header><div><h2>Попросить помощи</h2><p>Выберите направление и коротко опишите вопрос или ситуацию.</p></div><button className="close" type="button" aria-label="Закрыть" onClick={onClose}>×</button></header>
@@ -417,7 +425,7 @@ export default function ResumeViewPage() {
     '/static/resume-knowledge.css?v=3',
     '/static/resume-knowledge-empty.css?v=2',
     '/static/resume-zodiac.css?v=2',
-    '/static/resume-help-public.css?v=2',
+    '/static/resume-help-public.css?v=3',
   ])
   useDocumentPage({ title: resume ? `${resume.name} — ${title} | FinTalent` : 'Профиль — FinTalent' })
 

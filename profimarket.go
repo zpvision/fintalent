@@ -1070,12 +1070,24 @@ func profiPurchaseAction(w http.ResponseWriter, r *http.Request, id int64, u *us
 		writeJSON(w, 500, "Не удалось завершить покупку")
 		return
 	}
+	priceText := fmt.Sprintf("%.0f ₽", x.Price)
+	if x.PricingType == "FREE" || x.Price == 0 {
+		priceText = "Бесплатно"
+	}
+	buyerTitle := "Покупка успешно оформлена"
+	buyerIntro := "Решение добавлено в раздел «Мои покупки». Автор получил ваши контакты и сможет связаться с вами для передачи материалов или уточнения деталей."
+	if x.Type == "AI_ASSISTANT" && x.TrialDays > 0 {
+		buyerTitle = "Заявка на бесплатный период отправлена"
+		buyerIntro = "Автор решения получил вашу заявку и контакты. Все сведения о заявке сохранены в личном кабинете."
+	}
+	sendEventNotificationAsync("profimarket purchase buyer", u.FullName, u.Email, buyerTitle+" — FinTalent", eventNotificationEmailData{
+		Badge: "ПрофиМаркет · Покупка", Title: buyerTitle, Intro: buyerIntro,
+		CardLabel: "Решение", CardTitle: x.Title, Details: priceText,
+		ButtonText: "Открыть мои покупки", ButtonURL: applicationBaseURL() + "/profile?section=profimarket-purchases",
+		Accent: "#6544ea", Footer: fmt.Sprintf("Заказ №%d", purchaseID),
+	})
 	var sellerName, sellerEmail string
 	if db.QueryRowContext(r.Context(), `SELECT full_name,email FROM users WHERE id=$1`, x.AuthorUserID).Scan(&sellerName, &sellerEmail) == nil {
-		priceText := fmt.Sprintf("%.0f ₽", x.Price)
-		if x.PricingType == "FREE" || x.Price == 0 {
-			priceText = "Бесплатно"
-		}
 		emailData := profiMarketOrderEmailData{BuyerName: u.FullName, BuyerEmail: u.Email, ProductTitle: x.Title, ActionTitle: actionTitle, PriceText: priceText, PurchaseID: purchaseID}
 		var emailErr error
 		for attempt := 1; attempt <= 2; attempt++ {

@@ -1,0 +1,3 @@
+ALTER TABLE help_requests
+    ADD COLUMN IF NOT EXISTS decline_reason TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS acceptance_message TEXT NOT NULL DEFAULT '';

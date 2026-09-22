@@ -6,13 +6,15 @@ import (
 	"embed"
 	"encoding/json"
 	"errors"
+	"html/template"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 )
 
-//go:embed migrations/045_help_module.sql
+//go:embed migrations/045_help_module.sql migrations/060_help_request_decline_reason.sql
 var helpMigrationFS embed.FS
 
 type helpTopic struct {
@@ -49,9 +51,10 @@ type publicResumeHelp struct {
 }
 
 type helpRequestPerson struct {
-	ID     int64  `json:"id"`
-	Name   string `json:"name"`
-	Avatar string `json:"avatar"`
+	ID        int64  `json:"id"`
+	Name      string `json:"name"`
+	Avatar    string `json:"avatar"`
+	ProfileID *int64 `json:"profile_id,omitempty"`
 }
 
 type helpRequestView struct {
@@ -61,6 +64,8 @@ type helpRequestView struct {
 	Topic         helpTopic         `json:"topic"`
 	Text          string            `json:"text"`
 	Status        string            `json:"status"`
+	DeclineReason string            `json:"decline_reason,omitempty"`
+	AcceptMessage string            `json:"acceptance_message,omitempty"`
 	CreatedAt     time.Time         `json:"created_at"`
 	AcceptedAt    *time.Time        `json:"accepted_at,omitempty"`
 	CompletedAt   *time.Time        `json:"completed_at,omitempty"`
@@ -77,12 +82,16 @@ type helpMessageView struct {
 }
 
 func prepareHelpDatabase(ctx context.Context) error {
-	schema, err := helpMigrationFS.ReadFile("migrations/045_help_module.sql")
-	if err != nil {
-		return err
+	for _, name := range []string{"migrations/045_help_module.sql", "migrations/060_help_request_decline_reason.sql"} {
+		schema, err := helpMigrationFS.ReadFile(name)
+		if err != nil {
+			return err
+		}
+		if _, err = db.ExecContext(ctx, string(schema)); err != nil {
+			return err
+		}
 	}
-	_, err = db.ExecContext(ctx, string(schema))
-	return err
+	return nil
 }
 
 func registerHelpRoutes() {
@@ -405,10 +414,12 @@ func helpRequests(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var expertID int64
-		err = db.QueryRowContext(r.Context(), `SELECT r.user_id
+		var expertName, expertEmail, topicName string
+		err = db.QueryRowContext(r.Context(), `SELECT r.user_id,u.full_name,u.email,t.name
 			FROM resumes r JOIN resume_help_topics rht ON rht.resume_id=r.id
 			JOIN help_topics t ON t.id=rht.topic_id
-			WHERE r.id=$1 AND rht.topic_id=$2 AND r.status='published' AND r.deleted_at IS NULL AND t.is_active=TRUE AND t.deleted_at IS NULL`, payload.ResumeID, payload.TopicID).Scan(&expertID)
+			JOIN users u ON u.id=r.user_id
+			WHERE r.id=$1 AND rht.topic_id=$2 AND r.status='published' AND r.deleted_at IS NULL AND t.is_active=TRUE AND t.deleted_at IS NULL`, payload.ResumeID, payload.TopicID).Scan(&expertID, &expertName, &expertEmail, &topicName)
 		if err == sql.ErrNoRows {
 			writeJSON(w, http.StatusBadRequest, "Это направление недоступно у выбранного специалиста")
 			return
@@ -427,6 +438,13 @@ func helpRequests(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusInternalServerError, "Не удалось отправить запрос помощи")
 			return
 		}
+		sendEventNotificationAsync("new help request", expertName, expertEmail, "Новый запрос помощи — FinTalent", eventNotificationEmailData{
+			Badge: "Помощь коллегам · Новый запрос", Title: "К вам обратились за помощью",
+			Intro:     "Коллега выбрал одно из направлений вашего блока «Могу помочь». Примите запрос или вежливо отклоните его с коротким пояснением.",
+			CardLabel: "Направление", CardTitle: topicName, Details: u.FullName + ":\n" + payload.Text,
+			ButtonText: "Открыть запрос", ButtonURL: applicationBaseURL() + "/profile?section=help",
+			Accent: "#0b986c", Footer: "Новые запросы ожидают решения в разделе «Мне написали».",
+		})
 		writeAdminJSON(w, http.StatusCreated, map[string]any{"id": id, "status": "new"})
 	default:
 		writeJSON(w, http.StatusMethodNotAllowed, "Метод не поддерживается")
@@ -440,15 +458,17 @@ func loadHelpRequests(ctx context.Context, userID int64, scope string) ([]helpRe
 	} else if scope != "incoming" {
 		return nil, errors.New("invalid scope")
 	}
-	rows, err := db.QueryContext(ctx, `SELECT req.id,req.request_text,req.status,req.created_at,req.accepted_at,req.completed_at,
-			requester.id,requester.full_name,COALESCE(requester.avatar_url,''),
-			expert.id,expert.full_name,COALESCE(expert.avatar_url,''),
+	rows, err := db.QueryContext(ctx, `SELECT req.id,req.request_text,req.status,COALESCE(req.decline_reason,''),COALESCE(req.acceptance_message,''),req.created_at,req.accepted_at,req.completed_at,
+			requester.id,requester.full_name,COALESCE(requester.avatar_url,''),requester_resume.id,
+			expert.id,expert.full_name,COALESCE(expert.avatar_url,''),expert_resume.id,
 			t.id,t.name,t.category,t.icon,t.short_description,t.is_active,t.sort_order,t.created_at,t.updated_at,
 			(SELECT COUNT(*) FROM help_request_messages m WHERE m.help_request_id=req.id),
 			review.id
 		FROM help_requests req
 		JOIN users requester ON requester.id=req.requester_id
 		JOIN users expert ON expert.id=req.expert_id
+		LEFT JOIN LATERAL (SELECT id FROM resumes WHERE user_id=requester.id AND status='published' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1) requester_resume ON TRUE
+		LEFT JOIN LATERAL (SELECT id FROM resumes WHERE user_id=expert.id AND status='published' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1) expert_resume ON TRUE
 		JOIN help_topics t ON t.id=req.topic_id
 		LEFT JOIN help_reviews review ON review.help_request_id=req.id
 		WHERE `+where+`
@@ -461,10 +481,10 @@ func loadHelpRequests(ctx context.Context, userID int64, scope string) ([]helpRe
 	for rows.Next() {
 		var item helpRequestView
 		var accepted, completed sql.NullTime
-		var reviewID sql.NullInt64
-		if err = rows.Scan(&item.ID, &item.Text, &item.Status, &item.CreatedAt, &accepted, &completed,
-			&item.Requester.ID, &item.Requester.Name, &item.Requester.Avatar,
-			&item.Expert.ID, &item.Expert.Name, &item.Expert.Avatar,
+		var reviewID, requesterProfileID, expertProfileID sql.NullInt64
+		if err = rows.Scan(&item.ID, &item.Text, &item.Status, &item.DeclineReason, &item.AcceptMessage, &item.CreatedAt, &accepted, &completed,
+			&item.Requester.ID, &item.Requester.Name, &item.Requester.Avatar, &requesterProfileID,
+			&item.Expert.ID, &item.Expert.Name, &item.Expert.Avatar, &expertProfileID,
 			&item.Topic.ID, &item.Topic.Name, &item.Topic.Category, &item.Topic.Icon, &item.Topic.ShortDescription, &item.Topic.Active, &item.Topic.SortOrder, &item.Topic.CreatedAt, &item.Topic.UpdatedAt,
 			&item.MessagesCount, &reviewID); err != nil {
 			return nil, err
@@ -477,6 +497,12 @@ func loadHelpRequests(ctx context.Context, userID int64, scope string) ([]helpRe
 		}
 		if reviewID.Valid {
 			item.ReviewID = &reviewID.Int64
+		}
+		if requesterProfileID.Valid {
+			item.Requester.ProfileID = &requesterProfileID.Int64
+		}
+		if expertProfileID.Valid {
+			item.Expert.ProfileID = &expertProfileID.Int64
 		}
 		if item.Requester.Avatar == "" {
 			item.Requester.Avatar = "/static/avatar-placeholder.svg"
@@ -517,9 +543,9 @@ func helpRequestAction(w http.ResponseWriter, r *http.Request) {
 	}
 	switch action {
 	case "accept":
-		updateHelpRequestStatus(w, r, id, u.ID, "accepted")
+		acceptHelpRequest(w, r, id, u.ID)
 	case "decline":
-		updateHelpRequestStatus(w, r, id, u.ID, "declined")
+		declineHelpRequest(w, r, id, u.ID)
 	case "complete":
 		updateHelpRequestStatus(w, r, id, u.ID, "completed")
 	case "cancel":
@@ -531,13 +557,100 @@ func helpRequestAction(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func acceptHelpRequest(w http.ResponseWriter, r *http.Request, id, expertID int64) {
+	var payload struct {
+		Message string `json:"message"`
+	}
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&payload) != nil {
+		writeJSON(w, http.StatusBadRequest, "Напишите ответ и укажите контакты для связи")
+		return
+	}
+	payload.Message = strings.TrimSpace(payload.Message)
+	length := len([]rune(payload.Message))
+	if length < 3 || length > 1000 {
+		writeJSON(w, http.StatusBadRequest, "Ответ должен содержать от 3 до 1000 символов")
+		return
+	}
+	tx, err := db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, "Не удалось принять обращение")
+		return
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(r.Context(), `UPDATE help_requests SET status='accepted',acceptance_message=$3,accepted_at=NOW(),updated_at=NOW() WHERE id=$1 AND expert_id=$2 AND status='new'`, id, expertID, payload.Message)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, "Не удалось принять обращение")
+		return
+	}
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		writeJSON(w, http.StatusBadRequest, "Обращение не найдено или действие недоступно")
+		return
+	}
+	if _, err = tx.ExecContext(r.Context(), `INSERT INTO help_request_messages(help_request_id,author_id,text) VALUES($1,$2,$3)`, id, expertID, payload.Message); err != nil {
+		writeJSON(w, http.StatusInternalServerError, "Не удалось сохранить ответ")
+		return
+	}
+	if err = tx.Commit(); err != nil {
+		writeJSON(w, http.StatusInternalServerError, "Не удалось принять обращение")
+		return
+	}
+	notifyHelpRequestDecision(r.Context(), id, true, payload.Message)
+	writeAdminJSON(w, http.StatusOK, map[string]string{"status": "accepted"})
+}
+
+func declineHelpRequest(w http.ResponseWriter, r *http.Request, id, expertID int64) {
+	var payload struct {
+		Reason string `json:"reason"`
+	}
+	if json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<10)).Decode(&payload) != nil {
+		writeJSON(w, http.StatusBadRequest, "Укажите причину отказа")
+		return
+	}
+	payload.Reason = strings.TrimSpace(payload.Reason)
+	length := len([]rune(payload.Reason))
+	if length < 3 || length > 500 {
+		writeJSON(w, http.StatusBadRequest, "Причина отказа должна содержать от 3 до 500 символов")
+		return
+	}
+	result, err := db.ExecContext(r.Context(), `UPDATE help_requests SET status='declined',decline_reason=$3,updated_at=NOW() WHERE id=$1 AND expert_id=$2 AND status='new'`, id, expertID, payload.Reason)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, "Не удалось отклонить обращение")
+		return
+	}
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		writeJSON(w, http.StatusBadRequest, "Обращение не найдено или действие недоступно")
+		return
+	}
+	notifyHelpRequestDecision(r.Context(), id, false, payload.Reason)
+	writeAdminJSON(w, http.StatusOK, map[string]string{"status": "declined"})
+}
+
+func notifyHelpRequestDecision(ctx context.Context, requestID int64, accepted bool, responseText string) {
+	var requesterName, requesterEmail, expertName, topicName string
+	if err := db.QueryRowContext(ctx, `SELECT requester.full_name,requester.email,expert.full_name,t.name
+		FROM help_requests req
+		JOIN users requester ON requester.id=req.requester_id
+		JOIN users expert ON expert.id=req.expert_id
+		JOIN help_topics t ON t.id=req.topic_id
+		WHERE req.id=$1`, requestID).Scan(&requesterName, &requesterEmail, &expertName, &topicName); err != nil {
+		log.Printf("load help request %d for email: %v", requestID, err)
+		return
+	}
+	title, intro, label, accent := "Запрос помощи принят", "Специалист принял ваш запрос и оставил ответ. Теперь вы можете продолжить общение в личном кабинете.", "Ответ специалиста", template.CSS("#0b986c")
+	if !accepted {
+		title, intro, label, accent = "Ответ по вашему запросу помощи", "Специалист сейчас не сможет принять запрос, но оставил пояснение. Вы можете выбрать другого специалиста по этому направлению.", "Причина отказа", template.CSS("#c7394d")
+	}
+	sendEventNotificationAsync("help request decision", requesterName, requesterEmail, title+" — FinTalent", eventNotificationEmailData{
+		Badge: "Помощь коллегам", Title: title, Intro: intro,
+		CardLabel: label, CardTitle: topicName, Details: expertName + ":\n" + responseText,
+		ButtonText: "Открыть мои запросы", ButtonURL: applicationBaseURL() + "/profile?section=help",
+		Accent: accent, Footer: "Все обращения и переписка сохраняются в вашем личном кабинете.",
+	})
+}
+
 func updateHelpRequestStatus(w http.ResponseWriter, r *http.Request, id, expertID int64, next string) {
 	var query string
 	switch next {
-	case "accepted":
-		query = `UPDATE help_requests SET status='accepted',accepted_at=NOW(),updated_at=NOW() WHERE id=$1 AND expert_id=$2 AND status='new'`
-	case "declined":
-		query = `UPDATE help_requests SET status='declined',updated_at=NOW() WHERE id=$1 AND expert_id=$2 AND status='new'`
 	case "completed":
 		query = `UPDATE help_requests SET status='completed',completed_at=NOW(),updated_at=NOW() WHERE id=$1 AND expert_id=$2 AND status='accepted'`
 	default:
