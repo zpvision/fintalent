@@ -39,7 +39,7 @@ export default function ProfiMarketRegulationEditPage() {
       try {
         const presets = await loadScript('/static/profimarket-style-presets.js?v=3', () => window.ProfiMarketStylePresets)
         if (presets) loaded.push(presets)
-        const components = await loadScript('/static/profimarket-components.js?v=37', () => window.ProfiMarketUI?.version >= 37)
+        const components = await loadScript('/static/profimarket-components.js?v=38', () => window.ProfiMarketUI?.version >= 38)
         if (components) loaded.push(components)
         const cropper = await loadScript('/static/profimarket-cover-cropper.js?v=1', () => window.ProfiMarketCoverCropper)
         if (cropper) loaded.push(cropper)

@@ -267,7 +267,7 @@ function MapModal({ address, onClose }) {
     <div className="vacancy-map-modal" onClick={(event) => { if (event.target === event.currentTarget) onClose() }}>
       <div className="vacancy-map-dialog" role="dialog" aria-modal="true" aria-label="Адрес вакансии">
         <header><div><small>МЕСТО РАБОТЫ</small><h2>{address}</h2></div><button ref={closeButton} type="button" className="vacancy-map-close" aria-label="Закрыть" onClick={onClose}>×</button></header>
-        <div className="vacancy-map-frame"><iframe title="Адрес вакансии на Яндекс Картах" src={`https://yandex.ru/map-widget/v1/?text=${encodedAddress}&z=16`} loading="lazy" allowFullScreen /></div>
+        <div className="vacancy-map-frame"><iframe title="Адрес вакансии на Яндекс Картах" src={`https://yandex.ru/map-widget/v1/?text=${encodedAddress}&z=16`} loading="lazy" sandbox="allow-scripts allow-same-origin allow-presentation" allowFullScreen /></div>
         <a href={`https://yandex.ru/maps/?text=${encodedAddress}`} target="_blank" rel="noopener noreferrer">Открыть маршрут в Яндекс Картах →</a>
       </div>
     </div>

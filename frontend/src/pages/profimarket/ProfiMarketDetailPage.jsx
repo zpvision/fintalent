@@ -18,7 +18,7 @@ function loadPresentation() {
       script.onerror = () => reject(new Error('Не удалось загрузить компоненты страницы'))
       document.head.append(script)
     }
-    const loadComponents = () => load('/static/profimarket-components.js?v=37', () => resolve(window.ProfiMarketUI))
+    const loadComponents = () => load('/static/profimarket-components.js?v=38', () => resolve(window.ProfiMarketUI))
     if (window.ProfiMarketStylePresets) loadComponents()
     else load('/static/profimarket-style-presets.js?v=3', loadComponents)
   })

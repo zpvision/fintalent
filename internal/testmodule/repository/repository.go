@@ -86,13 +86,21 @@ func (p *Postgres) List(ctx context.Context, f dto.ListFilter, userID int64, adm
 		add("t.status=$%d", f.Status)
 	}
 	if f.Category != "" {
-		add("t.category=$%d", f.Category)
+		if admin {
+			add("t.category ILIKE '%%'||$%d||'%%'", f.Category)
+		} else {
+			add("t.category=$%d", f.Category)
+		}
 	}
 	if f.Author != "" {
-		add("u.full_name ILIKE '%%'||$%d||'%%'", f.Author)
+		if admin {
+			add("(u.full_name ILIKE '%%'||$%[1]d||'%%' OR u.email ILIKE '%%'||$%[1]d||'%%')", f.Author)
+		} else {
+			add("u.full_name ILIKE '%%'||$%d||'%%'", f.Author)
+		}
 	}
 	if f.Search != "" {
-		add("(v.title ILIKE '%%'||$%d||'%%' OR v.description ILIKE '%%'||$%d||'%%')", f.Search)
+		add("(v.title ILIKE '%%'||$%[1]d||'%%' OR v.description ILIKE '%%'||$%[1]d||'%%')", f.Search)
 	}
 	if f.Price == "free" {
 		where = append(where, "t.is_free")

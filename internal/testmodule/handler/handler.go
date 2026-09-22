@@ -100,7 +100,7 @@ func idPart(path, prefix string) (int64, string, error) {
 func filter(r *http.Request) dto.ListFilter {
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
-	return dto.ListFilter{Scope: r.URL.Query().Get("scope"), Status: r.URL.Query().Get("status"), Author: r.URL.Query().Get("author"), Category: r.URL.Query().Get("category"), Price: r.URL.Query().Get("price"), Search: r.URL.Query().Get("q"), Limit: limit, Offset: offset}
+	return dto.ListFilter{Scope: strings.TrimSpace(r.URL.Query().Get("scope")), Status: strings.TrimSpace(r.URL.Query().Get("status")), Author: strings.TrimSpace(r.URL.Query().Get("author")), Category: strings.TrimSpace(r.URL.Query().Get("category")), Price: strings.TrimSpace(r.URL.Query().Get("price")), Search: strings.TrimSpace(r.URL.Query().Get("q")), Limit: limit, Offset: offset}
 }
 
 func (h *Handler) tests(w http.ResponseWriter, r *http.Request) {
