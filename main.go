@@ -309,7 +309,7 @@ func servePage(filename string) http.HandlerFunc {
 				content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/profile-avatar.js?v=1"></script><script src="/static/profile-client-exchange.js?v=1"></script><script src="/static/profile-accounting-company.js?v=1"></script><script src="/static/profile-help.js?v=2"></script></body>`, 1))
 			}
 			if filepath.Base(filename) == "admin.html" {
-				content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/admin-client-exchange.js?v=1"></script><script src="/static/admin-accounting-company.js?v=1"></script><script src="/static/admin-help.js?v=1"></script></body>`, 1))
+				content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/admin-client-exchange.js?v=2"></script><script src="/static/admin-accounting-company.js?v=1"></script><script src="/static/admin-help.js?v=1"></script></body>`, 1))
 			}
 			if filepath.Base(filename) == "accounting-company-view.html" {
 				content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/accounting-company-reviews.js?v=2"></script></body>`, 1))

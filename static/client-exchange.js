@@ -15,6 +15,10 @@
   };
   const money = (value) => value == null ? "—" : new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(value) + " ₽";
   const date = (value) => value ? new Date(value).toLocaleDateString("ru-RU") : "—";
+  const industryIcon = (industry) => {
+    const icon = String(industry?.icon || "").trim();
+    return icon && /^(?:\/|https?:\/\/|data:)/i.test(icon) ? `<img src="${esc(icon)}" alt="">` : esc(icon || "🛒");
+  };
 
   async function api(url, options = {}) {
     const response = await fetch(url, { cache: "no-store", ...options });
@@ -54,7 +58,7 @@
       <div class="ce-card-match">⊙ ${match}% подходит</div>
       <button class="favorite ${listing.is_favorite ? "active" : ""}" data-favorite aria-label="Избранное">${listing.is_favorite ? "♥" : "♡"}</button>
       <header>
-        <i class="ce-card-icon">🛒</i>
+        <i class="ce-card-icon">${industryIcon(listing.industry)}</i>
         <div><h3>${esc(listing.title || listing.industry?.name || "Клиент")}</h3><span class="location">${esc(listing.city || "Город не указан")} · ${esc(listing.tax_system?.name || "—")}</span></div>
       </header>
       <div class="metrics">
@@ -153,7 +157,7 @@
           <div class="ce-detail-top">
             <span class="ce-match">◇ ${match}% подходит вашей компании</span>
             <div class="ce-detail-identity">
-              <div class="ce-client-icon">🛒</div>
+              <div class="ce-client-icon">${industryIcon(listing.industry)}</div>
               <div>
                 <h2>${esc(listing.title || listing.industry?.name || "Клиент")}</h2>
                 <div class="ce-detail-meta">

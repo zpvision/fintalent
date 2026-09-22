@@ -2,7 +2,7 @@
   const nav = document.querySelector(".sidebar nav");
   if (!nav) return;
 
-  document.head.insertAdjacentHTML("beforeend", '<link rel="stylesheet" href="/static/admin-client-exchange.css?v=1">');
+  document.head.insertAdjacentHTML("beforeend", '<link rel="stylesheet" href="/static/admin-client-exchange.css?v=2">');
   nav.insertAdjacentHTML("beforeend", '<small>КЛИЕНТСКАЯ БИРЖА</small><button id="client-exchange-nav">◇ <span>Справочники биржи</span></button>');
 
   const workspace = document.querySelector(".workspace");
@@ -25,6 +25,12 @@
   let items = [];
 
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+  const iconView = (icon) => {
+    const value = String(icon || "").trim();
+    if (!value) return '<span class="ce-admin-icon-empty">—</span>';
+    if (/^(?:\/|https?:\/\/)/i.test(value)) return `<span class="ce-admin-icon"><img src="${esc(value)}" alt=""></span>`;
+    return `<span class="ce-admin-icon ce-admin-icon-text">${esc(value)}</span>`;
+  };
 
   async function request(url, options = {}) {
     const response = await fetch(url, { cache: "no-store", ...options });
@@ -50,7 +56,7 @@
     const data = await request("/api/admin/client-exchange/dictionaries?kind=" + current);
     items = data.items;
     section.querySelector(".ce-admin-kinds").innerHTML = Object.entries(kinds).map(([key, label]) => `<button class="${key === current ? "active" : ""}" data-kind="${key}">${label}</button>`).join("");
-    section.querySelector(".ce-admin-table").innerHTML = `<table><thead><tr><th>Порядок</th><th>Название</th><th>Иконка</th><th>Code</th><th>Статус</th><th>Использование</th><th></th></tr></thead><tbody>${items.map((item) => `<tr class="${item.active ? "" : "inactive"}"><td>${item.sort_order}</td><td><b>${esc(item.name)}</b><small>${esc(item.description)}</small></td><td>${esc(item.icon || "")}</td><td><code>${esc(item.code)}</code></td><td>${item.active ? "Активно" : "Отключено"}</td><td>${item.used ? "Используется" : "Свободно"}</td><td><button data-edit="${item.id}">Изменить</button> <button data-delete="${item.id}">Удалить</button></td></tr>`).join("")}</tbody></table>`;
+    section.querySelector(".ce-admin-table").innerHTML = `<table><thead><tr><th>Порядок</th><th>Название</th><th>Иконка</th><th>Code</th><th>Статус</th><th>Использование</th><th></th></tr></thead><tbody>${items.map((item) => `<tr class="${item.active ? "" : "inactive"}"><td>${item.sort_order}</td><td><b>${esc(item.name)}</b><small>${esc(item.description)}</small></td><td>${iconView(item.icon)}</td><td><code>${esc(item.code)}</code></td><td>${item.active ? "Активно" : "Отключено"}</td><td>${item.used ? "Используется" : "Свободно"}</td><td><button data-edit="${item.id}">Изменить</button> <button data-delete="${item.id}">Удалить</button></td></tr>`).join("")}</tbody></table>`;
     section.querySelectorAll("[data-kind]").forEach((button) => button.onclick = () => { current = button.dataset.kind; load(); });
     section.querySelectorAll("[data-edit]").forEach((button) => button.onclick = () => edit(items.find((item) => item.id === Number(button.dataset.edit))));
     section.querySelectorAll("[data-delete]").forEach((button) => button.onclick = () => remove(Number(button.dataset.delete)));

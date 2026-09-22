@@ -71,7 +71,9 @@
   color: #642cf0;
   font-size: 44px;
   box-shadow: inset 0 0 0 1px #eee8ff;
+  overflow: hidden;
 }
+.ce-client-icon img{width:100%;height:100%;display:block;object-fit:cover}
 
 .ce-detail-identity h2 {
   margin: 0 0 10px;

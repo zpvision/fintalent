@@ -412,7 +412,9 @@ body {
   color: #642cf0;
   font-size: 28px;
   font-style: normal;
+  overflow: hidden;
 }
+.ce-card-icon img{width:100%;height:100%;display:block;object-fit:cover}
 
 .ce-card h3 {
   margin: 0 0 7px;
