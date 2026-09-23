@@ -80,7 +80,18 @@ function Questions({ solution }) {
 export default function ProfiMarketReviews({ solution, onChanged }) {
   const initial = window.location.hash === '#questions' ? 'questions' : 'reviews'
   const [tab, setTab] = useState(initial)
-  useEffect(() => { const change = () => { if (window.location.hash === '#questions') setTab('questions') }; window.addEventListener('hashchange', change); return () => window.removeEventListener('hashchange', change) }, [])
+  useEffect(() => {
+    let frame
+    const change = () => {
+      if (window.location.hash !== '#questions') return
+      setTab('questions')
+      frame = window.requestAnimationFrame(() => {
+        frame = window.requestAnimationFrame(() => document.getElementById('questions')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+      })
+    }
+    window.addEventListener('hashchange', change)
+    return () => { window.removeEventListener('hashchange', change); window.cancelAnimationFrame(frame) }
+  }, [])
   useEffect(() => {
     if (tab !== 'questions' || window.location.hash !== '#questions') return
     const frame = window.requestAnimationFrame(() => document.getElementById('questions')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
