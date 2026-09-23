@@ -19,7 +19,7 @@ import (
 	"FinTalent/internal/accountingcompany"
 )
 
-//go:embed migrations/040_accounting_companies.sql migrations/041_accounting_companies_demo.sql
+//go:embed migrations/040_accounting_companies.sql migrations/041_accounting_companies_demo.sql migrations/063_accounting_company_service_icons.sql
 var accountingCompanyMigrationFS embed.FS
 
 func prepareAccountingCompanyDatabase(ctx context.Context) error {
@@ -28,6 +28,14 @@ func prepareAccountingCompanyDatabase(ctx context.Context) error {
 		return err
 	}
 	_, err = db.ExecContext(ctx, string(schema))
+	if err != nil {
+		return err
+	}
+	icons, err := accountingCompanyMigrationFS.ReadFile("migrations/063_accounting_company_service_icons.sql")
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, string(icons))
 	return err
 }
 

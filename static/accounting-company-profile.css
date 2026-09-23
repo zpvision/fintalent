@@ -76,6 +76,7 @@ body{background:#fbfcff;color:#070d4a}
 .ac-profile-service-list div{display:flex;align-items:center;justify-content:space-between;gap:20px;color:#07105b;font-size:13px;font-weight:800}
 .ac-profile-service-list span{display:flex;align-items:center;gap:12px}
 .ac-profile-service-list i{display:grid;place-items:center;width:27px;height:27px;border-radius:7px;color:#682fff;background:#f1ebff;font-style:normal}
+.ac-profile-service-list i:has(img){width:34px;height:34px;background:transparent}.ac-profile-service-list i img{display:block;width:34px;height:34px;border-radius:9px}
 .ac-profile-service-list b{white-space:nowrap;font-size:17px}
 .ac-profile-muted{margin:0;color:#51608b;font-size:13px}
 .ac-profile-tariffs{grid-column:span 1}

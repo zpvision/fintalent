@@ -42,6 +42,10 @@ function servicePrice(service) {
   return (priceTypes[service.price_type] || '{p}').replace('{p}', money(service.price_from))
 }
 
+function ServiceIcon({ value }) {
+  return value?.startsWith('/') ? <img src={value} alt="" /> : (iconMap[value] || '▧')
+}
+
 function websiteHref(value) {
   if (!value) return ''
   return /^https?:\/\//i.test(value) ? value : `https://${value}`
@@ -125,7 +129,7 @@ function Services({ company }) {
   return (
     <section className="ac-profile-panel" id="services">
       <div className="ac-profile-section-head"><h2>Услуги и цены</h2></div>
-      <div className="ac-profile-service-list">{items.length ? items.map((item) => <div key={item.id ?? item.name}><span><i>{iconMap[item.icon] || '▧'}</i>{item.name}</span><b>{servicePrice(item)}</b></div>) : <p className="ac-profile-muted">Услуги и цены уточняются.</p>}</div>
+      <div className="ac-profile-service-list">{items.length ? items.map((item) => <div key={item.id ?? item.name}><span><i><ServiceIcon value={item.icon} /></i>{item.name}</span><b>{servicePrice(item)}</b></div>) : <p className="ac-profile-muted">Услуги и цены уточняются.</p>}</div>
       {company.services?.length > 7 ? <a className="ac-profile-link" href="#services">Смотреть все услуги →</a> : null}
     </section>
   )

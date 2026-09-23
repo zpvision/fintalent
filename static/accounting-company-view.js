@@ -177,7 +177,7 @@
     return `<section class="ac-profile-panel" id="services">
       <div class="ac-profile-section-head"><h2>Услуги и цены</h2></div>
       <div class="ac-profile-service-list">
-        ${items.length ? items.map((item) => `<div><span><i>${esc(iconMap[item.icon] || "▧")}</i>${esc(item.name)}</span><b>${esc(servicePrice(item))}</b></div>`).join("") : '<p class="ac-profile-muted">Услуги и цены уточняются.</p>'}
+        ${items.length ? items.map((item) => `<div><span><i>${item.icon?.startsWith("/") ? `<img src="${esc(item.icon)}" alt="">` : esc(iconMap[item.icon] || "▧")}</i>${esc(item.name)}</span><b>${esc(servicePrice(item))}</b></div>`).join("") : '<p class="ac-profile-muted">Услуги и цены уточняются.</p>'}
       </div>
       ${company.services?.length > 7 ? '<a class="ac-profile-link" href="#services">Смотреть все услуги →</a>' : ""}
     </section>`;
