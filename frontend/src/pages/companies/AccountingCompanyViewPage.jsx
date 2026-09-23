@@ -6,6 +6,8 @@ import usePageStyles from '../../hooks/usePageStyles'
 import PublicLayout from '../../layouts/PublicLayout'
 import DirectionIcon from '../../components/AccountingDirectionIcon'
 
+const showCompanyPassport = false
+
 const priceTypes = {
   from_month: 'от {p} / мес.',
   month: '{p} / мес.',
@@ -267,7 +269,7 @@ function CompanyContent({ company, passport }) {
         <nav className="ac-profile-breadcrumbs"><a href="/">Главная</a><span>›</span><a href="/accounting-companies">Компании</a><span>›</span><span>Бухгалтерские компании</span><span>›</span><b>{company.name}</b></nav>
         <section className="ac-profile-hero"><BrandCard company={company} /><ProfileIntro company={company} onContact={() => setModal('contact')} /><ContactsCard company={company} /></section>
         <Directions company={company} />
-        <section className="ac-profile-main-grid"><Services company={company} /><Tariffs company={company} onContact={() => setModal('contact')} /><PassportCard company={company} passport={passport} color={color} /><Reviews company={company} /><About company={company} /></section>
+        <section className={`ac-profile-main-grid ${showCompanyPassport?'':'without-passport'}`}><Services company={company} /><Tariffs company={company} onContact={() => setModal('contact')} />{showCompanyPassport?<PassportCard company={company} passport={passport} color={color}/>:null}<Reviews company={company} /><About company={company} /></section>
         <section className="ac-profile-panel ac-profile-review-cta"><div><h2>Работали с этой компанией?</h2><p>Поделитесь опытом — отзыв появится после модерации.</p></div><button className="ac-profile-secondary" id="ac-review-open" type="button" onClick={() => setModal('review')}>Оставить отзыв</button></section>
       </div>
       <ContactModal company={company} mode={modal} onClose={() => setModal('')} />
@@ -285,7 +287,7 @@ export default function AccountingCompanyViewPage() {
   const [status, setStatus] = useState('loading')
   const [error, setError] = useState('')
 
-  usePageStyles(['/static/accounting-company.css?v=1', '/static/accounting-company-profile.css?v=4', '/static/accounting-company-direction-icons.css?v=2'])
+  usePageStyles(['/static/accounting-company.css?v=1', '/static/accounting-company-profile.css?v=5', '/static/accounting-company-direction-icons.css?v=2'])
   useDocumentPage({ title: company ? `${company.name} — FinTalent` : 'Бухгалтерская компания — FinTalent' })
 
   useEffect(() => {
@@ -295,7 +297,7 @@ export default function AccountingCompanyViewPage() {
     getAccountingCompany(key, { signal: controller.signal })
       .then(async (response) => {
         const value = response.company
-        const passportValue = await getAccountingCompanyPassport(value.id, { signal: controller.signal }).catch(() => ({ scores: [] }))
+        const passportValue = showCompanyPassport ? await getAccountingCompanyPassport(value.id, { signal: controller.signal }).catch(() => ({ scores: [] })) : { scores: [] }
         setCompany(value)
         setPassport(passportValue || { scores: [] })
         setStatus('ready')
