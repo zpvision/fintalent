@@ -457,6 +457,36 @@
   align-items: start;
 }
 
+.feature-fields .feature-choice {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.feature-fields .feature-choice > header {
+  min-height: auto;
+  padding: 13px 16px;
+  background: linear-gradient(120deg, #f4f8ff, #fff);
+}
+
+.feature-fields .feature-choice > header > small {
+  margin-left: auto;
+}
+
+.feature-fields .feature-choice .choice-grid.compact {
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.feature-fields .feature-choice .choice-card.with-icon span {
+  min-width: 0;
+  padding-inline: 10px;
+}
+
+.feature-fields .feature-choice .choice-card span b {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
 .feature-fields .brand-choice {
   width: 100%;
   align-self: start;
@@ -474,10 +504,6 @@
 .feature-fields .brand-choice .choice-card.with-icon span {
   height: 78px;
   min-height: 78px;
-}
-
-.program-choice .choice-grid.compact {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 
 .choice-card {
@@ -708,6 +734,12 @@
   margin-top: 25px;
 }
 
+@media (max-width: 1180px) {
+  .feature-fields .feature-choice .choice-grid.compact {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 900px) {
   .fields,
   .transfer-fields {
@@ -722,6 +754,10 @@
   .choice-grid.four,
   .choice-grid.compact {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .feature-fields .feature-choice .choice-grid.compact {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -749,6 +785,10 @@
   .choice-grid.compact,
   .transfer-fields {
     grid-template-columns: 1fr;
+  }
+
+  .feature-fields .feature-choice .choice-grid.compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .multi-search.open .multi-search-options {
@@ -790,5 +830,11 @@
 
   .success-actions {
     flex-direction: column;
+  }
+}
+
+@media (max-width: 460px) {
+  .feature-fields .feature-choice .choice-grid.compact {
+    grid-template-columns: 1fr;
   }
 }
