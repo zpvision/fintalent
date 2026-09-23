@@ -4,6 +4,7 @@ import { createAccountingCompanyReview, getAccountingCompany, getAccountingCompa
 import { useDocumentPage } from '../../hooks/useDocumentPage'
 import usePageStyles from '../../hooks/usePageStyles'
 import PublicLayout from '../../layouts/PublicLayout'
+import DirectionIcon from '../../components/AccountingDirectionIcon'
 
 const priceTypes = {
   from_month: 'от {p} / мес.',
@@ -112,7 +113,7 @@ function Directions({ company }) {
   return (
     <section className="ac-profile-section ac-profile-directions">
       <div className="ac-profile-section-head"><h2>Наши направления</h2>{company.directions.length > 8 && !showAll ? <button id="ac-all-directions" type="button" onClick={() => setShowAll(true)}>Смотреть все направления →</button> : null}</div>
-      <div className="ac-profile-direction-list">{company.directions.map((item, index) => <article data-extra={index >= 8 ? '' : undefined} hidden={index >= 8 && !showAll} style={index >= 8 ? { display: showAll ? 'block' : 'none' } : undefined} key={item.id ?? item.name}><i>{iconMap[item.icon] || '◇'}</i><b>{item.name}</b></article>)}</div>
+      <div className="ac-profile-direction-list">{company.directions.map((item, index) => <article data-extra={index >= 8 ? '' : undefined} hidden={index >= 8 && !showAll} style={index >= 8 ? { display: showAll ? 'grid' : 'none' } : undefined} key={item.id ?? item.name}><DirectionIcon type={item.icon} index={index}/><b>{item.name}</b></article>)}</div>
     </section>
   )
 }
@@ -284,7 +285,7 @@ export default function AccountingCompanyViewPage() {
   const [status, setStatus] = useState('loading')
   const [error, setError] = useState('')
 
-  usePageStyles(['/static/accounting-company.css?v=1', '/static/accounting-company-profile.css?v=4'])
+  usePageStyles(['/static/accounting-company.css?v=1', '/static/accounting-company-profile.css?v=4', '/static/accounting-company-direction-icons.css?v=2'])
   useDocumentPage({ title: company ? `${company.name} — FinTalent` : 'Бухгалтерская компания — FinTalent' })
 
   useEffect(() => {
