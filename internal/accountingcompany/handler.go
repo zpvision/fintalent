@@ -31,6 +31,8 @@ type Handler struct {
 type ServiceInput struct {
 	ID         int64    `json:"id"`
 	ServiceID  *int64   `json:"service_id"`
+	Name       string   `json:"name"`
+	Icon       string   `json:"icon"`
 	CustomName string   `json:"custom_name"`
 	PriceFrom  *float64 `json:"price_from"`
 	PriceType  string   `json:"price_type"`
@@ -113,7 +115,15 @@ func decode(w http.ResponseWriter, r *http.Request, target any) bool {
 	d := json.NewDecoder(r.Body)
 	d.DisallowUnknownFields()
 	if err := d.Decode(target); err != nil {
-		failure(w, http.StatusBadRequest, "Некорректные данные формы")
+		message := "Не удалось прочитать данные формы"
+		var typeError *json.UnmarshalTypeError
+		if errors.As(err, &typeError) && typeError.Field != "" {
+			message = fmt.Sprintf("Поле «%s» заполнено некорректно", typeError.Field)
+		} else if text := err.Error(); strings.HasPrefix(text, "json: unknown field ") {
+			field := strings.Trim(strings.TrimPrefix(text, "json: unknown field "), `"`)
+			message = fmt.Sprintf("Форма содержит неподдерживаемое поле «%s». Обновите страницу и повторите попытку", field)
+		}
+		failure(w, http.StatusBadRequest, message)
 		return false
 	}
 	return true
