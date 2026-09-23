@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useDocumentPage } from '../../hooks/useDocumentPage'
 import usePageStyles from '../../hooks/usePageStyles'
 
-const scripts = ['/static/admin.js?v=9','/static/admin-survey.js?v=8','/static/admin-users.js?v=3','/static/admin-publications.js?v=1','/static/admin-client-exchange.js?v=2','/static/admin-accounting-company.js?v=1','/static/admin-help.js?v=1','/static/admin-profimarket.js?v=9']
+const scripts = ['/static/admin.js?v=9','/static/admin-survey.js?v=8','/static/admin-users.js?v=3','/static/admin-publications.js?v=1','/static/admin-client-exchange.js?v=2','/static/admin-accounting-company.js?v=1','/static/admin-help.js?v=1','/static/admin-profimarket.js?v=10']
 function loadScript(src) { return new Promise((resolve, reject) => { const script = document.createElement('script'); script.src = src; script.dataset.reactAdmin = 'true'; script.onload = () => resolve(script); script.onerror = () => reject(new Error('Не удалось загрузить административный модуль')); document.body.append(script) }) }
 
 export default function AdminPage() {

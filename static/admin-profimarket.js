@@ -45,6 +45,11 @@
   let solutionSearchTimer;
 
   const esc = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  const assetUrl = value => {
+    const url = String(value ?? '').trim();
+    if (!url || /^(?:https?:)?\/\//i.test(url) || /^data:/i.test(url)) return url;
+    return `/${url.replace(/^\/+/, '')}`;
+  };
   const formatDate = value => new Intl.DateTimeFormat('ru-RU', {dateStyle:'medium', timeStyle:'short'}).format(new Date(value));
   const formatPrice = item => item.amount > 0
     ? new Intl.NumberFormat('ru-RU', {style:'currency', currency:item.currency || 'RUB', maximumFractionDigits:0}).format(item.amount)
@@ -365,21 +370,21 @@
   }
 
   function platformRow(item) {
-    return `<tr class="${item.active?'':'inactive'}"><td>${item.sort_order}</td><td>${item.icon?`<img src="${esc(item.icon)}" alt="">`:'<i>—</i>'}</td><td><b>${esc(item.name)}</b></td><td><code>${esc(item.code)}</code></td><td>${item.active?'Активна':'Отключена'}</td><td>${item.used?'Используется':'Свободна'}</td><td><button data-edit="${item.id}">Изменить</button><button data-delete="${item.id}">Удалить</button></td></tr>`;
+    return `<tr class="${item.active?'':'inactive'}"><td>${item.sort_order}</td><td>${item.icon?`<img src="${esc(assetUrl(item.icon))}" alt="">`:'<i>—</i>'}</td><td><b>${esc(item.name)}</b></td><td><code>${esc(item.code)}</code></td><td>${item.active?'Активна':'Отключена'}</td><td>${item.used?'Используется':'Свободна'}</td><td><button data-edit="${item.id}">Изменить</button><button data-delete="${item.id}">Удалить</button></td></tr>`;
   }
 
   function editPlatform(item = {code:'', name:'', icon:'', sort_order:platforms.length+1, active:true}) {
     const modal = document.createElement('div');
     modal.className = 'pm-admin-modal';
-    modal.innerHTML = `<form><h2>${item.id?'Изменить платформу':'Новая платформа'}</h2><p>Название и иконка появятся в форме создания ИИ-ассистента.</p><div class="grid"><label>Название<input name="name" maxlength="160" value="${esc(item.name)}" required></label><label>Code<input name="code" maxlength="80" pattern="[a-z][a-z0-9_-]*" value="${esc(item.code)}" required></label></div><label>Ссылка на иконку<input name="icon" maxlength="1000" type="url" value="${esc(item.icon)}" placeholder="https://example.ru/icon.svg"></label><div class="icon-preview">${item.icon?`<img src="${esc(item.icon)}" alt="">`:'<span>Предпросмотр иконки</span>'}</div><div class="grid"><label>Порядок<input name="sort_order" type="number" value="${item.sort_order||0}"></label><label class="check"><input name="active" type="checkbox" ${item.active!==false?'checked':''}> Показывать в мастере</label></div><footer><button type="button" data-cancel>Отмена</button><button class="primary">Сохранить</button></footer></form>`;
+    modal.innerHTML = `<form><h2>${item.id?'Изменить платформу':'Новая платформа'}</h2><p>Название и иконка появятся в форме создания ИИ-ассистента.</p><div class="grid"><label>Название<input name="name" maxlength="160" value="${esc(item.name)}" required></label><label>Code<input name="code" maxlength="80" pattern="[a-z][a-z0-9_-]*" value="${esc(item.code)}" required></label></div><label>Ссылка или путь к иконке<input name="icon" maxlength="1000" type="text" value="${esc(item.icon)}" placeholder="/static/icons/profimarket/platforms/tg.svg"><small>Можно указать static/... или полный URL</small></label><div class="icon-preview">${item.icon?`<img src="${esc(assetUrl(item.icon))}" alt="">`:'<span>Предпросмотр иконки</span>'}</div><div class="grid"><label>Порядок<input name="sort_order" type="number" value="${item.sort_order||0}"></label><label class="check"><input name="active" type="checkbox" ${item.active!==false?'checked':''}> Показывать в мастере</label></div><footer><button type="button" data-cancel>Отмена</button><button class="primary">Сохранить</button></footer></form>`;
     document.body.append(modal);
     const iconInput = modal.querySelector('[name=icon]');
-    iconInput.oninput = () => { modal.querySelector('.icon-preview').innerHTML = iconInput.value ? `<img src="${esc(iconInput.value)}" alt="">` : '<span>Предпросмотр иконки</span>'; };
+    iconInput.oninput = () => { modal.querySelector('.icon-preview').innerHTML = iconInput.value.trim() ? `<img src="${esc(assetUrl(iconInput.value))}" alt="">` : '<span>Предпросмотр иконки</span>'; };
     modal.querySelector('[data-cancel]').onclick = () => modal.remove();
     modal.querySelector('form').onsubmit = async event => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
-      const value = {name:form.get('name').trim(), code:form.get('code').trim(), icon:form.get('icon').trim(), sort_order:Number(form.get('sort_order'))||0, active:form.get('active')==='on'};
+      const value = {name:form.get('name').trim(), code:form.get('code').trim(), icon:assetUrl(form.get('icon')), sort_order:Number(form.get('sort_order'))||0, active:form.get('active')==='on'};
       try {
         await request(item.id?`/api/admin/profimarket/platforms/${item.id}`:'/api/admin/profimarket/platforms', {method:item.id?'PUT':'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(value)});
         modal.remove(); loadPlatforms();
