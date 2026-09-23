@@ -18,6 +18,10 @@
     options.className = 'ac-service-search-options'
     options.hidden = true
     picker.append(input, arrow, options)
+    function place() {
+      const rect = picker.getBoundingClientRect()
+      picker.classList.toggle('drop-up', window.innerHeight - rect.bottom < 320 && rect.top > window.innerHeight - rect.bottom)
+    }
     function render(query = '') {
       const normalized = query.trim().toLocaleLowerCase('ru')
       const filtered = services.filter(item => `${item.name} ${item.category || ''}`.toLocaleLowerCase('ru').includes(normalized))
@@ -42,14 +46,17 @@
       if (!icon) { icon = document.createElement('img'); icon.className = 'ac-service-search-icon'; icon.alt = ''; picker.prepend(icon) }
       icon.src = selected.icon
     }
-    input.onfocus = () => { input.value = ''; render(); options.hidden = false; picker.classList.add('open'); input.setAttribute('aria-expanded', 'true') }
-    input.oninput = () => { render(input.value); options.hidden = false; picker.classList.add('open') }
+    input.onfocus = () => { input.value = ''; render(); place(); options.hidden = false; picker.classList.add('open'); input.setAttribute('aria-expanded', 'true') }
+    input.oninput = () => { render(input.value); place(); options.hidden = false; picker.classList.add('open') }
     input.onkeydown = event => { if (event.key === 'Escape') { options.hidden = true; picker.classList.remove('open'); sync() } }
     select.addEventListener('change', sync)
     sync()
   }
   function decorateAll() { document.querySelectorAll('.ac-service-row select[name="service_id"]').forEach(decorate) }
   document.addEventListener('pointerdown', event => { document.querySelectorAll('.ac-service-search').forEach(picker => { if (!picker.contains(event.target)) { const options = picker.querySelector('.ac-service-search-options'); if (options) options.hidden = true; picker.classList.remove('open') } }) })
+  const reposition = () => document.querySelectorAll('.ac-service-search.open').forEach(picker => { const rect = picker.getBoundingClientRect(); picker.classList.toggle('drop-up', window.innerHeight - rect.bottom < 320 && rect.top > window.innerHeight - rect.bottom) })
+  window.addEventListener('resize', reposition)
+  window.addEventListener('scroll', reposition, true)
   new MutationObserver(decorateAll).observe(document.body, { childList: true, subtree: true })
   fetch('/api/accounting-companies/meta').then(response => response.ok ? response.json() : Promise.reject()).then(meta => { services = Array.isArray(meta.services) ? meta.services : []; decorateAll() }).catch(() => {})
 })()
