@@ -12,7 +12,7 @@ const editorStyles = [
   '/static/profimarket-regulation-editor-v3.css?v=2',
   '/static/profimarket-regulation-editor-v4.css?v=2',
   '/static/profimarket-regulation-editor-v5.css?v=20',
-  '/static/profimarket-regulation-editor-v6.css?v=8',
+  '/static/profimarket-regulation-editor-v6.css?v=9',
 ]
 
 function loadScript(src, ready) {
@@ -44,7 +44,7 @@ export default function ProfiMarketRegulationEditPage() {
         const cropper = await loadScript('/static/profimarket-cover-cropper.js?v=1', () => window.ProfiMarketCoverCropper)
         if (cropper) loaded.push(cropper)
         if (cancelled) return
-        const editor = await loadScript('/static/profimarket-regulation-editor.js?v=41')
+        const editor = await loadScript('/static/profimarket-regulation-editor.js?v=42')
         if (editor) loaded.push(editor)
       } catch (loadError) { if (!cancelled) setError(loadError.message) }
     }
