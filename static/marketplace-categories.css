@@ -1,0 +1,32 @@
+.categories-card li {
+  display: block;
+}
+
+.categories-card li button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 5px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.categories-card li button:hover,
+.categories-card li button.active {
+  background: #f1f5ff;
+  color: var(--blue);
+}
+
+.categories-card .more-link {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}

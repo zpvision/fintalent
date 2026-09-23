@@ -45,20 +45,16 @@ function Filters({ price, setPrice, categories, selectedCategories, toggleCatego
         </div>
         <div className="filter-group"><h3>Категории <span>⌃</span></h3><div id="category-filters">{categories === null ? <small>Загрузка…</small> : categories.map((item) => <label key={item.id || item.name}><input type="checkbox" value={item.name} checked={selectedCategories.has(item.name)} onChange={() => toggleCategory(item.name)} /><i />{item.name}</label>)}</div></div>
         <div className="filter-group"><h3>Уровень сложности</h3>{difficulties.map(([value, label]) => <label key={value}><input type="radio" name="difficulty" value={value} checked={difficulty === value} onChange={() => setDifficulty(value)} /><i />{label}</label>)}</div>
-        <div className="filter-group"><h3>Формат</h3><label><input type="checkbox" disabled /><i />Тест с выбором ответа</label><label><input type="checkbox" disabled /><i />Ситуационные задачи</label><label><input type="checkbox" disabled /><i />Кейс-тесты</label></div>
-        <div className="filter-group"><h3>Длительность</h3><label><input type="radio" name="duration" defaultChecked disabled /><i />Любая</label><label><input type="radio" name="duration" disabled /><i />До 15 минут</label></div>
       </section>
     </aside>
   )
 }
 
-function MarketplaceSidebar() {
+function MarketplaceSidebar({ categories, selectedCategories, toggleCategory, clearCategories }) {
   return (
     <aside className="right-sidebar">
       <section className="right-card create-promo"><div><small className="promo-eyebrow">ДЕЛИТЕСЬ ЭКСПЕРТИЗОЙ</small><h3>Создавайте свои тесты</h3><p>Публикуйте профессиональные тесты, развивайте личный бренд и зарабатывайте на своих знаниях.</p><a href="/marketplace/create-test">Создать тест <b>→</b></a></div><span>▣</span></section>
-      <section className="right-card categories-card"><h3>Популярные категории</h3><ul><li><span className="category-icon blue">▤</span><b>Бухгалтерский учёт</b><small>45 тестов</small></li><li><span className="category-icon orange">▥</span><b>Налоговый учёт</b><small>32 теста</small></li><li><span className="category-icon violet">♟</span><b>ТМЦ и зарплата</b><small>18 тестов</small></li><li><span className="category-icon coral">⌘</span><b>1С и программы</b><small>16 тестов</small></li><li><span className="category-icon purple">◕</span><b>Финансовый анализ</b><small>12 тестов</small></li></ul><a className="more-link" href="#catalog">Смотреть все категории <span>→</span></a></section>
-      <section className="right-card premium-promo"><div><h3>Премиум доступ</h3><p>Неограниченный доступ ко всем тестам и подробная аналитика результатов.</p><a href="#premium">Подробнее</a></div><span>◆</span></section>
-      <section className="right-card authors-card"><h3>Топ авторов</h3><ol><li><span>1</span><i>ФЭ</i><b>ФинЭксперт</b><small>24 теста　⭐ 4.9</small></li><li><span>2</span><i>БП</i><b>Бухгалтер-практик</b><small>18 тестов　⭐ 4.8</small></li><li><span>3</span><i>1С</i><b>1С:Профи</b><small>12 тестов　⭐ 4.7</small></li></ol><a className="more-link" href="#authors">Смотреть всех авторов <span>→</span></a></section>
+      {categories.length ? <section className="right-card categories-card"><h3>Популярные категории</h3><ul>{categories.map((item, index) => <li key={item.name}><button className={selectedCategories.has(item.name) ? 'active' : ''} type="button" onClick={() => toggleCategory(item.name, true)}><span className={`category-icon ${['blue', 'orange', 'violet', 'coral', 'purple'][index % 5]}`}>{icons[index % icons.length]}</span><b>{item.name}</b><small>{item.count} {pluralTests(item.count)}</small></button></li>)}</ul>{selectedCategories.size ? <button className="more-link" type="button" onClick={clearCategories}>Показать все тесты <span>→</span></button> : null}</section> : null}
     </aside>
   )
 }
@@ -77,6 +73,7 @@ export default function MarketplacePage() {
     '/static/marketplace-filters.css?v=1',
     '/static/marketplace-home-background.css?v=1',
     '/static/marketplace-create-promo.css?v=1',
+    '/static/marketplace-categories.css?v=1',
   ])
   useDocumentPage({ title: 'Маркетплейс тестов — FinTalent' })
 
@@ -104,21 +101,30 @@ export default function MarketplacePage() {
     return values
   }, [difficulty, price, query, selectedCategories, sort, tests])
 
-  function toggleCategory(name) {
+  const populatedCategories = useMemo(() => {
+    const counts = new Map()
+    for (const test of tests || []) if (test.category) counts.set(test.category, (counts.get(test.category) || 0) + 1)
+    const orderedNames = (categories || []).map((item) => item.name)
+    for (const name of counts.keys()) if (!orderedNames.includes(name)) orderedNames.push(name)
+    return orderedNames.filter((name) => counts.has(name)).map((name) => ({ name, count: counts.get(name) })).sort((left, right) => right.count - left.count)
+  }, [categories, tests])
+
+  function toggleCategory(name, scrollToCatalog = false) {
     setSelectedCategories((current) => {
       const next = new Set(current)
       if (next.has(name)) next.delete(name)
       else next.add(name)
       return next
     })
+    if (scrollToCatalog) requestAnimationFrame(() => document.querySelector('#catalog')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
 
   return (
     <PublicLayout>
       <main className="marketplace-page">
-        <Filters price={price} setPrice={setPrice} categories={categories} selectedCategories={selectedCategories} toggleCategory={toggleCategory} difficulty={difficulty} setDifficulty={setDifficulty} />
+        <Filters price={price} setPrice={setPrice} categories={categories === null ? null : populatedCategories} selectedCategories={selectedCategories} toggleCategory={toggleCategory} difficulty={difficulty} setDifficulty={setDifficulty} />
         <section className="catalog-column"><div className="page-heading"><h1>Маркетплейс тестов</h1><p>Выбирайте и проходите профессиональные тесты, подтверждайте свои знания<br />и повышайте конкурентоспособность.</p></div><div className="catalog-tools"><label className="search-box"><span>⌕</span><input id="search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Поиск тестов по названию, навыкам или ключевым словам" /></label><select id="sort" value={sort} onChange={(event) => setSort(event.target.value)} aria-label="Сортировка"><option value="popular">Сначала популярные</option><option value="rating">По рейтингу</option><option value="name">По названию</option></select></div><div className="catalog-title"><div><h2>Все тесты</h2><p id="count">{tests ? `Найдено ${visibleTests.length} ${pluralTests(visibleTests.length)}` : 'Загрузка…'}</p></div></div><section id="catalog" className="catalog">{error ? <div className="loading">{error}</div> : null}{!error && tests === null ? <div className="loading">Загружаем тесты…</div> : null}{tests && !visibleTests.length ? <div className="loading">По выбранным параметрам тестов не найдено</div> : null}{visibleTests.map((test, index) => <TestCard test={test} index={index} key={test.id} />)}</section></section>
-        <MarketplaceSidebar />
+        <MarketplaceSidebar categories={populatedCategories} selectedCategories={selectedCategories} toggleCategory={toggleCategory} clearCategories={() => setSelectedCategories(new Set())} />
       </main>
     </PublicLayout>
   )
