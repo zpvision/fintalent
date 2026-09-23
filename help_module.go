@@ -419,7 +419,7 @@ func helpRequests(w http.ResponseWriter, r *http.Request) {
 			FROM resumes r JOIN resume_help_topics rht ON rht.resume_id=r.id
 			JOIN help_topics t ON t.id=rht.topic_id
 			JOIN users u ON u.id=r.user_id
-			WHERE r.id=$1 AND rht.topic_id=$2 AND r.status='published' AND r.deleted_at IS NULL AND t.is_active=TRUE AND t.deleted_at IS NULL`, payload.ResumeID, payload.TopicID).Scan(&expertID, &expertName, &expertEmail, &topicName)
+			WHERE r.id=$1 AND rht.topic_id=$2 AND r.status='published' AND r.deleted_at IS NULL AND (NOT u.is_blocked OR u.is_system) AND t.is_active=TRUE AND t.deleted_at IS NULL`, payload.ResumeID, payload.TopicID).Scan(&expertID, &expertName, &expertEmail, &topicName)
 		if err == sql.ErrNoRows {
 			writeJSON(w, http.StatusBadRequest, "Это направление недоступно у выбранного специалиста")
 			return

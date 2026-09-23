@@ -123,7 +123,7 @@ func (h *Handler) meta(w http.ResponseWriter, r *http.Request) {
 		COUNT(*) FILTER(WHERE status='transferred'),
 		COUNT(DISTINCT seller_user_id) FILTER(WHERE status<>'draft'),
 		AVG(transfer_price) FILTER(WHERE status IN ('active','has_responses') AND transfer_price IS NOT NULL)
-		FROM client_exchange_listings WHERE deleted_at IS NULL`).Scan(&active, &added, &transferred, &companies, &average)
+		FROM client_exchange_listings l JOIN users u ON u.id=l.seller_user_id WHERE l.deleted_at IS NULL AND (NOT u.is_blocked OR u.is_system)`).Scan(&active, &added, &transferred, &companies, &average)
 	stats := map[string]any{"active": active, "added_month": added, "transferred": transferred, "companies": companies, "average_price": nil}
 	if average.Valid {
 		stats["average_price"] = average.Float64
@@ -234,7 +234,7 @@ func (h *Handler) catalog(w http.ResponseWriter, r *http.Request, u UserIdentity
 		return
 	}
 	args = append(args, limit, (page-1)*limit)
-	rows, err := h.db.QueryContext(r.Context(), `SELECT l.id FROM client_exchange_listings l LEFT JOIN client_exchange_dictionary_items i ON i.id=l.industry_id LEFT JOIN client_exchange_dictionary_items rr ON rr.id=l.revenue_range_id WHERE `+strings.Join(where, " AND ")+fmt.Sprintf(" ORDER BY %s LIMIT $%d OFFSET $%d", order, len(args)-1, len(args)), args...)
+	rows, err := h.db.QueryContext(r.Context(), "SELECT l.id"+from+fmt.Sprintf(" ORDER BY %s LIMIT $%d OFFSET $%d", order, len(args)-1, len(args)), args...)
 	if err != nil {
 		fail(w, 500, "Не удалось загрузить каталог")
 		return

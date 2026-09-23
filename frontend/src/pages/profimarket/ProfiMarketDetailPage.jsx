@@ -10,7 +10,7 @@ import ProfiMarketReviews from '../../components/ProfiMarketReviews'
 
 let uiPromise
 function loadPresentation() {
-  if (window.ProfiMarketUI?.version >= 37) return Promise.resolve(window.ProfiMarketUI)
+  if (window.ProfiMarketUI?.version >= 39) return Promise.resolve(window.ProfiMarketUI)
   if (!uiPromise) uiPromise = new Promise((resolve, reject) => {
     const load = (src, done) => {
       const script = document.createElement('script')
