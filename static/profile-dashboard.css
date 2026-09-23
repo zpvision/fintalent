@@ -13,7 +13,7 @@
 .profile-home-purpose-compact small{display:block;color:#5b74af;font-size:7px;font-weight:850;letter-spacing:.95px}
 .profile-home-purpose-compact h2{overflow:hidden;margin:4px 0 0;color:#1d3053;font-size:14px;white-space:nowrap;text-overflow:ellipsis}
 .profile-purpose-switch{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:4px;border-radius:10px;background:#eaf0f8}
-.profile-purpose-switch button{height:30px;border:0;border-radius:7px;color:#687993;background:transparent;font:750 8px Inter,Arial,sans-serif;cursor:pointer}
+.profile-purpose-switch button{min-height:34px;padding:4px 8px;border:0;border-radius:7px;color:#687993;background:transparent;font:750 8px/1.25 Inter,Arial,sans-serif;cursor:pointer}
 .profile-purpose-switch button.active{color:#fff;background:linear-gradient(110deg,#315fe4,#6c50df);box-shadow:0 5px 12px rgba(57,72,188,.2);cursor:default}
 .profile-purpose-switch button:disabled:not(.active){opacity:.5;cursor:wait}
 .profile-home-page>.settings-message{margin:0 0 14px}
