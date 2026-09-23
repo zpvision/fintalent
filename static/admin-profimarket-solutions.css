@@ -68,6 +68,23 @@
 .pm-solution-count.status-moderation::after { background: #e8efff; }
 .pm-solution-count.status-archived::after { background: #efeafe; }
 
+.pm-solution-actions .questions { color:#315fbd;background:#eaf1ff;white-space:nowrap; }
+.pm-solution-actions .questions b { display:inline-grid;min-width:18px;height:18px;place-items:center;margin-left:4px;border-radius:9px;color:#fff;background:#4774d7;font-size:9px; }
+
+.pm-questions-modal>section { width:min(820px,calc(100% - 28px));max-height:88vh;display:flex;flex-direction:column;padding:0;overflow:hidden;border-radius:18px;background:#f6f8fc; }
+.pm-questions-modal>section>header { display:flex;align-items:center;justify-content:space-between;padding:21px 24px;border-bottom:1px solid #e2e8f1;background:#fff; }
+.pm-questions-modal>section>header small { color:#5672b8;font-size:9px;font-weight:800;letter-spacing:.13em; }
+.pm-questions-modal>section>header h2 { margin:5px 0 0;color:#18294b;font-size:19px; }
+.pm-questions-modal>section>header>button { width:34px;height:34px;border:0;border-radius:10px;color:#52627d;background:#edf1f7;font-size:20px;cursor:pointer; }
+.pm-question-admin-list { display:grid;gap:13px;padding:18px;overflow:auto; }
+.pm-question-admin-list article { padding:18px;border:1px solid #dfe6f0;border-radius:14px;background:#fff; }
+.pm-question-admin-list article>header,.pm-question-admin-list article>footer { display:flex;align-items:center;justify-content:space-between;gap:12px; }
+.pm-question-admin-list article>header b,.pm-question-admin-list article>header small { display:block; }
+.pm-question-admin-list article>header small { margin-top:3px;color:#8290a5;font-size:9px; }
+.pm-question-admin-list label { display:block;margin-top:13px;color:#354562;font-size:9px;font-weight:750; }
+.pm-question-admin-list textarea { width:100%;min-height:72px;margin-top:6px;padding:11px;border:1px solid #d9e2ed;border-radius:9px;resize:vertical;font:11px/1.55 Inter,Arial,sans-serif; }
+.pm-question-admin-list article>footer { margin-top:11px;color:#8290a5;font-size:9px; }
+
 .pm-solution-filters {
   display: grid;
   grid-template-columns: minmax(280px, 1fr) minmax(230px, .8fr) 190px auto;

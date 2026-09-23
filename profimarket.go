@@ -20,7 +20,7 @@ import (
 	"time"
 )
 
-//go:embed migrations/027_profimarket.sql migrations/028_profimarket_demo.sql migrations/029_profimarket_card_builder.sql migrations/030_profimarket_section_images.sql migrations/031_profimarket_crm_dictionary.sql migrations/032_profimarket_feature_colors.sql migrations/033_profimarket_bonus_style.sql migrations/034_profimarket_block_styles.sql migrations/035_profimarket_right_block.sql migrations/036_profimarket_implementation.sql migrations/037_profimarket_section_appearance.sql migrations/049_profimarket_platform_icons.sql migrations/050_profimarket_how_it_works.sql migrations/051_profimarket_product_types.sql migrations/052_profimarket_product_demo.sql migrations/055_profimarket_order_notifications.sql migrations/056_profimarket_purchase_snapshot.sql migrations/057_profimarket_onec_configurations.sql migrations/059_profimarket_compatibility.sql
+//go:embed migrations/027_profimarket.sql migrations/028_profimarket_demo.sql migrations/029_profimarket_card_builder.sql migrations/030_profimarket_section_images.sql migrations/031_profimarket_crm_dictionary.sql migrations/032_profimarket_feature_colors.sql migrations/033_profimarket_bonus_style.sql migrations/034_profimarket_block_styles.sql migrations/035_profimarket_right_block.sql migrations/036_profimarket_implementation.sql migrations/037_profimarket_section_appearance.sql migrations/049_profimarket_platform_icons.sql migrations/050_profimarket_how_it_works.sql migrations/051_profimarket_product_types.sql migrations/052_profimarket_product_demo.sql migrations/055_profimarket_order_notifications.sql migrations/056_profimarket_purchase_snapshot.sql migrations/057_profimarket_onec_configurations.sql migrations/059_profimarket_compatibility.sql migrations/064_profimarket_questions.sql
 var profiMarketMigrationFS embed.FS
 
 type profiMedia struct {
@@ -270,6 +270,13 @@ func prepareProfiMarketDatabase(ctx context.Context) error {
 	if _, err = db.ExecContext(ctx, string(compatibility)); err != nil {
 		return fmt.Errorf("совместимость автоматизаций ПрофиМаркета: %w", err)
 	}
+	questions, err := profiMarketMigrationFS.ReadFile("migrations/064_profimarket_questions.sql")
+	if err != nil {
+		return err
+	}
+	if _, err = db.ExecContext(ctx, string(questions)); err != nil {
+		return fmt.Errorf("вопросы к решениям ПрофиМаркета: %w", err)
+	}
 	if err = syncProfiMarketCRMs(ctx); err != nil {
 		return fmt.Errorf("синхронизация CRM ПрофиМаркета: %w", err)
 	}
@@ -328,6 +335,8 @@ func registerProfiMarketRoutes() {
 	http.HandleFunc("/api/profimarket/my-purchases", profiMarketMyPurchasesAPI)
 	http.HandleFunc("/api/profimarket/my-orders", profiMarketMyOrdersAPI)
 	http.HandleFunc("/api/profimarket/reviews", profiMarketReviewsAPI)
+	http.HandleFunc("/api/profimarket/questions", profiMarketQuestionsAPI)
+	http.HandleFunc("/api/profimarket/questions/", profiMarketQuestionActionAPI)
 	http.HandleFunc("/api/profimarket/solution/", profiMarketSolutionAPI)
 }
 
@@ -422,6 +431,150 @@ func profiMarketReviewsAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	profiRespond(w, http.StatusOK, map[string]string{"message": "Спасибо! Ваш отзыв опубликован."})
+}
+
+func profiMarketQuestionsAPI(w http.ResponseWriter, r *http.Request) {
+	if db == nil {
+		writeJSON(w, http.StatusServiceUnavailable, "База данных недоступна")
+		return
+	}
+	if r.Method == http.MethodGet {
+		solutionID, err := strconv.ParseInt(r.URL.Query().Get("solution_id"), 10, 64)
+		if err != nil || solutionID <= 0 {
+			writeJSON(w, http.StatusBadRequest, "Некорректное решение")
+			return
+		}
+		current := profiCurrentUser(r)
+		userID := int64(0)
+		if current != nil {
+			userID = current.ID
+		}
+		var authorID int64
+		if err = db.QueryRowContext(r.Context(), `SELECT author_user_id FROM profimarket_solutions WHERE id=$1 AND deleted_at IS NULL`, solutionID).Scan(&authorID); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				writeJSON(w, http.StatusNotFound, "Решение не найдено")
+			} else {
+				writeJSON(w, http.StatusInternalServerError, "Не удалось загрузить вопросы")
+			}
+			return
+		}
+		rows, err := db.QueryContext(r.Context(), `SELECT q.id,q.question,q.answer,q.created_at,q.answered_at,u.full_name,COALESCE(u.avatar_url,''),q.user_id=$2
+			FROM profimarket_questions q JOIN users u ON u.id=q.user_id
+			WHERE q.solution_id=$1 ORDER BY q.created_at DESC,q.id DESC`, solutionID, userID)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, "Не удалось загрузить вопросы")
+			return
+		}
+		defer rows.Close()
+		items := []map[string]any{}
+		for rows.Next() {
+			var id int64
+			var question, answer, name, avatar string
+			var created time.Time
+			var answered sql.NullTime
+			var mine bool
+			if err = rows.Scan(&id, &question, &answer, &created, &answered, &name, &avatar, &mine); err != nil {
+				writeJSON(w, http.StatusInternalServerError, "Не удалось загрузить вопросы")
+				return
+			}
+			item := map[string]any{"id": id, "question": question, "answer": answer, "created_at": created, "author_name": name, "author_avatar": avatar, "is_mine": mine}
+			if answered.Valid {
+				item["answered_at"] = answered.Time
+			}
+			items = append(items, item)
+		}
+		if err = rows.Err(); err != nil {
+			writeJSON(w, http.StatusInternalServerError, "Не удалось загрузить вопросы")
+			return
+		}
+		profiRespond(w, http.StatusOK, map[string]any{"questions": items, "authenticated": current != nil, "is_author": userID > 0 && userID == authorID})
+		return
+	}
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	current, ok := profiRequireUser(w, r)
+	if !ok {
+		return
+	}
+	var input struct {
+		SolutionID int64  `json:"solution_id"`
+		Question   string `json:"question"`
+	}
+	if !profiDecode(w, r, &input) {
+		return
+	}
+	input.Question = strings.TrimSpace(input.Question)
+	if input.SolutionID <= 0 || len([]rune(input.Question)) < 10 || len([]rune(input.Question)) > 2000 {
+		writeJSON(w, http.StatusBadRequest, "Напишите вопрос длиной от 10 до 2000 символов")
+		return
+	}
+	var solutionTitle, solutionSlug, ownerName, ownerEmail string
+	var ownerID int64
+	err := db.QueryRowContext(r.Context(), `SELECT s.author_user_id,s.title,s.slug,u.full_name,u.email FROM profimarket_solutions s JOIN users u ON u.id=s.author_user_id WHERE s.id=$1 AND s.deleted_at IS NULL AND (s.status='PUBLISHED' OR s.author_user_id=$2)`, input.SolutionID, current.ID).Scan(&ownerID, &solutionTitle, &solutionSlug, &ownerName, &ownerEmail)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeJSON(w, http.StatusNotFound, "Решение не найдено")
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, "Не удалось сохранить вопрос")
+		return
+	}
+	var questionID int64
+	if err = db.QueryRowContext(r.Context(), `INSERT INTO profimarket_questions(solution_id,user_id,question) VALUES($1,$2,$3) RETURNING id`, input.SolutionID, current.ID, input.Question).Scan(&questionID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, "Не удалось сохранить вопрос")
+		return
+	}
+	sendEventNotificationAsync("profimarket question", ownerName, ownerEmail, "Новый вопрос о вашем решении — FinTalent", eventNotificationEmailData{
+		Badge: "ПрофиМаркет · Новый вопрос", Title: "Покупатель интересуется вашим решением", Intro: fmt.Sprintf("%s задал(а) вопрос. Ответьте прямо на странице решения — ответ увидят другие посетители, а автор вопроса получит письмо.", current.FullName),
+		CardLabel: "Решение", CardTitle: solutionTitle, Details: input.Question, ButtonText: "Ответить на вопрос", ButtonURL: applicationBaseURL() + "/profimarket/solution/" + solutionSlug + "#questions", Accent: "#6544ea", Footer: fmt.Sprintf("Вопрос №%d", questionID),
+	})
+	profiRespond(w, http.StatusCreated, map[string]any{"message": "Вопрос отправлен автору решения", "id": questionID})
+}
+
+func profiMarketQuestionActionAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	current, ok := profiRequireUser(w, r)
+	if !ok {
+		return
+	}
+	id, err := strconv.ParseInt(strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/profimarket/questions/"), "/"), 10, 64)
+	if err != nil || id <= 0 {
+		writeJSON(w, http.StatusBadRequest, "Некорректный вопрос")
+		return
+	}
+	var input struct {
+		Answer string `json:"answer"`
+	}
+	if !profiDecode(w, r, &input) {
+		return
+	}
+	input.Answer = strings.TrimSpace(input.Answer)
+	if len([]rune(input.Answer)) < 2 || len([]rune(input.Answer)) > 4000 {
+		writeJSON(w, http.StatusBadRequest, "Напишите ответ длиной от 2 до 4000 символов")
+		return
+	}
+	var askerName, askerEmail, solutionTitle, solutionSlug, question string
+	err = db.QueryRowContext(r.Context(), `UPDATE profimarket_questions q SET answer=$1,answered_at=NOW(),updated_at=NOW()
+		FROM profimarket_solutions s,users u WHERE q.id=$2 AND s.id=q.solution_id AND s.author_user_id=$3 AND u.id=q.user_id
+		RETURNING u.full_name,u.email,s.title,s.slug,q.question`, input.Answer, id, current.ID).Scan(&askerName, &askerEmail, &solutionTitle, &solutionSlug, &question)
+	if errors.Is(err, sql.ErrNoRows) {
+		writeJSON(w, http.StatusForbidden, "Ответить может только автор решения")
+		return
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, "Не удалось сохранить ответ")
+		return
+	}
+	sendEventNotificationAsync("profimarket answer", askerName, askerEmail, "Автор ответил на ваш вопрос — FinTalent", eventNotificationEmailData{
+		Badge: "ПрофиМаркет · Ответ автора", Title: "На ваш вопрос ответили", Intro: "Автор решения подготовил ответ. Откройте карточку, чтобы продолжить знакомство с продуктом.",
+		CardLabel: "Решение", CardTitle: solutionTitle, Details: "Ваш вопрос: " + question + "\n\nОтвет автора: " + input.Answer, ButtonText: "Посмотреть ответ", ButtonURL: applicationBaseURL() + "/profimarket/solution/" + solutionSlug + "#questions", Accent: "#167f68", Footer: "Ответ сохранён в разделе «Вопрос–Ответ».",
+	})
+	profiRespond(w, http.StatusOK, map[string]string{"message": "Ответ опубликован"})
 }
 
 func profiRespond(w http.ResponseWriter, status int, value any) {

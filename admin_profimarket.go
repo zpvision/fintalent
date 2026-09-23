@@ -70,6 +70,7 @@ type adminProfiMarketSolution struct {
 	OwnerEmail  string    `json:"owner_email"`
 	Status      string    `json:"status"`
 	Purchases   int       `json:"purchases"`
+	Questions   int       `json:"questions"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
@@ -125,7 +126,7 @@ func adminProfiMarketSolutions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := db.QueryContext(r.Context(), `SELECT s.id,s.title,s.slug,s.type,COALESCE(s.cover_image,''),u.full_name,u.email,s.status,
-		(SELECT COUNT(*) FROM profimarket_purchases p WHERE p.solution_id=s.id),s.updated_at
+		(SELECT COUNT(*) FROM profimarket_purchases p WHERE p.solution_id=s.id),(SELECT COUNT(*) FROM profimarket_questions q WHERE q.solution_id=s.id),s.updated_at
 		FROM profimarket_solutions s JOIN users u ON u.id=s.author_user_id
 		WHERE `+where+` ORDER BY s.updated_at DESC,s.id DESC LIMIT $4 OFFSET $5`, search, status, ownerID, limit, (page-1)*limit)
 	if err != nil {
@@ -136,7 +137,7 @@ func adminProfiMarketSolutions(w http.ResponseWriter, r *http.Request) {
 	items := make([]adminProfiMarketSolution, 0)
 	for rows.Next() {
 		var item adminProfiMarketSolution
-		if err = rows.Scan(&item.ID, &item.Title, &item.Slug, &item.ProductType, &item.CoverImage, &item.OwnerName, &item.OwnerEmail, &item.Status, &item.Purchases, &item.UpdatedAt); err != nil {
+		if err = rows.Scan(&item.ID, &item.Title, &item.Slug, &item.ProductType, &item.CoverImage, &item.OwnerName, &item.OwnerEmail, &item.Status, &item.Purchases, &item.Questions, &item.UpdatedAt); err != nil {
 			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить карточки ПрофиМаркета"})
 			return
 		}
@@ -203,13 +204,17 @@ func adminProfiMarketSolutionAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	parts := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/admin/profimarket/solutions/"), "/"), "/")
-	if len(parts) == 0 || len(parts) > 2 {
+	if len(parts) == 0 || len(parts) > 3 {
 		writeAdminJSON(w, http.StatusNotFound, map[string]string{"error": "Действие не найдено"})
 		return
 	}
 	id, err := strconv.ParseInt(parts[0], 10, 64)
 	if err != nil || id <= 0 {
 		writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": "Некорректная карточка"})
+		return
+	}
+	if len(parts) >= 2 && parts[1] == "questions" {
+		adminProfiMarketQuestions(w, r, id, parts)
 		return
 	}
 	if len(parts) == 2 && parts[1] == "unpublish" && r.Method == http.MethodPost {
@@ -239,6 +244,89 @@ func adminProfiMarketSolutionAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusMethodNotAllowed)
+}
+
+func adminProfiMarketQuestions(w http.ResponseWriter, r *http.Request, solutionID int64, parts []string) {
+	if len(parts) == 2 && r.Method == http.MethodGet {
+		rows, err := db.QueryContext(r.Context(), `SELECT q.id,q.question,q.answer,q.created_at,q.answered_at,u.full_name,u.email
+			FROM profimarket_questions q JOIN users u ON u.id=q.user_id WHERE q.solution_id=$1 ORDER BY q.created_at DESC,q.id DESC`, solutionID)
+		if err != nil {
+			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить вопросы"})
+			return
+		}
+		defer rows.Close()
+		items := []map[string]any{}
+		for rows.Next() {
+			var id int64
+			var question, answer, name, email string
+			var created time.Time
+			var answered sql.NullTime
+			if err = rows.Scan(&id, &question, &answer, &created, &answered, &name, &email); err != nil {
+				writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить вопросы"})
+				return
+			}
+			item := map[string]any{"id": id, "question": question, "answer": answer, "created_at": created, "author_name": name, "author_email": email}
+			if answered.Valid {
+				item["answered_at"] = answered.Time
+			}
+			items = append(items, item)
+		}
+		if err = rows.Err(); err != nil {
+			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить вопросы"})
+			return
+		}
+		writeAdminJSON(w, http.StatusOK, map[string]any{"items": items})
+		return
+	}
+	if len(parts) != 3 {
+		writeAdminJSON(w, http.StatusNotFound, map[string]string{"error": "Вопрос не найден"})
+		return
+	}
+	questionID, err := strconv.ParseInt(parts[2], 10, 64)
+	if err != nil || questionID <= 0 {
+		writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": "Некорректный вопрос"})
+		return
+	}
+	switch r.Method {
+	case http.MethodPut:
+		var input struct {
+			Question string `json:"question"`
+			Answer   string `json:"answer"`
+		}
+		if err = json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&input); err != nil {
+			writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": "Некорректные данные"})
+			return
+		}
+		input.Question = strings.TrimSpace(input.Question)
+		input.Answer = strings.TrimSpace(input.Answer)
+		if len([]rune(input.Question)) < 2 || len([]rune(input.Question)) > 2000 || len([]rune(input.Answer)) > 4000 {
+			writeAdminJSON(w, http.StatusBadRequest, map[string]string{"error": "Проверьте длину вопроса и ответа"})
+			return
+		}
+		result, execErr := db.ExecContext(r.Context(), `UPDATE profimarket_questions SET question=$1,answer=$2,answered_at=CASE WHEN $2='' THEN NULL ELSE COALESCE(answered_at,NOW()) END,updated_at=NOW() WHERE id=$3 AND solution_id=$4`, input.Question, input.Answer, questionID, solutionID)
+		if execErr != nil {
+			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось сохранить вопрос"})
+			return
+		}
+		if count, _ := result.RowsAffected(); count == 0 {
+			writeAdminJSON(w, http.StatusNotFound, map[string]string{"error": "Вопрос не найден"})
+			return
+		}
+		writeAdminJSON(w, http.StatusOK, map[string]string{"message": "Изменения сохранены"})
+	case http.MethodDelete:
+		result, execErr := db.ExecContext(r.Context(), `DELETE FROM profimarket_questions WHERE id=$1 AND solution_id=$2`, questionID, solutionID)
+		if execErr != nil {
+			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось удалить вопрос"})
+			return
+		}
+		if count, _ := result.RowsAffected(); count == 0 {
+			writeAdminJSON(w, http.StatusNotFound, map[string]string{"error": "Вопрос не найден"})
+			return
+		}
+		writeAdminJSON(w, http.StatusOK, map[string]string{"message": "Вопрос удалён"})
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
 }
 
 func adminProfiMarketPurchases(w http.ResponseWriter, r *http.Request) {

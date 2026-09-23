@@ -3,7 +3,7 @@
   const workspace = document.querySelector('.workspace');
   if (!nav || !workspace) return;
 
-  document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="/static/admin-profimarket.css?v=4"><link rel="stylesheet" href="/static/admin-profimarket-solutions.css?v=1">');
+  document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="/static/admin-profimarket.css?v=4"><link rel="stylesheet" href="/static/admin-profimarket-solutions.css?v=2">');
   nav.insertAdjacentHTML('beforeend', '<small>ПРОФИМАРКЕТ</small><button id="profimarket-admin-nav">✦ <span>ПрофиМаркет</span></button>');
   workspace.insertAdjacentHTML('beforeend', `
     <section id="profimarket-admin" class="pm-admin-section hidden">
@@ -218,6 +218,7 @@
         ${pages > 1 ? `<div class="pm-pagination"><button data-solution-page="${solutionQuery.page-1}" ${solutionQuery.page<=1?'disabled':''}>← Назад</button><span>Страница <b>${solutionQuery.page}</b> из ${pages}</span><button data-solution-page="${solutionQuery.page+1}" ${solutionQuery.page>=pages?'disabled':''}>Вперёд →</button></div>` : ''}`;
       solutionsView.querySelectorAll('[data-unpublish-solution]').forEach(button => button.onclick = () => unpublishSolution(button));
       solutionsView.querySelectorAll('[data-delete-solution]').forEach(button => button.onclick = () => deleteSolution(button));
+      solutionsView.querySelectorAll('[data-solution-questions]').forEach(button => button.onclick = () => openSolutionQuestions(button));
       const search = solutionsView.querySelector('.pm-search input');
       search.oninput = event => {
         clearTimeout(solutionSearchTimer);
@@ -247,7 +248,23 @@
 
   function solutionRow(item) {
     const status = {PUBLISHED:'Опубликована', DRAFT:'Черновик', MODERATION:'На модерации', ARCHIVED:'Снята'}[item.status] || item.status;
-    return `<tr><td><div class="pm-product"><div class="pm-product-cover">${item.cover_image?`<img src="${esc(item.cover_image)}" alt="">`:'<span>F</span>'}</div><div><a class="pm-product-title" href="/profimarket/solution/${encodeURIComponent(item.slug)}?preview=1" target="_blank" rel="noopener">${esc(item.title)} <span>↗</span></a><small>${esc(productTypes[item.product_type] || item.product_type)}</small></div></div></td><td>${person(item.owner_name,item.owner_email,'Владелец')}</td><td><span class="pm-solution-status status-${item.status.toLowerCase()}">${esc(status)}</span></td><td><b>${Number(item.purchases).toLocaleString('ru-RU')}</b></td><td><time>${formatDate(item.updated_at)}</time></td><td><div class="pm-solution-actions">${item.status==='PUBLISHED'?`<button data-unpublish-solution="${item.id}" data-title="${esc(item.title)}">Снять</button>`:''}<button class="delete" data-delete-solution="${item.id}" data-title="${esc(item.title)}">Удалить</button></div></td></tr>`;
+    return `<tr><td><div class="pm-product"><div class="pm-product-cover">${item.cover_image?`<img src="${esc(item.cover_image)}" alt="">`:'<span>F</span>'}</div><div><a class="pm-product-title" href="/profimarket/solution/${encodeURIComponent(item.slug)}?preview=1" target="_blank" rel="noopener">${esc(item.title)} <span>↗</span></a><small>${esc(productTypes[item.product_type] || item.product_type)}</small></div></div></td><td>${person(item.owner_name,item.owner_email,'Владелец')}</td><td><span class="pm-solution-status status-${item.status.toLowerCase()}">${esc(status)}</span></td><td><b>${Number(item.purchases).toLocaleString('ru-RU')}</b></td><td><time>${formatDate(item.updated_at)}</time></td><td><div class="pm-solution-actions"><button class="questions" data-solution-questions="${item.id}" data-title="${esc(item.title)}">Вопрос–Ответ <b>${Number(item.questions||0)}</b></button>${item.status==='PUBLISHED'?`<button data-unpublish-solution="${item.id}" data-title="${esc(item.title)}">Снять</button>`:''}<button class="delete" data-delete-solution="${item.id}" data-title="${esc(item.title)}">Удалить</button></div></td></tr>`;
+  }
+
+  async function openSolutionQuestions(button) {
+    const modal = document.createElement('div'); modal.className = 'pm-admin-modal pm-questions-modal';
+    modal.innerHTML = `<section><header><div><small>ВОПРОС–ОТВЕТ</small><h2>${esc(button.dataset.title)}</h2></div><button type="button" data-close>×</button></header><div class="pm-question-admin-list"><div class="pm-loading"><span></span>Загружаем вопросы…</div></div></section>`;
+    document.body.append(modal); const list = modal.querySelector('.pm-question-admin-list');
+    const close = () => modal.remove(); modal.querySelector('[data-close]').onclick = close; modal.onclick = event => { if (event.target === modal) close(); };
+    async function load() {
+      try {
+        const data = await request(`/api/admin/profimarket/solutions/${button.dataset.solutionQuestions}/questions`);
+        list.innerHTML = data.items.length ? data.items.map(item => `<article data-question="${item.id}"><header><div><b>${esc(item.author_name)}</b><small>${esc(item.author_email)} · ${formatDate(item.created_at)}</small></div><button class="delete" data-remove>Удалить</button></header><label>Вопрос<textarea name="question" maxlength="2000" required>${esc(item.question)}</textarea></label><label>Ответ автора<textarea name="answer" maxlength="4000" placeholder="Ответа пока нет">${esc(item.answer)}</textarea></label><footer><span>${item.answered_at ? `Ответ от ${formatDate(item.answered_at)}` : 'Ожидает ответа автора'}</span><button class="primary" data-save>Сохранить</button></footer></article>`).join('') : '<div class="pm-empty"><b>Вопросов пока нет</b><p>Они появятся здесь после обращений пользователей.</p></div>';
+        list.querySelectorAll('[data-save]').forEach(save => save.onclick = async () => { const card=save.closest('article'); save.disabled=true; try { await request(`/api/admin/profimarket/solutions/${button.dataset.solutionQuestions}/questions/${card.dataset.question}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({question:card.querySelector('[name=question]').value,answer:card.querySelector('[name=answer]').value})}); notify('Вопрос и ответ сохранены'); await load(); } catch(error){notify(error.message,true);save.disabled=false;} });
+        list.querySelectorAll('[data-remove]').forEach(remove => remove.onclick = async () => { const card=remove.closest('article'); if(!confirm('Удалить этот вопрос и ответ без возможности восстановления?'))return; try { await request(`/api/admin/profimarket/solutions/${button.dataset.solutionQuestions}/questions/${card.dataset.question}`,{method:'DELETE'}); notify('Вопрос удалён'); await load(); } catch(error){notify(error.message,true);} });
+      } catch(error) { list.innerHTML=`<div class="pm-empty"><b>Не удалось загрузить вопросы</b><p>${esc(error.message)}</p></div>`; }
+    }
+    await load();
   }
 
   async function unpublishSolution(button) {

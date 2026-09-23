@@ -6,7 +6,7 @@ import usePageStyles from '../../hooks/usePageStyles'
 import UserLayout from '../../layouts/UserLayout'
 import QuestionChat from '../../components/tests/QuestionChat'
 
-const styles=['/static/profile.css','/static/test-chat-profile.css','/static/profile-logo.css','/static/profile-sidebar-v2.css','/static/profile-buttons.css','/static/test-chat.css','/static/test-chat-question.css','/static/test-chat-click.css','/static/test-chat-fade.css','/static/test-chat-history.css','/static/test-answer-review.css','/static/test-user-answer.css','/static/test-start.css','/static/test-start-reviews.css','/static/fintalent-theme.css']
+const styles=['/static/profile.css','/static/test-chat-profile.css','/static/profile-logo.css','/static/profile-sidebar-v2.css?v=2','/static/profile-buttons.css','/static/test-chat.css','/static/test-chat-question.css','/static/test-chat-click.css','/static/test-chat-fade.css','/static/test-chat-history.css','/static/test-answer-review.css','/static/test-user-answer.css','/static/test-start.css','/static/test-start-reviews.css','/static/fintalent-theme.css']
 const duration=s=>{s=Math.max(0,Math.round(s||0));return s<60?`${s} сек.`:`${Math.floor(s/60)} мин. ${s%60} сек.`}
 const grouped=a=>(a||[]).reduce((m,x)=>{const v=m.get(x.question_id)||{...x,ids:[],names:[]};if(x.selected_answer_id)v.ids.push(x.selected_answer_id);if(x.selected_answer)v.names.push(x.selected_answer);m.set(x.question_id,v);return m},new Map())
 

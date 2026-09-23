@@ -5,7 +5,7 @@ import { useDocumentPage } from '../../hooks/useDocumentPage'
 import usePageStyles from '../../hooks/usePageStyles'
 import UserLayout from '../../layouts/UserLayout'
 
-const styles = ['/static/profile.css','/static/tests.css','/static/tests-profile.css','/static/profile-logo.css','/static/profile-sidebar-v2.css','/static/profile-buttons.css','/static/test-results.css','/static/test-result-visibility.css?v=1','/static/test-result-filters.css?v=1','/static/test-result-filter-layout.css?v=2','/static/fintalent-theme.css','/static/tests-home.css?v=2','/static/employee-testing-results.css?v=2','/static/employee-testing.css?v=2']
+const styles = ['/static/profile.css','/static/tests.css','/static/tests-profile.css','/static/profile-logo.css','/static/profile-sidebar-v2.css?v=2','/static/profile-buttons.css','/static/test-results.css','/static/test-result-visibility.css?v=1','/static/test-result-filters.css?v=1','/static/test-result-filter-layout.css?v=2','/static/fintalent-theme.css','/static/tests-home.css?v=2','/static/employee-testing-results.css?v=2','/static/employee-testing.css?v=2']
 const formatDate = value => new Date(value).toLocaleDateString('ru-RU')
 const formatTime = value => value ? `${Math.max(1, Math.round(value / 60))} мин` : '—'
 const statusLabel = value => ({ draft:'Черновик', published:'Опубликован', archived:'В архиве', blocked:'Заблокирован' })[value] || value

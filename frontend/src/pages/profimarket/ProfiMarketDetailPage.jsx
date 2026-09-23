@@ -18,7 +18,7 @@ function loadPresentation() {
       script.onerror = () => reject(new Error('Не удалось загрузить компоненты страницы'))
       document.head.append(script)
     }
-    const loadComponents = () => load('/static/profimarket-components.js?v=38', () => resolve(window.ProfiMarketUI))
+    const loadComponents = () => load('/static/profimarket-components.js?v=39', () => resolve(window.ProfiMarketUI))
     if (window.ProfiMarketStylePresets) loadComponents()
     else load('/static/profimarket-style-presets.js?v=3', loadComponents)
   })
@@ -63,6 +63,7 @@ export default function ProfiMarketDetailPage() {
   usePageStyles(['/static/profimarket.css?v=3','/static/profimarket-product.css?v=3','/static/vacancy-publish-success.css?v=1'])
   const { key } = useParams(), location = useLocation(), root = useRef(null)
   const [solution, setSolution] = useState(null), [html, setHTML] = useState(''), [error, setError] = useState(''), [modal, setModal] = useState(false), [notice, setNotice] = useState(null), [purchaseSuccess, setPurchaseSuccess] = useState(null), [expandedImage, setExpandedImage] = useState(null)
+  const modern=solution&&['AUTOMATION','INSTRUCTION','ONEC_INTEGRATION','TEMPLATE','CHECKLIST'].includes(solution.type)
   useDocumentPage({ title: solution ? `${solution.title} — ПрофиМаркет` : 'Решение — ПрофиМаркет' })
   const preview = new URLSearchParams(location.search).get('preview') === '1'
   function notify(text, bad = false) { setNotice({ text, bad }); window.setTimeout(() => setNotice(null), 3000) }
@@ -87,6 +88,15 @@ export default function ProfiMarketDetailPage() {
       if (title) title.textContent = solution.right_block_title
     }
   }, [html, solution])
+  useEffect(() => {
+    if (!solution || modern || !root.current) return
+    const purchase = root.current.querySelector('.pmr-buy-card,.pm-ai-buy-card,[data-buy]')?.closest('aside,section,div')
+    if (!purchase || purchase.querySelector('.pmp-question-link')) return
+    const link = document.createElement('a')
+    link.className = 'pmp-question-link'; link.href = '#questions'
+    link.innerHTML = '<i>?</i><span><b>Есть вопрос о решении?</b><small>Задайте его автору до покупки</small></span><strong>→</strong>'
+    purchase.append(link)
+  }, [html, solution, modern])
   async function favorite(button) {
     try {
       const data = button.classList.contains('active') ? await removeProfiMarketFavorite(solution.id) : await addProfiMarketFavorite(solution.id)
@@ -116,6 +126,5 @@ export default function ProfiMarketDetailPage() {
     setSolution(next)
     if (!['AUTOMATION','INSTRUCTION','ONEC_INTEGRATION','TEMPLATE','CHECKLIST'].includes(next.type) && window.ProfiMarketUI) setHTML(window.ProfiMarketUI.solutionView(next, preview))
   }
-  const modern=solution&&['AUTOMATION','INSTRUCTION','ONEC_INTEGRATION','TEMPLATE','CHECKLIST'].includes(solution.type)
   return <PublicLayout><main ref={root} id="pm-detail" className="pm-detail-page" onClick={interact}>{error ? <div className="pm-detail-loading"><h1>Решение не найдено</h1><p>{error}</p><a href="/profimarket">Вернуться в ПрофиМаркет</a></div> : !solution ? <div className="pm-detail-loading"><i /><b>Загружаем решение…</b></div> : modern?<ProfiMarketProductDetail solution={solution}/>:<div dangerouslySetInnerHTML={{ __html: html }} />}{solution && <ProfiMarketReviews solution={solution} onChanged={reviewsChanged} />}</main>{modal && <PurchaseModal solution={solution} close={() => setModal(false)} done={(text) => { setModal(false); setPurchaseSuccess({ message: text }) }} fail={(text) => notify(text, true)} />}{purchaseSuccess && <PublishSuccessModal eyebrow={solution?.trial_days ? 'БЕСПЛАТНЫЙ ПЕРИОД' : 'ЗАЯВКА ОФОРМЛЕНА'} title="Поздравляем, всё получилось!" description={purchaseSuccess.message || 'Автор получил ваши контакты и свяжется с вами.'} wishTitle="Автор уже получил уведомление" wishText="Ваши контакты сохранены в его кабинете, также ему отправлено письмо." primaryHref="/profile?section=profimarket-purchases" primaryText="Перейти в мои покупки" onClose={() => setPurchaseSuccess(null)} />}{expandedImage && <DetailImageLightbox image={expandedImage} close={() => setExpandedImage(null)} />}<Notice value={notice} /></PublicLayout>
 }
