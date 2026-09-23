@@ -8,11 +8,13 @@ import HeroRotator from './HeroRotator'
 import HomeShowcase from './HomeShowcase'
 import usePageStyles from '../../hooks/usePageStyles'
 
-const simpleOptions = [{ value: '', label: 'Любой' }]
 const popularQueries = ['Главный бухгалтер', 'Бухгалтер на участок', 'Бухгалтер по зарплате', 'Финансовый аналитик', 'Налоговый консультант']
+const salaryOptions = [{ value: '', label: 'Любая' }, { value: '50000', label: '50 000 ₽' }, { value: '80000', label: '80 000 ₽' }, { value: '100000', label: '100 000 ₽' }, { value: '150000', label: '150 000 ₽' }, { value: '200000', label: '200 000 ₽' }]
 
 function HomeSearch() {
   const [positions, setPositions] = useState([{ value: '', label: 'Любая' }])
+  const [workFormats, setWorkFormats] = useState([{ value: '', label: 'Любой' }])
+  const [query, setQuery] = useState('')
   const [position, setPosition] = useState('')
   const [city, setCity] = useState('')
   const [cityId, setCityId] = useState('')
@@ -21,26 +23,39 @@ function HomeSearch() {
 
   useEffect(() => {
     const controller = new AbortController()
-    apiClient.get('/api/public/dictionaries/position', { signal: controller.signal, redirectOnUnauthorized: false }).then((dictionary) => {
-      setPositions([{ value: '', label: 'Любая' }, ...(dictionary?.items || []).map((item) => ({ value: String(item.id), label: item.value }))])
-    }).catch((error) => {
-      if (error.name !== 'AbortError') setPositions([{ value: '', label: 'Не удалось загрузить должности' }])
-    })
+    Promise.all([apiClient.get('/api/public/dictionaries/position', { signal: controller.signal, redirectOnUnauthorized: false }),apiClient.get('/api/public/dictionaries/work_format', { signal: controller.signal, redirectOnUnauthorized: false })]).then(([positionDictionary,formatDictionary]) => {
+      setPositions([{ value: '', label: 'Любая' }, ...(positionDictionary?.items || []).map((item) => ({ value: String(item.id), label: item.value }))])
+      setWorkFormats([{ value: '', label: 'Любой' }, ...(formatDictionary?.items || []).map((item) => ({ value: String(item.id), label: item.value }))])
+    }).catch((error) => { if (error.name !== 'AbortError') { setPositions([{ value: '', label: 'Не удалось загрузить' }]); setWorkFormats([{ value: '', label: 'Не удалось загрузить' }]) } })
     return () => controller.abort()
   }, [])
 
+  function search(event) {
+    event?.preventDefault()
+    const params = new URLSearchParams()
+    if (query.trim()) params.set('q', query.trim())
+    if (position) params.set('position', position)
+    if (city.trim()) params.set('city', city.trim())
+    if (cityId) params.set('city_id', cityId)
+    if (workFormat) params.set('work_format', workFormat)
+    if (salary) params.set('salary_from', salary)
+    window.location.assign(`/vacancies${params.size ? `?${params}` : ''}`)
+  }
+
+  function selectPopular(value) { setQuery(value) }
+
   return (
-    <section className="search-panel container">
+    <form className="search-panel container" onSubmit={search}>
       <div className="search-grid">
-        <label className="keyword">⌕ <input placeholder="Должность или ключевые навыки" /></label>
+        <label className="keyword">⌕ <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Должность или ключевые навыки" /></label>
         <SearchableSelect label="Специализация" name="position" options={positions} value={position} onChange={setPosition} placeholder="Любая" />
         <CityPicker value={city} cityId={cityId} onChange={(name, id) => { setCity(name); setCityId(id) }} />
-        <SearchableSelect label="Формат работы" options={simpleOptions} value={workFormat} onChange={setWorkFormat} placeholder="Любой" />
-        <SearchableSelect label="Зарплата от" options={[{ value: '', label: 'Любая' }]} value={salary} onChange={setSalary} placeholder="Любая" />
-        <button className="btn primary find" type="button">Найти вакансии</button>
+        <SearchableSelect label="Формат работы" options={workFormats} value={workFormat} onChange={setWorkFormat} placeholder="Любой" />
+        <SearchableSelect label="Зарплата от" options={salaryOptions} value={salary} onChange={setSalary} placeholder="Любая" />
+        <button className="btn primary find">Найти вакансии</button>
       </div>
-      <div className="popular"><span>Популярные запросы:</span>{popularQueries.map((query) => <a key={query}>{query}</a>)}<b>Расширенный поиск ⚙</b></div>
-    </section>
+      <div className="popular"><span>Популярные запросы:</span>{popularQueries.map((value) => <button type="button" className={query === value ? 'active' : ''} onClick={() => selectPopular(value)} key={value}>{value}</button>)}</div>
+    </form>
   )
 }
 
@@ -72,6 +87,7 @@ export default function HomePage() {
     '/static/searchable-select.css',
     '/static/home-showcase-react.css?v=13',
     '/static/home-footer-rights.css?v=2',
+    '/static/home-search-enhancements.css?v=1',
   ])
   useDocumentPage({
     title: 'FinTalent — биржа вакансий для бухгалтеров',

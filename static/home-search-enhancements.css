@@ -1,0 +1,11 @@
+.hero-actions .action{position:relative;overflow:hidden;text-decoration:none;transition:transform .2s ease,box-shadow .2s ease,filter .2s ease}
+.hero-actions .action:after{content:"";position:absolute;top:-70%;left:-45%;width:32%;height:240%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.34),transparent);transform:rotate(18deg) translateX(-180%);transition:transform .48s ease;pointer-events:none}
+.hero-actions .action:hover{transform:translateY(-3px);filter:saturate(1.08);box-shadow:0 13px 27px rgba(20,87,235,.23)}
+.hero-actions .action:hover:after{transform:rotate(18deg) translateX(520%)}
+.hero-actions .action:active{transform:translateY(-1px)}
+.hero-actions .action strong{transition:transform .2s ease}
+.hero-actions .action:hover strong{transform:scale(1.1) rotate(-3deg)}
+.popular button{padding:6px 12px;border:1px solid transparent;border-radius:15px;color:#32436b;background:#f5f7fb;font:500 9px Inter,Arial,sans-serif;cursor:pointer;transition:color .16s,border-color .16s,background .16s,transform .16s}
+.popular button:hover{transform:translateY(-1px);border-color:#cbdafa;color:#1559f6;background:#eef4ff}
+.popular button.active{border-color:#91b2fa;color:#fff;background:linear-gradient(110deg,#1559f6,#3e7af0);box-shadow:0 5px 12px rgba(21,89,246,.18)}
+@media(prefers-reduced-motion:reduce){.hero-actions .action,.hero-actions .action:after,.hero-actions .action strong,.popular button{transition:none}.hero-actions .action:hover,.popular button:hover{transform:none}}

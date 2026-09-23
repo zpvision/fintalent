@@ -63,8 +63,12 @@ function CatalogCard({ item, type, incomeLabel, triggerRef }) {
 export default function CatalogPage({ type }) {
   const copy = catalogCopy[type]
   const [searchParams, setSearchParams] = useSearchParams()
-  const [query, setQuery] = useState('')
-  const [city, setCity] = useState('')
+  const [query, setQuery] = useState(searchParams.get('q') || '')
+  const [city, setCity] = useState(searchParams.get('city') || '')
+  const [position, setPosition] = useState(type === 'vacancies' ? searchParams.get('position') || '' : '')
+  const [workFormat, setWorkFormat] = useState(type === 'vacancies' ? searchParams.get('work_format') || '' : '')
+  const [salaryFrom, setSalaryFrom] = useState(type === 'vacancies' ? searchParams.get('salary_from') || '' : '')
+  const [vacancyFilters, setVacancyFilters] = useState({ positions: [], workFormats: [] })
   const [helpTopic, setHelpTopic] = useState(type === 'resumes' ? searchParams.get('help_topic') || '' : '')
   const [helpTopics, setHelpTopics] = useState([])
   const [items, setItems] = useState([])
@@ -75,7 +79,7 @@ export default function CatalogPage({ type }) {
   const firstRequest = useRef(true)
   const activeRequest = useRef(null)
   const loadTriggerRef = useRef(null)
-  usePageStyles(['/static/catalog.css?v=5', '/static/catalog-help.css?v=1'])
+  usePageStyles(['/static/catalog.css?v=6', '/static/catalog-help.css?v=1'])
   useDocumentPage({ title: copy.title, bodyData: { catalog: type } })
 
   const loadCatalog = useCallback(async (signal, offset = 0, append = false) => {
@@ -83,6 +87,9 @@ export default function CatalogPage({ type }) {
     else setStatus('loading')
     const params = new URLSearchParams({ kind: type, q: query.trim(), city: city.trim(), limit: '30', offset: String(offset) })
     if (type === 'resumes' && helpTopic) params.set('help_topic', helpTopic)
+    if (type === 'vacancies' && position) params.set('position', position)
+    if (type === 'vacancies' && workFormat) params.set('work_format', workFormat)
+    if (type === 'vacancies' && salaryFrom) params.set('salary_from', salaryFrom)
     try {
       const data = await apiClient.get(`/api/public/catalog?${params}`, { cache: 'no-store', signal, redirectOnUnauthorized: false })
       const nextItems = Array.isArray(data?.items) ? data.items : []
@@ -95,7 +102,7 @@ export default function CatalogPage({ type }) {
     } finally {
       if (append && !signal.aborted) setLoadingMore(false)
     }
-  }, [city, helpTopic, query, type])
+  }, [city, helpTopic, position, query, salaryFrom, type, workFormat])
 
   const loadMore = useCallback(() => {
     if (loadingMore || !hasMore || status !== 'ready') return
@@ -108,6 +115,13 @@ export default function CatalogPage({ type }) {
     if (type !== 'resumes') return
     const controller = new AbortController()
     apiClient.get('/api/public/help-topics', { signal: controller.signal, redirectOnUnauthorized: false }).then((data) => setHelpTopics(Array.isArray(data) ? data : [])).catch(() => {})
+    return () => controller.abort()
+  }, [type])
+
+  useEffect(() => {
+    if (type !== 'vacancies') return
+    const controller = new AbortController()
+    Promise.all([apiClient.get('/api/public/dictionaries/position', { signal: controller.signal, redirectOnUnauthorized: false }),apiClient.get('/api/public/dictionaries/work_format', { signal: controller.signal, redirectOnUnauthorized: false })]).then(([positions,formats]) => setVacancyFilters({ positions: positions?.items || [], workFormats: formats?.items || [] })).catch(() => {})
     return () => controller.abort()
   }, [type])
 
@@ -146,6 +160,9 @@ export default function CatalogPage({ type }) {
 
   function handleSubmit(event) {
     event.preventDefault()
+    const next = new URLSearchParams()
+    if(query.trim())next.set('q',query.trim());if(city.trim())next.set('city',city.trim());if(position)next.set('position',position);if(workFormat)next.set('work_format',workFormat);if(salaryFrom)next.set('salary_from',salaryFrom)
+    setSearchParams(next,{replace:true})
     activeRequest.current?.abort()
     const controller = new AbortController()
     activeRequest.current = controller
@@ -160,10 +177,11 @@ export default function CatalogPage({ type }) {
             <div><small>{copy.eyebrow}</small><h1>{copy.heading}</h1><p>{copy.description}</p></div>
             <a className="catalog-create" href={copy.createHref}>{copy.createLabel}</a>
           </section>
-          <form className={`catalog-search${type === 'resumes' ? ' catalog-search-resumes' : ''}`} onSubmit={handleSubmit}>
+          <form className={`catalog-search${type === 'resumes' ? ' catalog-search-resumes' : ' catalog-search-vacancies'}`} onSubmit={handleSubmit}>
             <label>⌕<input name="q" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={copy.queryPlaceholder} /></label>
             <label>⌖<input name="city" value={city} onChange={(event) => setCity(event.target.value)} placeholder="Город" /></label>
             {type === 'resumes' ? <label className="catalog-help-filter"><span>Найти специалиста по профилю</span><select value={helpTopic} onChange={(event) => selectHelpTopic(event.target.value)}><option value="">Любое направление</option>{helpTopics.map((topic) => <option value={topic.id} key={topic.id}>{topic.name}</option>)}</select></label> : null}
+            {type === 'vacancies' ? <><label className="catalog-select-filter"><span>Специализация</span><select value={position} onChange={(event) => setPosition(event.target.value)}><option value="">Любая</option>{vacancyFilters.positions.map(item=><option value={item.id} key={item.id}>{item.value}</option>)}</select></label><label className="catalog-select-filter"><span>Формат работы</span><select value={workFormat} onChange={(event) => setWorkFormat(event.target.value)}><option value="">Любой</option>{vacancyFilters.workFormats.map(item=><option value={item.id} key={item.id}>{item.value}</option>)}</select></label><label className="catalog-select-filter"><span>Зарплата от</span><select value={salaryFrom} onChange={(event) => setSalaryFrom(event.target.value)}><option value="">Любая</option><option value="50000">50 000 ₽</option><option value="80000">80 000 ₽</option><option value="100000">100 000 ₽</option><option value="150000">150 000 ₽</option><option value="200000">200 000 ₽</option></select></label></> : null}
             <button>Найти</button>
           </form>
           <p className="catalog-meta">{status === 'ready' ? `Найдено: ${total}` : ''}</p>
