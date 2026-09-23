@@ -123,7 +123,7 @@ func loadPublicVacancy(r *http.Request, id int64) (*publicVacancyView, error) {
 	var salaryFrom, salaryTo sql.NullFloat64
 	err := db.QueryRowContext(r.Context(), `SELECT v.id,v.user_id,v.description,v.salary_from,v.salary_to,v.salary_tax_mode,v.currency,v.city,v.address,v.accepts_individual_entrepreneur,v.accepts_self_employed,u.full_name,v.published_at
 		FROM vacancies v JOIN users u ON u.id=v.user_id
-		WHERE v.id=$1 AND v.status='published' AND v.deleted_at IS NULL`, id).
+		WHERE v.id=$1 AND v.status='published' AND v.deleted_at IS NULL AND (NOT u.is_blocked OR u.is_system)`, id).
 		Scan(&view.ID, &view.OwnerID, &view.Description, &salaryFrom, &salaryTo, &view.SalaryTaxMode, &view.Currency, &view.City, &view.Address, &view.AcceptsIndividualEntrepreneur, &view.AcceptsSelfEmployed, &view.OwnerName, &view.PublishedAt)
 	if err != nil {
 		return nil, err
@@ -228,7 +228,7 @@ func loadPublicVacancyTests(r *http.Request, view *publicVacancyView) error {
 		COALESCE((SELECT AVG(tr.rating) FROM test_reviews tr WHERE tr.test_id=t.id),0),
 		COALESCE((SELECT COUNT(*) FROM test_reviews tr WHERE tr.test_id=t.id),0),t.is_free,t.price,u.full_name
 		FROM vacancy_tests vt JOIN tests t ON t.id=vt.test_id JOIN test_versions tv ON tv.id=vt.test_version_id JOIN users u ON u.id=t.author_id
-		WHERE vt.vacancy_external_id=$1 ORDER BY vt.sort_order,vt.id`, view.ID)
+		WHERE vt.vacancy_external_id=$1 AND (NOT u.is_blocked OR u.is_system) ORDER BY vt.sort_order,vt.id`, view.ID)
 	if err != nil {
 		return err
 	}

@@ -37,7 +37,7 @@ func (h *Handler) getListingJSON(ctx context.Context, id, viewerID int64, ownerV
 	LEFT JOIN client_exchange_dictionary_items i ON i.id=l.industry_id LEFT JOIN client_exchange_dictionary_items er ON er.id=l.employee_range_id
 	LEFT JOIN client_exchange_dictionary_items ts ON ts.id=l.tax_system_id LEFT JOIN client_exchange_dictionary_items rr ON rr.id=l.revenue_range_id
 	LEFT JOIN client_exchange_dictionary_items ast ON ast.id=l.accounting_state_id LEFT JOIN client_exchange_dictionary_items tr ON tr.id=l.transfer_reason_id
-	LEFT JOIN client_exchange_dictionary_items tt ON tt.id=l.transfer_type_id WHERE l.id=$1 AND l.deleted_at IS NULL`
+	LEFT JOIN client_exchange_dictionary_items tt ON tt.id=l.transfer_type_id WHERE l.id=$1 AND l.deleted_at IS NULL AND (l.seller_user_id=$2 OR NOT u.is_blocked OR u.is_system)`
 	if !ownerView {
 		query += ` AND (l.status IN ('active','has_responses','buyer_selected','transfer_in_progress','transferred') OR l.seller_user_id=$2 OR l.selected_buyer_user_id=$2)`
 	}

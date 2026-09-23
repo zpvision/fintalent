@@ -433,7 +433,7 @@ func marketplaceTests(w http.ResponseWriter, r *http.Request) {
 			FROM test_reviews r JOIN users ru ON ru.id=r.employer_id
 			WHERE r.test_id=t.id ORDER BY r.created_at DESC,r.id DESC LIMIT 1
 		) lr ON TRUE
-		WHERE t.status='published' AND t.visibility='marketplace'`
+		WHERE t.status='published' AND t.visibility='marketplace' AND (NOT u.is_blocked OR u.is_system)`
 	args := []any{}
 	if id := r.URL.Query().Get("position_id"); id != "" {
 		args = append(args, id)

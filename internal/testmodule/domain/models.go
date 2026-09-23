@@ -38,6 +38,7 @@ type Test struct {
 	QuestionCount    int        `json:"question_count"`
 	AttemptsCount    int64      `json:"attempts_count"`
 	AveragePercent   float64    `json:"average_percent"`
+	AuthorBlocked    bool       `json:"-"`
 	CreatedAt        time.Time  `json:"created_at"`
 	UpdatedAt        time.Time  `json:"updated_at"`
 	Questions        []Question `json:"questions,omitempty"`

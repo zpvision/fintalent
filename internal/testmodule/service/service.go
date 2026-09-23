@@ -25,6 +25,9 @@ func (s *Service) Get(ctx context.Context, id, user int64, admin bool) (*domain.
 	if err != nil {
 		return nil, err
 	}
+	if !admin && base.AuthorBlocked {
+		return nil, repository.ErrNotFound
+	}
 	showCorrect := admin || base.AuthorID == user
 	if base.Status != domain.StatusPublished && !showCorrect {
 		return nil, repository.ErrForbidden

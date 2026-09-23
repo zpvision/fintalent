@@ -178,7 +178,7 @@ func (h *Handler) catalog(w http.ResponseWriter, r *http.Request, u UserIdentity
 	q := r.URL.Query()
 	page := clamp(parseInt(q.Get("page"), 1), 1, 100000)
 	limit := clamp(parseInt(q.Get("limit"), 12), 1, 48)
-	where := []string{"l.deleted_at IS NULL", "l.status IN ('active','has_responses')"}
+	where := []string{"l.deleted_at IS NULL", "l.status IN ('active','has_responses')", "(NOT u.is_blocked OR u.is_system)"}
 	args := []any{}
 	add := func(condition string, value any) {
 		args = append(args, value)
@@ -227,7 +227,7 @@ func (h *Handler) catalog(w http.ResponseWriter, r *http.Request, u UserIdentity
 	if order == "" {
 		order = "l.published_at DESC"
 	}
-	from := ` FROM client_exchange_listings l LEFT JOIN client_exchange_dictionary_items i ON i.id=l.industry_id LEFT JOIN client_exchange_dictionary_items rr ON rr.id=l.revenue_range_id WHERE ` + strings.Join(where, " AND ")
+	from := ` FROM client_exchange_listings l JOIN users u ON u.id=l.seller_user_id LEFT JOIN client_exchange_dictionary_items i ON i.id=l.industry_id LEFT JOIN client_exchange_dictionary_items rr ON rr.id=l.revenue_range_id WHERE ` + strings.Join(where, " AND ")
 	var total int
 	if err := h.db.QueryRowContext(r.Context(), "SELECT COUNT(*)"+from, args...).Scan(&total); err != nil {
 		fail(w, 500, "Не удалось загрузить каталог")

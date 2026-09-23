@@ -591,7 +591,7 @@ func (h *Handler) companyJSON(ctx context.Context, id, userID int64) ([]byte, in
 	'reviews',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',rv.id,'author_name',rv.author_name,'author_company',rv.author_company,'text',rv.text,'rating',rv.rating,'created_at',rv.created_at) ORDER BY rv.created_at DESC) FROM accounting_company_reviews rv WHERE rv.company_id=c.id AND rv.status='published'),'[]'::jsonb),
 	'passport_summary',(SELECT CASE WHEN count(*)=0 THEN NULL ELSE jsonb_build_object('overall_index',round(avg(ta.percent),0),'tests_count',count(*),'specialists_count',count(DISTINCT i.employee_id)) END FROM company_test_invitations i JOIN test_attempts ta ON ta.id=i.attempt_id WHERE i.owner_user_id=c.owner_user_id AND i.status='finished' AND ta.status='finished'),
 	'completeness',LEAST(100,(CASE WHEN c.name<>'' THEN 12 ELSE 0 END)+(CASE WHEN c.logo<>'' THEN 12 ELSE 0 END)+(CASE WHEN c.phone<>'' OR c.email<>'' THEN 12 ELSE 0 END)+(CASE WHEN c.short_description<>'' THEN 10 ELSE 0 END)+(CASE WHEN c.manager_name<>'' THEN 10 ELSE 0 END)+(CASE WHEN EXISTS(SELECT 1 FROM accounting_company_direction_links WHERE company_id=c.id) THEN 14 ELSE 0 END)+(CASE WHEN EXISTS(SELECT 1 FROM accounting_company_services WHERE company_id=c.id) THEN 15 ELSE 0 END)+(CASE WHEN EXISTS(SELECT 1 FROM accounting_company_tariffs WHERE company_id=c.id) THEN 15 ELSE 0 END))
-	) FROM accounting_companies c LEFT JOIN accounting_company_accent_styles a ON a.id=c.accent_style_id LEFT JOIN accounting_company_header_templates ht ON ht.id=c.header_template_id WHERE c.id=$1 AND c.deleted_at IS NULL`, id, userID).Scan(&owner, &status, &raw)
+	) FROM accounting_companies c JOIN users u ON u.id=c.owner_user_id LEFT JOIN accounting_company_accent_styles a ON a.id=c.accent_style_id LEFT JOIN accounting_company_header_templates ht ON ht.id=c.header_template_id WHERE c.id=$1 AND c.deleted_at IS NULL AND (c.owner_user_id=$2 OR NOT u.is_blocked OR u.is_system)`, id, userID).Scan(&owner, &status, &raw)
 	return raw, owner, status, err
 }
 
@@ -608,7 +608,7 @@ func (h *Handler) catalog(w http.ResponseWriter, r *http.Request) {
 	if limit > 48 {
 		limit = 48
 	}
-	where := []string{"c.status='published'", "c.deleted_at IS NULL"}
+	where := []string{"c.status='published'", "c.deleted_at IS NULL", "(NOT u.is_blocked OR u.is_system)"}
 	args := []any{}
 	add := func(condition string, value any) {
 		args = append(args, value)
@@ -640,7 +640,7 @@ func (h *Handler) catalog(w http.ResponseWriter, r *http.Request) {
 	if q.Get("passport") == "true" {
 		where = append(where, "(EXISTS(SELECT 1 FROM accounting_company_competency_scores cs WHERE cs.company_id=c.id) OR EXISTS(SELECT 1 FROM company_test_invitations i WHERE i.owner_user_id=c.owner_user_id AND i.status='finished'))")
 	}
-	from := " FROM accounting_companies c WHERE " + strings.Join(where, " AND ")
+	from := " FROM accounting_companies c JOIN users u ON u.id=c.owner_user_id WHERE " + strings.Join(where, " AND ")
 	var total int
 	if err := h.db.QueryRowContext(r.Context(), "SELECT count(*)"+from, args...).Scan(&total); err != nil {
 		failure(w, 500, "Не удалось загрузить каталог")

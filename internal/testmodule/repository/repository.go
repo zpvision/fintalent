@@ -47,14 +47,14 @@ func New(db *sql.DB) *Postgres { return &Postgres{db: db} }
 
 const testSelect = `SELECT t.id,t.author_id,u.full_name,v.title,v.description,t.slug,t.category,t.difficulty,t.status,t.visibility,
 	t.price,t.currency,t.is_free,v.version,t.passing_percent,t.time_limit_seconds,v.shuffle_answers,
-	(SELECT COUNT(*) FROM test_questions q WHERE q.test_version_id=v.id),COALESCE(s.attempts_count,0),COALESCE(s.average_percent,0),t.created_at,t.updated_at
+	(SELECT COUNT(*) FROM test_questions q WHERE q.test_version_id=v.id),COALESCE(s.attempts_count,0),COALESCE(s.average_percent,0),t.created_at,t.updated_at,(u.is_blocked AND NOT u.is_system)
 	FROM tests t JOIN users u ON u.id=t.author_id JOIN test_versions v ON v.test_id=t.id AND v.version=t.current_version
 	LEFT JOIN test_statistics s ON s.test_id=t.id `
 
 func scanTest(scanner interface{ Scan(...any) error }) (*domain.Test, error) {
 	var t domain.Test
 	var limit sql.NullInt64
-	err := scanner.Scan(&t.ID, &t.AuthorID, &t.AuthorName, &t.Title, &t.Description, &t.Slug, &t.Category, &t.Difficulty, &t.Status, &t.Visibility, &t.Price, &t.Currency, &t.IsFree, &t.Version, &t.PassingPercent, &limit, &t.ShuffleAnswers, &t.QuestionCount, &t.AttemptsCount, &t.AveragePercent, &t.CreatedAt, &t.UpdatedAt)
+	err := scanner.Scan(&t.ID, &t.AuthorID, &t.AuthorName, &t.Title, &t.Description, &t.Slug, &t.Category, &t.Difficulty, &t.Status, &t.Visibility, &t.Price, &t.Currency, &t.IsFree, &t.Version, &t.PassingPercent, &limit, &t.ShuffleAnswers, &t.QuestionCount, &t.AttemptsCount, &t.AveragePercent, &t.CreatedAt, &t.UpdatedAt, &t.AuthorBlocked)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}
@@ -79,7 +79,7 @@ func (p *Postgres) List(ctx context.Context, f dto.ListFilter, userID int64, adm
 		if f.Scope == "mine" {
 			add("t.author_id=$%d", userID)
 		} else {
-			where = append(where, "t.status='published' AND t.visibility IN ('public','marketplace')")
+			where = append(where, "t.status='published' AND t.visibility IN ('public','marketplace') AND (NOT u.is_blocked OR u.is_system)")
 		}
 	}
 	if f.Status != "" {
@@ -449,8 +449,9 @@ func (p *Postgres) StartAttempt(ctx context.Context, testID, user, vacancyID int
 	err := p.db.QueryRowContext(ctx, `INSERT INTO test_attempts(test_id,test_version_id,user_id,max_score,context)
 		SELECT t.id,v.id,$2,COALESCE((SELECT SUM(points) FROM test_questions WHERE test_version_id=v.id),0),
 			CASE WHEN $3>0 THEN jsonb_build_object('vacancy_id',$3) ELSE '{}'::jsonb END
-		FROM tests t JOIN test_versions v ON v.test_id=t.id AND v.version=t.current_version
+		FROM tests t JOIN test_versions v ON v.test_id=t.id AND v.version=t.current_version JOIN users author ON author.id=t.author_id
 		WHERE t.id=$1 AND t.status='published' AND (t.visibility IN ('public','marketplace') OR t.author_id=$2)
+		AND (NOT author.is_blocked OR author.is_system)
 		AND ($3=0 OR EXISTS(SELECT 1 FROM vacancy_tests vt JOIN vacancies vacancy ON vacancy.id=vt.vacancy_external_id WHERE vt.vacancy_external_id=$3 AND vt.test_id=t.id AND vacancy.status='published' AND vacancy.deleted_at IS NULL))
 		RETURNING id,test_id,test_version_id,user_id,max_score,started_at,status`, testID, user, vacancyID).Scan(&a.ID, &a.TestID, &a.TestVersionID, &a.UserID, &a.MaxScore, &a.StartedAt, &a.Status)
 	if err == sql.ErrNoRows {

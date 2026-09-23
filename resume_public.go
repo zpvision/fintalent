@@ -137,7 +137,7 @@ func loadPublicResume(r *http.Request, id int64) (*publicResumeView, error) {
 		FROM resumes r
 		JOIN users u ON u.id=r.user_id
 		LEFT JOIN resume_search_statuses s ON s.code=r.search_status_code
-		WHERE r.id=$1 AND r.status='published' AND r.deleted_at IS NULL`,
+		WHERE r.id=$1 AND r.status='published' AND r.deleted_at IS NULL AND (NOT u.is_blocked OR u.is_system)`,
 		id,
 	).Scan(&view.ID, &view.OwnerID, &view.Name, &view.Avatar, &view.ProfileMode, &salary, &view.AvailableImmediately, &view.SearchStatus, &view.WorkPreferences, &published, &birthDay, &birthMonth, &birthYear)
 	if err != nil {

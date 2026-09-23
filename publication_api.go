@@ -79,7 +79,7 @@ func publicationsAPI(w http.ResponseWriter, r *http.Request) {
 			where = append(where, "p.status='draft'")
 		}
 	} else {
-		where = append(where, "p.status='published' AND p.visibility='public'")
+		where = append(where, "p.status='published' AND p.visibility='public' AND (NOT u.is_blocked OR u.is_system)")
 		if scope == "saved" {
 			if uid == 0 {
 				writeJSON(w, 401, "Требуется авторизация")

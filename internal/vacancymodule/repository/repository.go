@@ -405,7 +405,7 @@ func (p *Postgres) Preview(ctx context.Context, requirements []domain.Requiremen
 	zero := 0.0
 	result := &domain.PreviewResult{AverageScore: &zero, ScoreRanges: map[string]int64{"90_100": 0, "80_89": 0, "60_79": 0, "40_59": 0, "0_39": 0}}
 	if len(requirements) == 0 {
-		if err := p.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM resumes WHERE status='published' AND visibility='public' AND deleted_at IS NULL`).Scan(&result.TotalResumes); err != nil {
+		if err := p.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM resumes r JOIN users u ON u.id=r.user_id WHERE r.status='published' AND r.visibility='public' AND r.deleted_at IS NULL AND (NOT u.is_blocked OR u.is_system)`).Scan(&result.TotalResumes); err != nil {
 			return nil, err
 		}
 		return result, nil
@@ -417,7 +417,7 @@ func (p *Postgres) Preview(ctx context.Context, requirements []domain.Requiremen
 		values = append(values, fmt.Sprintf("($%d::bigint,$%d::bigint,$%d::text,$%d::int)", len(args)-3, len(args)-2, len(args)-1, len(args)))
 	}
 	query := `WITH req(category_id,block_id,importance,weight) AS (VALUES ` + strings.Join(values, ",") + `), active_resumes AS (
-		SELECT id FROM resumes WHERE status='published' AND visibility='public' AND deleted_at IS NULL), block_scores AS (
+		SELECT r.id FROM resumes r JOIN users u ON u.id=r.user_id WHERE r.status='published' AND r.visibility='public' AND r.deleted_at IS NULL AND (NOT u.is_blocked OR u.is_system)), block_scores AS (
 		SELECT r.id,req.block_id,COALESCE(SUM(req.weight) FILTER(WHERE rc.category_id IS NOT NULL),0)::numeric/NULLIF(SUM(req.weight),0)*100 score
 		FROM active_resumes r CROSS JOIN req LEFT JOIN resume_categories rc ON rc.resume_id=r.id AND rc.category_id=req.category_id
 		GROUP BY r.id,req.block_id), scores AS (

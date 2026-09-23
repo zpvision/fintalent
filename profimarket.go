@@ -740,6 +740,7 @@ func profiMarketList(w http.ResponseWriter, r *http.Request, own bool, userID in
 		args = append(args, userID)
 	}
 	if !own {
+		where += " AND (NOT u.is_blocked OR u.is_system)"
 		if value := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("type"))); map[string]bool{"REGULATION": true, "AI_ASSISTANT": true, "AUTOMATION": true, "INSTRUCTION": true, "ONEC_INTEGRATION": true, "TEMPLATE": true, "CHECKLIST": true}[value] {
 			args = append(args, value)
 			where += fmt.Sprintf(" AND s.type=$%d", len(args))
@@ -1036,7 +1037,7 @@ func loadProfiSolution(ctx context.Context, key string, u *user) (*profiSolution
 	var old sql.NullFloat64
 	var pub sql.NullTime
 	var tags, topics, audiences []byte
-	query := `SELECT s.id,s.author_user_id,u.full_name,COALESCE(u.avatar_url,''),s.type,s.status,s.title,s.slug,s.short_description,s.description,s.cover_image,s.price,s.old_price,s.currency,s.pricing_type,s.trial_days,s.delivery_type,s.external_url,array_to_json(s.tags),array_to_json(s.topics),array_to_json(s.audiences),s.is_featured,s.is_new,s.views_count,s.published_at,s.created_at,s.updated_at,(SELECT COUNT(*) FROM profimarket_purchases p WHERE p.solution_id=s.id AND p.status='COMPLETED'),(SELECT COUNT(*) FROM profimarket_favorites f WHERE f.solution_id=s.id),COALESCE((SELECT AVG(r.rating) FROM profimarket_reviews r WHERE r.solution_id=s.id),0),(SELECT COUNT(*) FROM profimarket_reviews r WHERE r.solution_id=s.id) FROM profimarket_solutions s JOIN users u ON u.id=s.author_user_id WHERE s.deleted_at IS NULL AND (s.slug=$1 OR s.id::text=$1)`
+	query := `SELECT s.id,s.author_user_id,u.full_name,COALESCE(u.avatar_url,''),s.type,s.status,s.title,s.slug,s.short_description,s.description,s.cover_image,s.price,s.old_price,s.currency,s.pricing_type,s.trial_days,s.delivery_type,s.external_url,array_to_json(s.tags),array_to_json(s.topics),array_to_json(s.audiences),s.is_featured,s.is_new,s.views_count,s.published_at,s.created_at,s.updated_at,(SELECT COUNT(*) FROM profimarket_purchases p WHERE p.solution_id=s.id AND p.status='COMPLETED'),(SELECT COUNT(*) FROM profimarket_favorites f WHERE f.solution_id=s.id),COALESCE((SELECT AVG(r.rating) FROM profimarket_reviews r WHERE r.solution_id=s.id),0),(SELECT COUNT(*) FROM profimarket_reviews r WHERE r.solution_id=s.id) FROM profimarket_solutions s JOIN users u ON u.id=s.author_user_id WHERE s.deleted_at IS NULL AND (NOT u.is_blocked OR u.is_system) AND (s.slug=$1 OR s.id::text=$1)`
 	err := db.QueryRowContext(ctx, query, key).Scan(&x.ID, &x.AuthorUserID, &x.AuthorName, &x.AuthorAvatar, &x.Type, &x.Status, &x.Title, &x.Slug, &x.ShortDescription, &x.Description, &x.CoverImage, &x.Price, &old, &x.Currency, &x.PricingType, &x.TrialDays, &x.DeliveryType, &x.ExternalURL, &tags, &topics, &audiences, &x.IsFeatured, &x.IsNew, &x.ViewsCount, &pub, &x.CreatedAt, &x.UpdatedAt, &x.PurchasesCount, &x.FavoritesCount, &x.Rating, &x.ReviewCount)
 	if err != nil {
 		return nil, err
@@ -1316,7 +1317,7 @@ func profiMarketMetaAPI(w http.ResponseWriter, r *http.Request) {
 	categoryNames := map[string]string{"AI_ASSISTANT": "ИИ-ассистенты", "REGULATION": "Регламенты", "AUTOMATION": "Автоматизации", "INSTRUCTION": "Инструкции", "ONEC_INTEGRATION": "1С Интеграции", "TEMPLATE": "Шаблоны", "CHECKLIST": "Чек-листы"}
 	categoryOrder := []string{"AI_ASSISTANT", "REGULATION", "AUTOMATION", "INSTRUCTION", "ONEC_INTEGRATION", "TEMPLATE", "CHECKLIST"}
 	counts := map[string]int{}
-	categoryRows, _ := db.QueryContext(r.Context(), `SELECT type,COUNT(*) FROM profimarket_solutions WHERE status='PUBLISHED' AND deleted_at IS NULL GROUP BY type`)
+	categoryRows, _ := db.QueryContext(r.Context(), `SELECT s.type,COUNT(*) FROM profimarket_solutions s JOIN users u ON u.id=s.author_user_id WHERE s.status='PUBLISHED' AND s.deleted_at IS NULL AND (NOT u.is_blocked OR u.is_system) GROUP BY s.type`)
 	if categoryRows != nil {
 		defer categoryRows.Close()
 		for categoryRows.Next() {
