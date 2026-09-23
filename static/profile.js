@@ -1,3 +1,4 @@
+if(new URLSearchParams(location.search).get('section')==='settings'){location.replace('/profile')}
 document.head.insertAdjacentHTML('beforeend','<link rel="stylesheet" href="/static/profile-logo.css"><link rel="stylesheet" href="/static/profile-sidebar-v2.css">');document.querySelector('.brand-symbol').innerHTML='<img src="/static/logo.png" alt="">';document.querySelector('.profile-menu').innerHTML=`<div class="menu-group"><a class="home-link" href="/"><i>⌂</i><span>На главную</span></a><a href="/#jobs"><i>▣</i><span>Поиск работы</span></a><a href="#"><i>♧</i><span>Мои отклики</span></a><a href="#"><i>☆</i><span>Избранные вакансии</span></a></div><div class="menu-group"><small>Для компаний</small><a href="#"><i>⌕</i><span>Поиск специалистов</span></a><a href="#"><i>▣</i><span>Мои вакансии</span></a><a href="#"><i>□</i><span>Отклики</span></a><a href="#"><i>♧</i><span>Тестирование</span></a><a href="#"><i>▥</i><span>Аналитика</span></a></div><div class="menu-group"><small>О компании</small><a class="active" href="/profile"><i>▤</i><span>Профиль</span></a><a href="#"><i>▣</i><span>Отзывы и рейтинги</span></a><a href="#"><i>♙</i><span>Мои сотрудники</span><b class="menu-badge">24</b></a><a href="#"><i>▢</i><span>Подписка и услуги</span></a><a href="#"><i>⚙</i><span>Настройки</span></a></div>`;
 document.head.insertAdjacentHTML('beforeend','<link rel="stylesheet" href="/static/profile-buttons.css">');
 document.head.insertAdjacentHTML('beforeend','<link rel="stylesheet" href="/static/fintalent-theme.css">');
@@ -26,7 +27,7 @@ const companyGroup=document.querySelectorAll('.profile-menu .menu-group')[2];if(
  const groups=[...document.querySelectorAll('.profile-menu .menu-group')],links=group=>[...(group?.querySelectorAll(':scope > a')||[])];
  const personal=links(groups[0]),company=links(groups[1]),about=links(groups[2]);
  if(company[1])company[1].href='/profile?section=vacancies';
- if(about.length)about[about.length-1].href='/profile?section=settings';
+ if(about.length)about[about.length-1].remove();
  [personal[1],personal[2],personal[4],company[0],company[2],company[4]].forEach(link=>link?.remove());
  const icons=[
   '<path d="M3 11.5 12 4l9 7.5M5.5 10v10h13V10M9 20v-6h6v6"/>',
@@ -46,9 +47,3 @@ const companyGroup=document.querySelectorAll('.profile-menu .menu-group')[2];if(
  const fire='<span class="menu-fire" aria-hidden="true"><svg viewBox="0 0 24 24"><path class="flame-outer" d="M13.6 2.4c.5 3.1-1 4.4-2.3 5.7-1.1 1.1-2 2.1-1.5 4 .7-.4 1.4-1.1 1.8-2.1 2.5 1.7 4 3.9 4 6.3 0 3-2 5.2-5.1 5.2-3.6 0-6.1-2.5-6.1-6.1 0-4.5 3.4-6.8 6.2-9.3 1.1-1 2.2-2 3-3.7Z"/><path class="flame-inner" d="M11.2 13.2c.2 1.5-.6 2.1-1.1 2.8-.5.6-.7 1.3-.2 2.1.3-.3.6-.7.8-1.2 1.2.7 1.8 1.7 1.8 2.6 0 1.2-.8 2-2.1 2-1.5 0-2.5-1-2.5-2.4 0-2.1 1.8-3.6 3.3-5.9Z"/></svg></span>';
  [testsLink,document.querySelector('.profile-market-link')].forEach(link=>{if(link&&!link.querySelector('.menu-new'))link.insertAdjacentHTML('beforeend',`<b class="menu-new">${fire}Новое</b>`)});
 })();
-
-if(location.pathname==='/profile'){
- const settingsScript=document.createElement('script');
- settingsScript.src='/static/profile-settings.js?v=1';
- document.body.appendChild(settingsScript);
-}
