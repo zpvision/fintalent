@@ -4,6 +4,7 @@ import { useDocumentPage } from '../../hooks/useDocumentPage'
 import usePageStyles from '../../hooks/usePageStyles'
 import PublicLayout from '../../layouts/PublicLayout'
 import WizardStepProgress from '../../components/WizardStepProgress'
+import DirectionIcon from '../../components/AccountingDirectionIcon'
 
 const steps=['Основная информация','Направления работы','Услуги и цены','Тарифы','Оформление и проверка']
 const blank={name:'Новая бухгалтерская компания',short_description:'',full_description:'',logo:'',city:'',address:'',remote_all_russia:false,founded_year:null,employee_count:null,inn:'',phone:'',email:'',website:'',telegram:'',whatsapp:'',vk:'',work_hours:'',manager_name:'',manager_position:'',manager_photo:'',manager_description:'',manager_user_id:null,accent_style_id:null,header_image_type:'template',header_template_id:null,custom_header_image:'',advantages:[],direction_ids:[],key_direction_ids:[],tax_system_ids:[],services:[],tariffs:[],current_step:1}

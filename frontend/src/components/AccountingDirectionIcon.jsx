@@ -3,4 +3,4 @@ const directionIconPaths={
   'arrow-in':['M4 6h10v12H4z','m20 12-5-4v3H9v2h6v3Z'],'arrow-out':['M4 6h10v12H4z','m9 12 5-4v3h4v2h-4v3Z']
 }
 const directionPalette=[['#eaf2ff','#2864dc'],['#f1edff','#7650d6'],['#e8fbf5','#0b956b'],['#fff3e6','#d87512'],['#e8f8ff','#1682b5'],['#fff0f4','#d34e76']]
-export default function DirectionIcon({type,index}){const colors=directionPalette[index%directionPalette.length],paths=directionIconPaths[type]||directionIconPaths.briefcase;return <span className="ac-direction-icon" style={{'--icon-bg':colors[0],'--icon-color':colors[1]}}><svg viewBox="0 0 24 24" aria-hidden="true">{paths.map((d,i)=><path d={d} key={i}/>)}</svg></span>}
+export default function DirectionIcon({type,index=0}){const paletteIndex=Number.isFinite(index)?index:0,colors=directionPalette[Math.abs(paletteIndex)%directionPalette.length],paths=Array.isArray(directionIconPaths[type])?directionIconPaths[type]:directionIconPaths.briefcase;return <span className="ac-direction-icon" style={{'--icon-bg':colors[0],'--icon-color':colors[1]}}><svg viewBox="0 0 24 24" aria-hidden="true">{paths.map((d,i)=><path d={d} key={i}/>)}</svg></span>}
