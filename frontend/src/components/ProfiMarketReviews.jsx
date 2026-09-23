@@ -81,6 +81,11 @@ export default function ProfiMarketReviews({ solution, onChanged }) {
   const initial = window.location.hash === '#questions' ? 'questions' : 'reviews'
   const [tab, setTab] = useState(initial)
   useEffect(() => { const change = () => { if (window.location.hash === '#questions') setTab('questions') }; window.addEventListener('hashchange', change); return () => window.removeEventListener('hashchange', change) }, [])
+  useEffect(() => {
+    if (tab !== 'questions' || window.location.hash !== '#questions') return
+    const frame = window.requestAnimationFrame(() => document.getElementById('questions')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    return () => window.cancelAnimationFrame(frame)
+  }, [tab])
   function select(value) { setTab(value); window.history.replaceState(null, '', value === 'questions' ? '#questions' : '#reviews') }
   return <section className="pm-customer-reviews"><nav className="pm-discussion-tabs" aria-label="Обсуждение решения"><button className={tab === 'reviews' ? 'active' : ''} onClick={() => select('reviews')}>Отзывы</button><button className={tab === 'questions' ? 'active' : ''} onClick={() => select('questions')}>Вопрос–Ответ</button></nav>{tab === 'reviews' ? <Reviews solution={solution} onChanged={onChanged} /> : <Questions solution={solution} />}</section>
 }

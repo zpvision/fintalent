@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { apiClient } from '../../api/client'
 import PublicLayout from '../../layouts/PublicLayout'
+import CityPicker from '../../features/geography/CityPicker'
 import { useDocumentPage } from '../../hooks/useDocumentPage'
 import usePageStyles from '../../hooks/usePageStyles'
 
@@ -100,7 +101,7 @@ export default function CatalogPage({ type }) {
   const firstRequest = useRef(true)
   const activeRequest = useRef(null)
   const loadTriggerRef = useRef(null)
-  usePageStyles(['/static/catalog.css?v=6', '/static/catalog-help.css?v=2'])
+  usePageStyles(['/static/catalog.css?v=6', '/static/catalog-help.css?v=3', '/static/geography.css?v=1'])
   useDocumentPage({ title: copy.title, bodyData: { catalog: type } })
 
   const loadCatalog = useCallback(async (signal, offset = 0, append = false) => {
@@ -239,7 +240,7 @@ export default function CatalogPage({ type }) {
           <div className={type === 'resumes' ? 'profile-catalog-layout' : undefined}>
             {type === 'resumes' ? <aside className="profile-filters">
               <div className="profile-filters-title"><div><small>ТОЧНЫЙ ПОИСК</small><h2>Фильтры</h2></div><button type="button" onClick={resetProfileFilters}>Сбросить</button></div>
-              <label className="profile-filter-field"><span>Город</span><input value={city} onChange={(event) => updateProfileFilter(setCity, 'city', event.target.value)} placeholder="Например, Москва" /></label>
+              <CityPicker value={city} cityId="" onChange={(name) => updateProfileFilter(setCity, 'city', name)} />
               <label className="profile-filter-field"><span>Специализация</span><select value={helpTopic} onChange={(event) => selectHelpTopic(event.target.value)}><option value="">Все направления</option>{helpTopics.map((topic) => <option value={topic.id} key={topic.id}>{topic.name}</option>)}</select></label>
               <label className="profile-filter-field"><span>Участки</span><select value={accountingArea} onChange={(event) => updateProfileFilter(setAccountingArea, 'accounting_area', event.target.value)}><option value="">Все участки</option>{accountingAreas.map((area) => <option value={area.id} key={area.id}>{area.value}</option>)}</select></label>
               <fieldset className="profile-filter-options"><legend>Опыт работы</legend>{[['', 'Любой опыт'], ['none', 'Без опыта'], ['under_1', 'До 1 года'], ['1_3', '1–3 года'], ['3_5', '3–5 лет'], ['5_10', '5–10 лет'], ['10_plus', 'Более 10 лет']].map(([value, label]) => <label key={value || 'all'}><input type="radio" name="profile-experience" checked={experience === value} onChange={() => updateProfileFilter(setExperience, 'experience', value)} /><span>{label}</span></label>)}</fieldset>

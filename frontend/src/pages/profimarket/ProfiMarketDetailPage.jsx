@@ -108,8 +108,13 @@ export default function ProfiMarketDetailPage() {
     try { const data = await purchaseProfiMarketSolution(solution.id); setPurchaseSuccess(data) } catch (requestError) { notify(requestError.message, true) }
   }
   function interact(event) {
-    const demoImage = event.target.closest('[data-demo-image]'), legacyImage = event.target.closest('.pm-ai-visual>img,.pm-video-stage>img,.pmr-product-art.has-cover>img,.pmr-section-image img'), favoriteButton = event.target.closest('[data-favorite]'), buyButton = event.target.closest('[data-buy]'), tabButton = event.target.closest('[data-section-tab]')
-    if (demoImage) {
+    const questionLink = event.target.closest('.pmp-question-link'), demoImage = event.target.closest('[data-demo-image]'), legacyImage = event.target.closest('.pm-ai-visual>img,.pm-video-stage>img,.pmr-product-art.has-cover>img,.pmr-section-image img'), favoriteButton = event.target.closest('[data-favorite]'), buyButton = event.target.closest('[data-buy]'), tabButton = event.target.closest('[data-section-tab]')
+    if (questionLink) {
+      event.preventDefault()
+      window.history.replaceState(null, '', '#questions')
+      window.dispatchEvent(new Event('hashchange'))
+    }
+    else if (demoImage) {
       const gallery = demoImage.closest('.pm-ai-demo'), stage = gallery?.querySelector('.pm-video-stage'), image = document.createElement('img')
       if (!stage) return
       image.src = demoImage.dataset.demoImage; image.alt = demoImage.querySelector('img')?.alt || 'Демонстрация'
