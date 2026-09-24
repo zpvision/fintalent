@@ -34,6 +34,9 @@ var profiMarketOrderEmailTemplate string
 //go:embed mail/templates/event_notification.html
 var eventNotificationEmailTemplate string
 
+//go:embed mail/templates/employee_test_invitation.html
+var employeeTestInvitationEmailTemplate string
+
 //go:embed mail/logo.png
 var emailLogo []byte
 
@@ -78,6 +81,15 @@ type eventNotificationEmailData struct {
 	ButtonURL     string
 	Accent        template.CSS
 	Footer        string
+}
+
+type employeeTestInvitationEmailData struct {
+	EmployeeName    string
+	OrganizerName   string
+	TestTitle       string
+	QuestionCount   int64
+	DurationMinutes int
+	TestURL         string
 }
 
 func applicationBaseURL() string {
@@ -213,6 +225,34 @@ func sendEventNotificationAsync(label, recipientName, recipientEmail, subject st
 	go func() {
 		if err := sendEventNotificationEmail(recipientName, recipientEmail, subject, data); err != nil {
 			log.Printf("email %s to %s failed: %v", label, recipientEmail, err)
+		}
+	}()
+}
+
+func sendEmployeeTestInvitationEmail(recipientEmail string, data employeeTestInvitationEmailData) error {
+	config, err := loadSMTPConfig()
+	if err != nil {
+		return err
+	}
+	tmpl, err := template.New("employee-test-invitation").Parse(employeeTestInvitationEmailTemplate)
+	if err != nil {
+		return fmt.Errorf("шаблон приглашения на тестирование: %w", err)
+	}
+	var htmlBody bytes.Buffer
+	if err = tmpl.Execute(&htmlBody, data); err != nil {
+		return fmt.Errorf("формирование приглашения на тестирование: %w", err)
+	}
+	message, err := buildHTMLMessage(config.From, mail.Address{Name: data.EmployeeName, Address: recipientEmail}, "Вам назначен тест «"+data.TestTitle+"» — FinTalent", htmlBody.Bytes())
+	if err != nil {
+		return err
+	}
+	return sendSMTPMessage(config, recipientEmail, message)
+}
+
+func sendEmployeeTestInvitationAsync(recipientEmail string, data employeeTestInvitationEmailData) {
+	go func() {
+		if err := sendEmployeeTestInvitationEmail(recipientEmail, data); err != nil {
+			log.Printf("employee test invitation to %s failed: %v", recipientEmail, err)
 		}
 	}()
 }

@@ -433,8 +433,10 @@ func employeeTestingInvitations(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, 400, "Выберите тест и сотрудников")
 		return
 	}
-	var versionID int64
-	if db.QueryRowContext(r.Context(), `SELECT v.id FROM tests t JOIN test_versions v ON v.test_id=t.id AND v.version=t.current_version WHERE t.id=$1 AND t.author_id=$2 AND t.status='published'`, in.TestID, u.ID).Scan(&versionID) != nil {
+	var versionID, questionCount int64
+	var testTitle string
+	var timeLimitSeconds int
+	if db.QueryRowContext(r.Context(), `SELECT v.id,v.title,COALESCE(t.time_limit_seconds,0),(SELECT COUNT(*) FROM test_questions q WHERE q.test_version_id=v.id) FROM tests t JOIN test_versions v ON v.test_id=t.id AND v.version=t.current_version WHERE t.id=$1 AND t.author_id=$2 AND t.status='published'`, in.TestID, u.ID).Scan(&versionID, &testTitle, &timeLimitSeconds, &questionCount) != nil {
 		jsonError(w, 400, "Можно назначать только свой опубликованный тест")
 		return
 	}
@@ -445,6 +447,10 @@ func employeeTestingInvitations(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 	links := []map[string]any{}
+	emails := []struct {
+		address string
+		data    employeeTestInvitationEmailData
+	}{}
 	for _, employeeID := range in.EmployeeIDs {
 		var name, email string
 		if tx.QueryRowContext(r.Context(), `SELECT full_name,email FROM company_test_employees WHERE id=$1 AND owner_user_id=$2`, employeeID, u.ID).Scan(&name, &email) != nil {
@@ -457,13 +463,32 @@ func employeeTestingInvitations(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, 500, "Не удалось создать приглашения")
 			return
 		}
-		links = append(links, map[string]any{"id": id, "employee_id": employeeID, "full_name": name, "email": email, "url": "/employee-test?token=" + token})
+		relativeURL := "/employee-test?token=" + token
+		links = append(links, map[string]any{"id": id, "employee_id": employeeID, "full_name": name, "email": email, "url": relativeURL})
+		durationMinutes := 0
+		if timeLimitSeconds > 0 {
+			durationMinutes = (timeLimitSeconds + 59) / 60
+		}
+		emails = append(emails, struct {
+			address string
+			data    employeeTestInvitationEmailData
+		}{address: email, data: employeeTestInvitationEmailData{
+			EmployeeName:    name,
+			OrganizerName:   u.FullName,
+			TestTitle:       testTitle,
+			QuestionCount:   questionCount,
+			DurationMinutes: durationMinutes,
+			TestURL:         applicationBaseURL() + relativeURL,
+		}})
 	}
 	if err = tx.Commit(); err != nil {
 		jsonError(w, 500, "Не удалось создать приглашения")
 		return
 	}
-	jsonResponse(w, 201, map[string]any{"items": links, "email_sent": false, "message": "Персональные ссылки созданы. Почтовый сервер пока не настроен — скопируйте ссылки сотрудникам."})
+	for _, invitation := range emails {
+		sendEmployeeTestInvitationAsync(invitation.address, invitation.data)
+	}
+	jsonResponse(w, 201, map[string]any{"items": links, "email_sent": true, "message": "Приглашения созданы. Письма с персональными ссылками отправлены выбранным сотрудникам."})
 }
 
 func employeeTestingResults(w http.ResponseWriter, r *http.Request) {
