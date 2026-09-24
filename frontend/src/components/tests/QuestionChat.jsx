@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 const formatTimer = seconds => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
 const wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds))
@@ -14,6 +14,8 @@ export default function QuestionChat({ title, questions, initialIndex = 0, start
   const [seconds, setSeconds] = useState(() => timeLimitSeconds ? remainingSeconds : Math.max(0, Math.floor((Date.now() - new Date(startedAt || Date.now()).getTime()) / 1000)))
   const locked = useRef(false)
   const timers = useRef([])
+  const messagesRef = useRef(null)
+  const activeQuestionRef = useRef(null)
   const q = questions[index]
   const multiple = q?.question_type === 'multiple_choice'
   const textual = q?.question_type === 'text'
@@ -31,6 +33,18 @@ export default function QuestionChat({ title, questions, initialIndex = 0, start
     }), 1000)
     return () => { clearInterval(timer); timers.current.forEach(clearTimeout) }
   }, [])
+
+  useLayoutEffect(() => {
+    const messages = messagesRef.current
+    const question = activeQuestionRef.current
+    if (typing || !messages || !question) return
+    const messagesRect = messages.getBoundingClientRect()
+    const questionRect = question.getBoundingClientRect()
+    messages.scrollTo({
+      top: Math.max(0, messages.scrollTop + questionRect.top - messagesRect.top - 12),
+      behavior: 'auto',
+    })
+  }, [index, typing])
 
   function handleError(failure) {
     const message = failure?.message || 'Не удалось сохранить ответ'
@@ -91,9 +105,9 @@ export default function QuestionChat({ title, questions, initialIndex = 0, start
   return <div className={`chat-shell${employee ? ' employee-chat-shell' : ''}`}>
     <div className="chat-top"><a href={employee ? undefined : '/tests'} aria-hidden={employee || undefined}>←</a><div className="chat-avatar">FT</div><div><h1>{title}</h1><p><i /> Тестирование идёт</p></div><div className="chat-progress"><b>{index + 1} / {questions.length}</b><span>{formatTimer(seconds)}</span></div></div>
     <div className="chat-bar"><i style={{ width: `${index / questions.length * 100}%` }} /></div>
-    <div className="chat-messages"><div className="day-label">Сегодня</div><div className="bot-message intro"><b>FinTalent</b><p>Я буду задавать вопросы по одному. Выберите все подходящие ответы.</p></div>
+    <div className="chat-messages" ref={messagesRef}><div className="day-label">Сегодня</div><div className="bot-message intro"><b>FinTalent</b><p>Я буду задавать вопросы по одному. Выберите все подходящие ответы.</p></div>
       {log.map((item, itemIndex) => <div key={`${item.q.id}-${itemIndex}`}><div className="bot-message question-message"><p>{item.q.question}</p></div><div className="user-wrap"><div className="user-message"><p>{item.answer}</p></div></div></div>)}
-      {!typing && <><div className="bot-message question-message"><div className="question-label">Вопрос {index + 1}</div><p>{q.question}</p><small>{q.points} балл(а)</small></div>
+      {!typing && <><div className="bot-message question-message" ref={activeQuestionRef}><div className="question-label">Вопрос {index + 1}</div><p>{q.question}</p><small>{q.points} балл(а)</small></div>
         {!textual && <div className={`bot-message options-message${busy ? ' answered' : ''}`}><div className="options-title"><span>Варианты ответа</span><small>Можно нажать мышкой</small></div><ol>{q.answers.map(answer => <li key={answer.id} role="button" tabIndex={0} className={selected.includes(answer.id) ? 'selected' : ''} onClick={() => choose(answer)} onKeyDown={event => keySelect(event, answer)}><b /><span>{answer.answer}</span><i>✓</i></li>)}</ol>{multiple && <button type="button" className="confirm-options" disabled={busy || !selected.length} onClick={() => submit()}>Ответить</button>}</div>}</>}
       {typing && <div className="bot-message typing" aria-label="Загружается следующий вопрос"><i /><i /><i /></div>}
       {error && <small className="bad">{error}</small>}
