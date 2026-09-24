@@ -3,7 +3,7 @@
   const workspace = document.querySelector('.workspace');
   if (!nav || !workspace) return;
 
-  document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="/static/admin-profimarket.css?v=4"><link rel="stylesheet" href="/static/admin-profimarket-solutions.css?v=2">');
+  document.head.insertAdjacentHTML('beforeend', '<link rel="stylesheet" href="/static/admin-profimarket.css?v=4"><link rel="stylesheet" href="/static/admin-profimarket-solutions.css?v=3">');
   nav.insertAdjacentHTML('beforeend', '<small>ПРОФИМАРКЕТ</small><button id="profimarket-admin-nav">✦ <span>ПрофиМаркет</span></button>');
   workspace.insertAdjacentHTML('beforeend', `
     <section id="profimarket-admin" class="pm-admin-section hidden">
@@ -219,6 +219,7 @@
       solutionsView.querySelectorAll('[data-unpublish-solution]').forEach(button => button.onclick = () => unpublishSolution(button));
       solutionsView.querySelectorAll('[data-delete-solution]').forEach(button => button.onclick = () => deleteSolution(button));
       solutionsView.querySelectorAll('[data-solution-questions]').forEach(button => button.onclick = () => openSolutionQuestions(button));
+      solutionsView.querySelectorAll('[data-solution-purchases]').forEach(button => button.onclick = () => openSolutionPurchases(button));
       const search = solutionsView.querySelector('.pm-search input');
       search.oninput = event => {
         clearTimeout(solutionSearchTimer);
@@ -248,7 +249,24 @@
 
   function solutionRow(item) {
     const status = {PUBLISHED:'Опубликована', DRAFT:'Черновик', MODERATION:'На модерации', ARCHIVED:'Снята'}[item.status] || item.status;
-    return `<tr><td><div class="pm-product"><div class="pm-product-cover">${item.cover_image?`<img src="${esc(item.cover_image)}" alt="">`:'<span>F</span>'}</div><div><a class="pm-product-title" href="/profimarket/solution/${encodeURIComponent(item.slug)}?preview=1" target="_blank" rel="noopener">${esc(item.title)} <span>↗</span></a><small>${esc(productTypes[item.product_type] || item.product_type)}</small></div></div></td><td>${person(item.owner_name,item.owner_email,'Владелец')}</td><td><span class="pm-solution-status status-${item.status.toLowerCase()}">${esc(status)}</span></td><td><b>${Number(item.purchases).toLocaleString('ru-RU')}</b></td><td><time>${formatDate(item.updated_at)}</time></td><td><div class="pm-solution-actions"><button class="questions" data-solution-questions="${item.id}" data-title="${esc(item.title)}">Вопрос–Ответ <b>${Number(item.questions||0)}</b></button>${item.status==='PUBLISHED'?`<button data-unpublish-solution="${item.id}" data-title="${esc(item.title)}">Снять</button>`:''}<button class="delete" data-delete-solution="${item.id}" data-title="${esc(item.title)}">Удалить</button></div></td></tr>`;
+    return `<tr><td><div class="pm-product"><div class="pm-product-cover">${item.cover_image?`<img src="${esc(item.cover_image)}" alt="">`:'<span>F</span>'}</div><div><a class="pm-product-title" href="/profimarket/solution/${encodeURIComponent(item.slug)}?preview=1" target="_blank" rel="noopener">${esc(item.title)} <span>↗</span></a><small>${esc(productTypes[item.product_type] || item.product_type)}</small></div></div></td><td>${person(item.owner_name,item.owner_email,'Владелец')}</td><td><span class="pm-solution-status status-${item.status.toLowerCase()}">${esc(status)}</span></td><td><button class="pm-purchases-count" data-solution-purchases="${item.id}" data-title="${esc(item.title)}" ${Number(item.purchases)?'':'disabled'} title="${Number(item.purchases)?'Показать покупателей':'Покупок пока нет'}">${Number(item.purchases).toLocaleString('ru-RU')}</button></td><td><time>${formatDate(item.updated_at)}</time></td><td><div class="pm-solution-actions"><button class="questions" data-solution-questions="${item.id}" data-title="${esc(item.title)}">Вопрос–Ответ <b>${Number(item.questions||0)}</b></button>${item.status==='PUBLISHED'?`<button data-unpublish-solution="${item.id}" data-title="${esc(item.title)}">Снять</button>`:''}<button class="delete" data-delete-solution="${item.id}" data-title="${esc(item.title)}">Удалить</button></div></td></tr>`;
+  }
+
+  async function openSolutionPurchases(button) {
+    const modal = document.createElement('div'); modal.className = 'pm-admin-modal pm-solution-purchases-modal';
+    modal.innerHTML = `<section><header><div><small>ПОКУПАТЕЛИ РЕШЕНИЯ</small><h2>${esc(button.dataset.title)}</h2></div><button type="button" data-close>×</button></header><div class="pm-solution-purchases-list"><div class="pm-loading"><span></span>Загружаем покупки…</div></div></section>`;
+    document.body.append(modal);
+    const close = () => modal.remove();
+    modal.querySelector('[data-close]').onclick = close;
+    modal.onclick = event => { if (event.target === modal) close(); };
+    const list = modal.querySelector('.pm-solution-purchases-list');
+    try {
+      const data = await request(`/api/admin/profimarket/solutions/${button.dataset.solutionPurchases}/purchases`);
+      const items = data.items || [];
+      list.innerHTML = items.length ? `<div class="pm-solution-purchases-summary"><span><small>Покупок</small><b>${Number(data.total).toLocaleString('ru-RU')}</b></span><span><small>Общая сумма</small><b>${esc(formatPrice({amount:data.total_amount,currency:items[0]?.currency||'RUB'}))}</b></span></div><div class="pm-solution-purchases-table"><table><thead><tr><th>Покупатель</th><th>Дата покупки</th><th>Сумма</th></tr></thead><tbody>${items.map(item=>`<tr><td>${person(item.buyer_name,item.buyer_email,'Покупатель')}</td><td><time>${formatDate(item.created_at)}</time></td><td><b class="pm-price">${esc(formatPrice(item))}</b></td></tr>`).join('')}</tbody></table></div>` : '<div class="pm-empty"><b>Покупок пока нет</b><p>Завершённые покупки появятся здесь.</p></div>';
+    } catch(error) {
+      list.innerHTML = `<div class="pm-empty"><b>Не удалось загрузить покупателей</b><p>${esc(error.message)}</p></div>`;
+    }
   }
 
   async function openSolutionQuestions(button) {

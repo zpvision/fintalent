@@ -126,7 +126,7 @@ func adminProfiMarketSolutions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rows, err := db.QueryContext(r.Context(), `SELECT s.id,s.title,s.slug,s.type,COALESCE(s.cover_image,''),u.full_name,u.email,s.status,
-		(SELECT COUNT(*) FROM profimarket_purchases p WHERE p.solution_id=s.id),(SELECT COUNT(*) FROM profimarket_questions q WHERE q.solution_id=s.id),s.updated_at
+		(SELECT COUNT(*) FROM profimarket_purchases p WHERE p.solution_id=s.id AND p.status='COMPLETED'),(SELECT COUNT(*) FROM profimarket_questions q WHERE q.solution_id=s.id),s.updated_at
 		FROM profimarket_solutions s JOIN users u ON u.id=s.author_user_id
 		WHERE `+where+` ORDER BY s.updated_at DESC,s.id DESC LIMIT $4 OFFSET $5`, search, status, ownerID, limit, (page-1)*limit)
 	if err != nil {
@@ -217,6 +217,10 @@ func adminProfiMarketSolutionAction(w http.ResponseWriter, r *http.Request) {
 		adminProfiMarketQuestions(w, r, id, parts)
 		return
 	}
+	if len(parts) == 2 && parts[1] == "purchases" && r.Method == http.MethodGet {
+		adminProfiMarketSolutionPurchases(w, r, id)
+		return
+	}
 	if len(parts) == 2 && parts[1] == "unpublish" && r.Method == http.MethodPost {
 		result, execErr := db.ExecContext(r.Context(), `UPDATE profimarket_solutions SET status='ARCHIVED',updated_at=NOW() WHERE id=$1 AND deleted_at IS NULL AND status='PUBLISHED'`, id)
 		if execErr != nil {
@@ -244,6 +248,45 @@ func adminProfiMarketSolutionAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusMethodNotAllowed)
+}
+
+func adminProfiMarketSolutionPurchases(w http.ResponseWriter, r *http.Request, solutionID int64) {
+	var title string
+	if err := db.QueryRowContext(r.Context(), `SELECT title FROM profimarket_solutions WHERE id=$1 AND deleted_at IS NULL`, solutionID).Scan(&title); err != nil {
+		if err == sql.ErrNoRows {
+			writeAdminJSON(w, http.StatusNotFound, map[string]string{"error": "Карточка не найдена"})
+		} else {
+			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить покупки"})
+		}
+		return
+	}
+	rows, err := db.QueryContext(r.Context(), `SELECT p.id,b.full_name,b.email,p.amount,p.currency,p.created_at
+		FROM profimarket_purchases p JOIN users b ON b.id=p.buyer_user_id
+		WHERE p.solution_id=$1 AND p.status='COMPLETED' ORDER BY p.created_at DESC,p.id DESC`, solutionID)
+	if err != nil {
+		writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить покупки"})
+		return
+	}
+	defer rows.Close()
+	items := []map[string]any{}
+	var totalAmount float64
+	for rows.Next() {
+		var id int64
+		var buyerName, buyerEmail, currency string
+		var amount float64
+		var createdAt time.Time
+		if err = rows.Scan(&id, &buyerName, &buyerEmail, &amount, &currency, &createdAt); err != nil {
+			writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить покупки"})
+			return
+		}
+		totalAmount += amount
+		items = append(items, map[string]any{"id": id, "buyer_name": buyerName, "buyer_email": buyerEmail, "amount": amount, "currency": currency, "created_at": createdAt})
+	}
+	if err = rows.Err(); err != nil {
+		writeAdminJSON(w, http.StatusInternalServerError, map[string]string{"error": "Не удалось загрузить покупки"})
+		return
+	}
+	writeAdminJSON(w, http.StatusOK, map[string]any{"title": title, "items": items, "total": len(items), "total_amount": totalAmount})
 }
 
 func adminProfiMarketQuestions(w http.ResponseWriter, r *http.Request, solutionID int64, parts []string) {
