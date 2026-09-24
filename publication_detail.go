@@ -322,6 +322,7 @@ func renderPublicationSEOPage(w http.ResponseWriter, r *http.Request, d publicat
 	for key, value := range replacements {
 		page = strings.ReplaceAll(page, key, value)
 	}
+	page = string(injectYandexMetrika([]byte(page)))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "public, max-age=60")
 	_, _ = w.Write([]byte(page))

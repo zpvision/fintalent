@@ -24,6 +24,7 @@ func serveFrontendPage(legacyFilename string) http.HandlerFunc {
 			legacyHandler(w, r)
 			return
 		}
+		content = injectYandexMetrika(content)
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		w.Header().Set("X-FinTalent-Frontend", "react")
