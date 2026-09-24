@@ -105,6 +105,15 @@ var accountingTopicTestSeeds = []accountingTopicTestSeed{
 	{"accounting-topic-management-accounting", "Управленческий учёт и бюджетирование", "Финансовый анализ", "medium", "Тест по бюджетам, план-факт анализу, центрам ответственности и подготовке управленческой отчётности."},
 }
 
+const accountingTopicTestSeedQuery = `INSERT INTO tests(author_id,slug,category,category_id,difficulty,status,visibility,is_free,passing_percent,time_limit_seconds)
+	VALUES($1,$2,$3::varchar,(SELECT id FROM test_categories WHERE name=$3::text),$4,'published','marketplace',TRUE,70,1200)
+	ON CONFLICT(slug) DO UPDATE SET author_id=EXCLUDED.author_id,category=EXCLUDED.category,category_id=EXCLUDED.category_id,difficulty=EXCLUDED.difficulty,updated_at=NOW()
+	RETURNING id`
+
+const positionTestSeedQuery = `INSERT INTO tests(author_id,slug,category,category_id,difficulty,status,visibility,is_free,passing_percent,time_limit_seconds)
+	VALUES($1,$2,$3,(SELECT id FROM test_categories WHERE name=$4),'medium','published','marketplace',TRUE,70,2400)
+	ON CONFLICT(slug) DO UPDATE SET author_id=EXCLUDED.author_id RETURNING id`
+
 func seedAccountingTopicTests(ctx context.Context) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -117,10 +126,7 @@ func seedAccountingTopicTests(ctx context.Context) error {
 	}
 	for _, item := range accountingTopicTestSeeds {
 		var testID int64
-		err = tx.QueryRowContext(ctx, `INSERT INTO tests(author_id,slug,category,category_id,difficulty,status,visibility,is_free,passing_percent,time_limit_seconds)
-			VALUES($1,$2,$3::varchar,(SELECT id FROM test_categories WHERE name=$3::text),$4,'published','marketplace',TRUE,70,1200)
-			ON CONFLICT(slug) DO UPDATE SET author_id=EXCLUDED.author_id,category=EXCLUDED.category,category_id=EXCLUDED.category_id,difficulty=EXCLUDED.difficulty,status='published',visibility='marketplace',updated_at=NOW()
-			RETURNING id`, authorID, item.Slug, item.Category, item.Difficulty).Scan(&testID)
+		err = tx.QueryRowContext(ctx, accountingTopicTestSeedQuery, authorID, item.Slug, item.Category, item.Difficulty).Scan(&testID)
 		if err != nil {
 			return err
 		}
@@ -287,9 +293,7 @@ func seedPositionTests(ctx context.Context) error {
 		slug := fmt.Sprintf("position-skill-%d", p.id)
 		category := initialTestCategories[positionIndex%len(initialTestCategories)]
 		var testID int64
-		err = tx.QueryRowContext(ctx, `INSERT INTO tests(author_id,slug,category,category_id,difficulty,status,visibility,is_free,passing_percent,time_limit_seconds)
-			VALUES($1,$2,$3,(SELECT id FROM test_categories WHERE name=$4),'medium','published','marketplace',TRUE,70,2400)
-			ON CONFLICT(slug) DO UPDATE SET author_id=EXCLUDED.author_id,status='published',visibility='marketplace' RETURNING id`, authorID, slug, category, category).Scan(&testID)
+		err = tx.QueryRowContext(ctx, positionTestSeedQuery, authorID, slug, category, category).Scan(&testID)
 		if err != nil {
 			return err
 		}

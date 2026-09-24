@@ -48,6 +48,24 @@ func TestMarketplaceSystemSeedInventoryIsUnique(t *testing.T) {
 	}
 }
 
+func TestMarketplaceSeedPreservesAdminPublicationState(t *testing.T) {
+	for name, query := range map[string]string{
+		"accounting topics": accountingTopicTestSeedQuery,
+		"positions":         positionTestSeedQuery,
+	} {
+		parts := strings.SplitN(query, "ON CONFLICT", 2)
+		if len(parts) != 2 {
+			t.Fatalf("%s seed query has no conflict handler", name)
+		}
+		conflictUpdate := strings.ToLower(parts[1])
+		for _, forbidden := range []string{"status=", "status =", "visibility=", "visibility ="} {
+			if strings.Contains(conflictUpdate, forbidden) {
+				t.Fatalf("%s seed query overwrites administrator-managed publication state with %q", name, forbidden)
+			}
+		}
+	}
+}
+
 func TestMarketplaceDemoFlag(t *testing.T) {
 	original, existed := os.LookupEnv("SEED_DEMO_DATA")
 	originalAppEnv, appEnvExisted := os.LookupEnv("APP_ENV")
