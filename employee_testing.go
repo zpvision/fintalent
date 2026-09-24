@@ -89,6 +89,7 @@ func registerEmployeeTestingRoutes() {
 	http.HandleFunc("/api/employee-testing/import/finkoper", employeeTestingImportFinKoper)
 	http.HandleFunc("/api/employee-testing/tests", employeeTestingTests)
 	http.HandleFunc("/api/employee-testing/invitations", employeeTestingInvitations)
+	http.HandleFunc("/api/employee-testing/invitations/", employeeTestingInvitationAction)
 	http.HandleFunc("/api/employee-testing/results", employeeTestingResults)
 	http.HandleFunc("/api/employee-test/", publicEmployeeTest)
 }
@@ -489,6 +490,59 @@ func employeeTestingInvitations(w http.ResponseWriter, r *http.Request) {
 		sendEmployeeTestInvitationAsync(invitation.address, invitation.data)
 	}
 	jsonResponse(w, 201, map[string]any{"items": links, "email_sent": true, "message": "Приглашения созданы. Письма с персональными ссылками отправлены выбранным сотрудникам."})
+}
+
+func employeeTestingInvitationAction(w http.ResponseWriter, r *http.Request) {
+	u, err := userFromRequest(r)
+	if err != nil {
+		jsonError(w, http.StatusUnauthorized, "Требуется авторизация")
+		return
+	}
+	parts := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/employee-testing/invitations/"), "/"), "/")
+	if r.Method != http.MethodPost || len(parts) != 2 || parts[1] != "retake" {
+		jsonError(w, http.StatusMethodNotAllowed, "Метод не поддерживается")
+		return
+	}
+	invitationID, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil || invitationID < 1 {
+		jsonError(w, http.StatusBadRequest, "Некорректное назначение")
+		return
+	}
+
+	var employeeID, testID, versionID, questionCount int64
+	var employeeName, employeeEmail, testTitle string
+	var timeLimitSeconds int
+	err = db.QueryRowContext(r.Context(), `SELECT i.employee_id,i.test_id,i.test_version_id,e.full_name,e.email,v.title,COALESCE(t.time_limit_seconds,0),(SELECT COUNT(*) FROM test_questions q WHERE q.test_version_id=i.test_version_id) FROM company_test_invitations i JOIN company_test_employees e ON e.id=i.employee_id JOIN test_versions v ON v.id=i.test_version_id JOIN tests t ON t.id=i.test_id JOIN test_attempts a ON a.id=i.attempt_id WHERE i.id=$1 AND i.owner_user_id=$2 AND i.status='finished' AND a.percent<70`, invitationID, u.ID).Scan(&employeeID, &testID, &versionID, &employeeName, &employeeEmail, &testTitle, &timeLimitSeconds, &questionCount)
+	if err != nil {
+		jsonError(w, http.StatusBadRequest, "Пересдача доступна только для завершённых тестов с результатом ниже 70%")
+		return
+	}
+
+	token := invitationToken()
+	var newInvitationID int64
+	err = db.QueryRowContext(r.Context(), `INSERT INTO company_test_invitations(owner_user_id,employee_id,test_id,test_version_id,token) VALUES($1,$2,$3,$4,$5) RETURNING id`, u.ID, employeeID, testID, versionID, token).Scan(&newInvitationID)
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, "Не удалось назначить пересдачу")
+		return
+	}
+	durationMinutes := 0
+	if timeLimitSeconds > 0 {
+		durationMinutes = (timeLimitSeconds + 59) / 60
+	}
+	relativeURL := "/employee-test?token=" + token
+	sendEmployeeTestInvitationAsync(employeeEmail, employeeTestInvitationEmailData{
+		EmployeeName:    employeeName,
+		OrganizerName:   u.FullName,
+		TestTitle:       testTitle,
+		QuestionCount:   questionCount,
+		DurationMinutes: durationMinutes,
+		TestURL:         applicationBaseURL() + relativeURL,
+		IsRetake:        true,
+	})
+	jsonResponse(w, http.StatusCreated, map[string]any{
+		"id": newInvitationID, "url": relativeURL, "email_sent": true,
+		"message": "Пользователю назначен новый тест и отправлена ссылка на почту",
+	})
 }
 
 func employeeTestingResults(w http.ResponseWriter, r *http.Request) {

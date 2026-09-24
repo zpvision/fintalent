@@ -17,6 +17,8 @@ export const importEmployeesFromFinKoper = (email, password, options) =>
   apiClient.post('/api/employee-testing/import/finkoper', { email, password }, { redirectOnUnauthorized: false, ...options })
 export const createInvitations = (testId, employeeIds, options) =>
   apiClient.post('/api/employee-testing/invitations', { test_id: testId, employee_ids: employeeIds }, options)
+export const createEmployeeRetake = (invitationId, options) =>
+  apiClient.post(`/api/employee-testing/invitations/${encodeURIComponent(invitationId)}/retake`, {}, options)
 export const getTest = (id, options) => apiClient.get(`/api/tests/${encodeURIComponent(id)}`, options)
 export const getTestReviews = (id, options) => apiClient.get(`/api/marketplace/test-reviews?test_id=${encodeURIComponent(id)}`, { redirectOnUnauthorized: false, ...options })
 export const startTestAttempt = (id, vacancyId, options) => apiClient.post(`/api/tests/${encodeURIComponent(id)}/attempts`, vacancyId ? { vacancy_id: vacancyId } : {}, options)

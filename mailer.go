@@ -90,6 +90,7 @@ type employeeTestInvitationEmailData struct {
 	QuestionCount   int64
 	DurationMinutes int
 	TestURL         string
+	IsRetake        bool
 }
 
 func applicationBaseURL() string {
@@ -242,7 +243,11 @@ func sendEmployeeTestInvitationEmail(recipientEmail string, data employeeTestInv
 	if err = tmpl.Execute(&htmlBody, data); err != nil {
 		return fmt.Errorf("формирование приглашения на тестирование: %w", err)
 	}
-	message, err := buildHTMLMessage(config.From, mail.Address{Name: data.EmployeeName, Address: recipientEmail}, "Вам назначен тест «"+data.TestTitle+"» — FinTalent", htmlBody.Bytes())
+	subject := "Вам назначен тест «" + data.TestTitle + "» — FinTalent"
+	if data.IsRetake {
+		subject = "Вам назначена пересдача теста «" + data.TestTitle + "» — FinTalent"
+	}
+	message, err := buildHTMLMessage(config.From, mail.Address{Name: data.EmployeeName, Address: recipientEmail}, subject, htmlBody.Bytes())
 	if err != nil {
 		return err
 	}

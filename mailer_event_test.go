@@ -66,3 +66,23 @@ func TestEmployeeTestInvitationTemplateRendersPersonalLink(t *testing.T) {
 		t.Error("rendered invitation contains a sanitized unsafe template value")
 	}
 }
+
+func TestEmployeeTestInvitationTemplateRendersRetakeCopy(t *testing.T) {
+	tmpl, err := template.New("employee-test-retake").Parse(employeeTestInvitationEmailTemplate)
+	if err != nil {
+		t.Fatalf("parse employee test invitation template: %v", err)
+	}
+	var rendered bytes.Buffer
+	if err = tmpl.Execute(&rendered, employeeTestInvitationEmailData{
+		EmployeeName: "Анна Петрова", OrganizerName: "ООО ФинЭксперт", TestTitle: "Налоговый учёт",
+		QuestionCount: 24, TestURL: "https://fintalent.ru/employee-test?token=retake-token", IsRetake: true,
+	}); err != nil {
+		t.Fatalf("render employee test retake template: %v", err)
+	}
+	html := rendered.String()
+	for _, expected := range []string{"Вам назначена пересдача теста", "ещё раз пройти тестирование", "retake-token"} {
+		if !strings.Contains(html, expected) {
+			t.Errorf("rendered retake invitation does not contain %q", expected)
+		}
+	}
+}
