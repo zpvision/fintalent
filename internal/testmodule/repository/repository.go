@@ -576,7 +576,7 @@ func (p *Postgres) FinishAttempt(ctx context.Context, id int64, score, max, perc
 			return err
 		}
 	}
-	res, err := tx.ExecContext(ctx, `UPDATE test_attempts SET score=$1,max_score=$2,percent=$3,passed=$4,show_in_resume=($3>80),finished_at=NOW(),duration_seconds=EXTRACT(EPOCH FROM NOW()-started_at)::int,status='finished' WHERE id=$5 AND status='started'`, score, max, percent, passed, id)
+	res, err := tx.ExecContext(ctx, `UPDATE test_attempts SET score=$1,max_score=$2,percent=$3::numeric,passed=$4,show_in_resume=($3::numeric>80),finished_at=NOW(),duration_seconds=EXTRACT(EPOCH FROM NOW()-started_at)::int,status='finished' WHERE id=$5 AND status='started'`, score, max, percent, passed, id)
 	if err != nil {
 		return err
 	}
