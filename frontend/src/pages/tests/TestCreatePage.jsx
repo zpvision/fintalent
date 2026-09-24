@@ -6,7 +6,7 @@ import usePageStyles from '../../hooks/usePageStyles'
 import UserLayout from '../../layouts/UserLayout'
 import PublishSuccessModal from '../../components/PublishSuccessModal'
 
-const styles = ['/static/profile.css', '/static/test-editor.css', '/static/test-create-profile.css', '/static/profile-logo.css', '/static/profile-sidebar-v2.css?v=2', '/static/profile-buttons.css', '/static/test-correct.css', '/static/test-drag.css', '/static/fintalent-theme.css', '/static/test-create-fix.css', '/static/test-create-blue.css', '/static/test-create-readable.css', '/static/test-info-center.css', '/static/test-answers-section.css', '/static/test-question-clarity.css', '/static/test-question-tools.css?v=2', '/static/test-preview.css?v=2', '/static/test-editor-ux.css', '/static/test-sidebar-sticky.css', '/static/vacancy-publish-success.css?v=1']
+const styles = ['/static/profile.css', '/static/test-editor.css', '/static/test-create-profile.css?v=2', '/static/profile-logo.css', '/static/profile-sidebar-v2.css?v=2', '/static/profile-buttons.css', '/static/test-correct.css', '/static/test-drag.css', '/static/fintalent-theme.css', '/static/test-create-fix.css', '/static/test-create-blue.css', '/static/test-create-readable.css', '/static/test-info-center.css', '/static/test-answers-section.css', '/static/test-question-clarity.css', '/static/test-question-tools.css?v=2', '/static/test-preview.css?v=2', '/static/test-editor-ux.css', '/static/test-sidebar-sticky.css', '/static/vacancy-publish-success.css?v=1']
 const stepNames = ['Информация', 'Вопросы', 'Предпросмотр', 'Публикация']
 const blankTest = () => ({ title: '', description: '', category: '', difficulty: 'medium', visibility: 'public', is_free: true, shuffle_answers: false, price: 0, version: 1, status: 'draft' })
 const makeAnswer = (answer = '', is_correct = false) => ({ answer, is_correct, key: crypto.randomUUID() })
@@ -210,7 +210,7 @@ export default function TestCreatePage() {
       const testId = await saveInfo()
       await saveQuestions(testId)
       if (marketplace) await updateTest(testId, { ...infoPayload(test), visibility: 'marketplace' })
-      await publishTest(testId); setPublished(true)
+      await publishTest(testId); setPublished(marketplace ? 'marketplace' : 'team')
     } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
   const points = questions.reduce((sum, q) => sum + (Number(q.points) || 0), 0)
@@ -246,8 +246,8 @@ export default function TestCreatePage() {
         </div>
       </section>
       <section className={`step${step === 4 ? ' active' : ''}`} data-step="4">
-        <div className="section-head"><div><h2>Публикация</h2><p>Выберите способ публикации готового теста</p></div><span>Шаг 4 из 4</span></div>
-        <div className="panel publish"><div>✓</div><h2 id="ready-title">{test.title}</h2><p id="ready-info">{questions.length} вопросов · версия {test.version || 1}</p><button id="publish" disabled={busy} onClick={() => publish()}>Опубликовать тест</button><button id="marketplace" className="outline" disabled={busy} onClick={() => publish(true)}>Опубликовать в Marketplace</button><a href="/tests">Оставить черновиком</a></div>
+        <div className="section-head"><div><h2>Как вы хотите использовать тест?</h2><p>Выберите доступ для своей команды или публикацию в общем каталоге</p></div><span>Шаг 4 из 4</span></div>
+        <div className="panel publish"><div className="publish-ready-icon">✓</div><h2 id="ready-title">{test.title}</h2><p id="ready-info">{questions.length} вопросов · версия {test.version || 1}</p><section className="publish-options"><article className="publish-choice publish-choice-team"><span>Для работы</span><h3>Только для своей команды</h3><p>Тест не появится в Маркетплейсе. Вы сможете назначать его сотрудникам и отправлять по прямой ссылке.</p><button id="publish" className="outline" disabled={busy} onClick={() => publish()}>Сохранить для своей команды</button></article><article className="publish-choice publish-choice-marketplace"><span>Для всех</span><h3>В общем каталоге FinTalent</h3><p>Тест появится в Маркетплейсе. Другие пользователи смогут найти его, пройти и оставить отзыв.</p><button id="marketplace" disabled={busy} onClick={() => publish(true)}>Опубликовать в Маркетплейсе</button></article></section><a href="/tests">Оставить черновиком</a></div>
       </section>
     </div><aside className="test-settings">
       <section className="test-stat-card"><h3>Статистика теста <small>черновик</small></h3><div><span>Вопросов</span><b id="stat-questions">{questions.length}</b></div><div><span>Максимальный балл</span><b id="stat-points">{Number.isInteger(points) ? points : points.toFixed(1)}</b></div><div><span>Версия</span><b id="stat-version">{test.version || 1}</b></div></section>
@@ -255,5 +255,5 @@ export default function TestCreatePage() {
       <section className="editor-help"><h3>Нужна помощь?</h3><p>Используйте разные типы вопросов, чтобы точнее оценить знания кандидата.</p><a href="#">Открыть руководство →</a></section>
     </aside></div>
     <footer className="editor-footer"><button id="prev" className={`outline${step === 1 || step === 4 ? ' hidden' : ''}`} disabled={busy} onClick={() => navigate(step - 1)}>← Назад</button><span /><button id="next" className={step === 4 ? 'hidden' : ''} disabled={busy} onClick={() => navigate(step + 1, true)}>Продолжить →</button></footer>
-  </div></main>{published && <PublishSuccessModal eyebrow="ТЕСТ ОПУБЛИКОВАН" title="Всё получилось!" description="Тест опубликован и готов к прохождению." wishTitle="Пусть тест помогает находить сильных специалистов" wishText="Желаем точных результатов и полезной обратной связи!" primaryHref="/tests" primaryText="Перейти к моим тестам" onClose={() => setPublished(false)} />}</UserLayout>
+  </div></main>{published && <PublishSuccessModal eyebrow={published==='marketplace'?'ТЕСТ ОПУБЛИКОВАН В МАРКЕТПЛЕЙСЕ':'ТЕСТ ГОТОВ К ИСПОЛЬЗОВАНИЮ'} title="Всё получилось!" description={published==='marketplace'?'Тест появился в общем каталоге и готов к прохождению.':'Тест сохранён для вашей команды. Теперь его можно назначать сотрудникам.'} wishTitle="Пусть тест помогает находить сильных специалистов" wishText="Желаем точных результатов и полезной обратной связи!" primaryHref="/tests" primaryText="Перейти к моим тестам" onClose={() => setPublished(false)} />}</UserLayout>
 }
