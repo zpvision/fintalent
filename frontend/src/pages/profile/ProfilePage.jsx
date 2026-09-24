@@ -10,6 +10,7 @@ import { getMyAccountingCompany } from '../../api/companies'
 import { deleteProfiMarketSolution, getMyProfiMarketOrders, getMyProfiMarketOrderSummary, getMyProfiMarketPurchases, getMyProfiMarketSolutions, unpublishProfiMarketSolution } from '../../api/profimarket'
 import { getMyTestResults } from '../../api/tests'
 import ProfiMarketPurchaseList from '../../components/ProfiMarketPurchaseList'
+import { resizeImage } from '../../utils/resizeImage'
 import { deleteClientListing, deleteMyVacancy, getHelpNotifications, getHelpRequests, getMyVacancies, getProfileClientItems, getProfileClientNotifications, getProfilePurpose, markProfileClientNotificationsRead, runClientListingAction, runClientResponseAction, runHelpRequestAction, unpublishMyVacancy, updateProfileAvatar, updateProfileName, updateProfilePassword, updateProfilePurpose } from '../../api/profile'
 
 const styles=['/static/profile.css','/static/profile-logo.css','/static/profile-sidebar-v2.css?v=2','/static/profile-buttons.css','/static/fintalent-theme.css','/static/profile-vacancies.css?v=8','/static/vacancy-publish-success.css?v=1','/static/profile-settings.css?v=4','/static/profile-dashboard.css?v=3','/static/profile-profimarket.css?v=4','/static/profile-profimarket-cover.css?v=1','/static/profile-profimarket-orders.css?v=4','/static/profile-client-exchange.css?v=3','/static/profile-help.css?v=2','/static/accounting-company.css?v=1','/static/profile-accounting-company.css?v=1','/static/profile-layout-stability.css?v=2']
@@ -61,13 +62,16 @@ function ProfileHome(){
       input.value=''
       return show('Поддерживаются фотографии JPG, PNG и WebP',true)
     }
-    if(file.size>5*1024*1024){
+    if(file.size>20*1024*1024){
       input.value=''
-      return show('Фотография должна быть не больше 5 МБ',true)
+      return show('Исходная фотография должна быть не больше 20 МБ',true)
     }
     setAvatarBusy(true)
     try{
-      await updateProfileAvatar(file)
+      let uploadFile=file
+      try{uploadFile=await resizeImage(file,{maxSize:800,quality:.85})}catch{uploadFile=file}
+      if(uploadFile.size>5*1024*1024)throw new Error('Не удалось уменьшить фотографию до 5 МБ')
+      await updateProfileAvatar(uploadFile)
       await refresh()
       show('Фотография профиля обновлена')
     }catch(error){
