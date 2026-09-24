@@ -394,7 +394,12 @@ func employeeTestingTests(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, 401, "Требуется авторизация")
 		return
 	}
-	rows, err := db.QueryContext(r.Context(), `SELECT t.id,v.title,(SELECT COUNT(*) FROM test_questions q WHERE q.test_version_id=v.id) FROM tests t JOIN test_versions v ON v.test_id=t.id AND v.version=t.current_version WHERE t.author_id=$1 AND t.status='published' ORDER BY v.title`, u.ID)
+	rows, err := db.QueryContext(r.Context(), `SELECT t.id,v.title,(SELECT COUNT(*) FROM test_questions q WHERE q.test_version_id=v.id),t.status,CASE WHEN t.author_id=$1 THEN 'mine' ELSE 'marketplace' END
+		FROM tests t
+		JOIN test_versions v ON v.test_id=t.id AND v.version=t.current_version
+		JOIN users author ON author.id=t.author_id
+		WHERE t.deleted_at IS NULL AND ((t.author_id=$1 AND t.status IN ('draft','published')) OR (t.status='published' AND t.visibility='marketplace' AND (NOT author.is_blocked OR author.is_system)))
+		ORDER BY CASE WHEN t.author_id=$1 THEN 0 ELSE 1 END,v.title,t.id`, u.ID)
 	if err != nil {
 		jsonError(w, 500, "Не удалось загрузить тесты")
 		return
@@ -403,9 +408,9 @@ func employeeTestingTests(w http.ResponseWriter, r *http.Request) {
 	items := []map[string]any{}
 	for rows.Next() {
 		var id, count int64
-		var title string
-		if rows.Scan(&id, &title, &count) == nil {
-			items = append(items, map[string]any{"id": id, "title": title, "question_count": count})
+		var title, status, source string
+		if rows.Scan(&id, &title, &count, &status, &source) == nil {
+			items = append(items, map[string]any{"id": id, "title": title, "question_count": count, "status": status, "source": source})
 		}
 	}
 	jsonResponse(w, 200, map[string]any{"items": items})
@@ -437,8 +442,12 @@ func employeeTestingInvitations(w http.ResponseWriter, r *http.Request) {
 	var versionID, questionCount int64
 	var testTitle string
 	var timeLimitSeconds int
-	if db.QueryRowContext(r.Context(), `SELECT v.id,v.title,COALESCE(t.time_limit_seconds,0),(SELECT COUNT(*) FROM test_questions q WHERE q.test_version_id=v.id) FROM tests t JOIN test_versions v ON v.test_id=t.id AND v.version=t.current_version WHERE t.id=$1 AND t.author_id=$2 AND t.status='published'`, in.TestID, u.ID).Scan(&versionID, &testTitle, &timeLimitSeconds, &questionCount) != nil {
-		jsonError(w, 400, "Можно назначать только свой опубликованный тест")
+	if db.QueryRowContext(r.Context(), `SELECT v.id,v.title,COALESCE(t.time_limit_seconds,0),(SELECT COUNT(*) FROM test_questions q WHERE q.test_version_id=v.id)
+		FROM tests t
+		JOIN test_versions v ON v.test_id=t.id AND v.version=t.current_version
+		JOIN users author ON author.id=t.author_id
+		WHERE t.id=$1 AND t.deleted_at IS NULL AND ((t.author_id=$2 AND t.status IN ('draft','published')) OR (t.status='published' AND t.visibility='marketplace' AND (NOT author.is_blocked OR author.is_system)))`, in.TestID, u.ID).Scan(&versionID, &testTitle, &timeLimitSeconds, &questionCount) != nil {
+		jsonError(w, 400, "Выберите свой тест или опубликованный тест из Маркетплейса")
 		return
 	}
 	tx, err := db.BeginTx(r.Context(), nil)
