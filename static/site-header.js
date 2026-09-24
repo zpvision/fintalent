@@ -10,6 +10,6 @@
   const communityLink=[...header.querySelectorAll('.ft-main-nav a')].find(link=>link.getAttribute('href')==='/accounting-companies');
   communityLink?.insertAdjacentHTML('beforebegin',`<a class="${active('/client-exchange')?'active':''}" href="/client-exchange">Клиентская биржа</a>`);
   header.querySelector('.ft-menu-toggle').onclick=()=>header.classList.toggle('menu-open');
-  fetch('/api/me').then(r=>r.ok?r.json():null).then(user=>{if(!user)return;const name=user.full_name||user.email||'Профиль',initial=name.trim().charAt(0).toUpperCase();header.querySelector('.ft-account').innerHTML=`<a class="ft-profile" href="/profile"><i>${escapeText(initial)}</i><span><small>Личный кабинет</small><b>${escapeText(name)}</b></span></a>`}).catch(()=>{});
+  fetch('/api/me').then(r=>r.ok?r.json():null).then(user=>{if(!user)return;const name=user.full_name||user.email||'Профиль',initial=name.trim().charAt(0).toUpperCase(),avatar=user.avatar?`<img src="${escapeText(user.avatar)}" alt="">`:escapeText(initial);header.querySelector('.ft-account').innerHTML=`<a class="ft-profile" href="/profile"><i>${avatar}</i><span><small>Личный кабинет</small><b>${escapeText(name)}</b></span></a>`}).catch(()=>{});
   function escapeText(value){const span=document.createElement('span');span.textContent=value;return span.innerHTML}
 })();

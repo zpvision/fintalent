@@ -52,7 +52,7 @@ export default function SiteHeader() {
       <div className="ft-account">
         {user ? (
           <Link className="ft-profile" to="/profile">
-            <i>{initial}</i>
+            <i>{user.avatar ? <img src={user.avatar} alt="" /> : initial}</i>
             <span><small>Личный кабинет</small><b>{name}</b></span>
           </Link>
         ) : loading ? (
