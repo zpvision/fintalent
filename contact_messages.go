@@ -45,12 +45,13 @@ func contactThreads(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := db.QueryContext(r.Context(), `SELECT t.id,t.subject,t.status,t.sender_id,t.recipient_id,t.updated_at,
 		CASE WHEN t.sender_id=$1 THEN ru.full_name ELSE su.full_name END,
-		CASE WHEN t.sender_id=$1 THEN COALESCE(ru.avatar,'') ELSE COALESCE(su.avatar,'') END,
-		(SELECT body FROM contact_messages WHERE thread_id=t.id ORDER BY id DESC LIMIT 1),
+		CASE WHEN t.sender_id=$1 THEN COALESCE(ru.avatar_url,'') ELSE COALESCE(su.avatar_url,'') END,
+		COALESCE((SELECT body FROM contact_messages WHERE thread_id=t.id ORDER BY id DESC LIMIT 1),''),
 		(SELECT COUNT(*) FROM contact_messages WHERE thread_id=t.id)
 		FROM contact_threads t JOIN users su ON su.id=t.sender_id JOIN users ru ON ru.id=t.recipient_id
 		WHERE t.sender_id=$1 OR t.recipient_id=$1 ORDER BY t.updated_at DESC`, u.ID)
 	if err != nil {
+		log.Printf("contact threads query: %v", err)
 		writeJSON(w, 500, "Не удалось загрузить сообщения")
 		return
 	}
