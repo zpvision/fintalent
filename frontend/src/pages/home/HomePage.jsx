@@ -85,7 +85,7 @@ export default function HomePage() {
     '/static/profimarket-hero.css?v=1',
     '/static/geography.css',
     '/static/searchable-select.css',
-    '/static/home-showcase-react.css?v=14',
+    '/static/home-showcase-react.css?v=15',
     '/static/home-footer-rights.css?v=2',
     '/static/home-search-enhancements.css?v=1',
   ])
