@@ -291,14 +291,39 @@ func (p *Postgres) Save(ctx context.Context, v *domain.Vacancy, requirements []d
 			return err
 		}
 	}
-	if _, err = tx.ExecContext(ctx, `DELETE FROM vacancy_tests WHERE vacancy_external_id=$1`, v.ID); err != nil {
-		return err
-	}
 	testIDs := v.SelectedTestIDs
 	if len(testIDs) == 0 && v.SelectedTestID != nil {
 		testIDs = []int64{*v.SelectedTestID}
 	}
+	existingTests := map[int64]sql.NullInt64{}
+	existingRows, queryErr := tx.QueryContext(ctx, `SELECT test_id,test_version_id FROM vacancy_tests WHERE vacancy_external_id=$1`, v.ID)
+	if queryErr != nil {
+		return queryErr
+	}
+	for existingRows.Next() {
+		var testID int64
+		var versionID sql.NullInt64
+		if queryErr = existingRows.Scan(&testID, &versionID); queryErr != nil {
+			existingRows.Close()
+			return queryErr
+		}
+		existingTests[testID] = versionID
+	}
+	if queryErr = existingRows.Err(); queryErr != nil {
+		existingRows.Close()
+		return queryErr
+	}
+	existingRows.Close()
+	if _, err = tx.ExecContext(ctx, `DELETE FROM vacancy_tests WHERE vacancy_external_id=$1`, v.ID); err != nil {
+		return err
+	}
 	for order, testID := range testIDs {
+		if versionID, existed := existingTests[testID]; existed {
+			if _, testErr := tx.ExecContext(ctx, `INSERT INTO vacancy_tests(vacancy_external_id,test_id,test_version_id,sort_order,is_required) VALUES($1,$2,$3,$4,TRUE)`, v.ID, testID, versionID, order); testErr != nil {
+				return testErr
+			}
+			continue
+		}
 		result, testErr := tx.ExecContext(ctx, `INSERT INTO vacancy_tests(vacancy_external_id,test_id,test_version_id,sort_order,is_required) SELECT $1,t.id,tv.id,$3,TRUE FROM tests t JOIN test_versions tv ON tv.test_id=t.id AND tv.version=t.current_version WHERE t.id=$2 AND t.status='published' AND t.visibility='marketplace'`, v.ID, testID, order)
 		if testErr != nil {
 			return testErr

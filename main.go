@@ -315,7 +315,9 @@ func servePage(filename string) http.HandlerFunc {
 				content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/accounting-company-reviews.js?v=2"></script></body>`, 1))
 			}
 			content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/site-header.js?v=3"></script></body>`, 1))
-			content = injectYandexMetrika(content)
+			if filepath.Base(filename) != "admin.html" && !isAdminFrontendPath(r.URL.Path) {
+				content = injectYandexMetrika(content)
+			}
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			_, _ = w.Write(content)
 			return

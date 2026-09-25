@@ -21,3 +21,18 @@ func TestInjectYandexMetrikaAddsCounterOnce(t *testing.T) {
 		t.Fatal("repeated injection must not change the page")
 	}
 }
+
+func TestAdminFrontendPathsExcludeMetrika(t *testing.T) {
+	adminPaths := []string{"/admin", "/admin/", "/admin/community", "/admin/community/vacancies"}
+	for _, path := range adminPaths {
+		if !isAdminFrontendPath(path) {
+			t.Fatalf("admin path %q must exclude Yandex Metrika", path)
+		}
+	}
+	publicPaths := []string{"/", "/marketplace", "/accounting-companies", "/administrator"}
+	for _, path := range publicPaths {
+		if isAdminFrontendPath(path) {
+			t.Fatalf("public path %q must keep Yandex Metrika", path)
+		}
+	}
+}
