@@ -392,12 +392,33 @@ func resumeDuties(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 500, "Не удалось заблокировать сохранение обязанностей профиля")
 		return
 	}
+	existing := map[int64]bool{}
+	existingRows, queryErr := tx.QueryContext(r.Context(), `SELECT duty_id FROM resume_duties WHERE resume_id=$1`, resumeID)
+	if queryErr != nil {
+		writeJSON(w, 500, "Не удалось проверить сохранённые обязанности")
+		return
+	}
+	for existingRows.Next() {
+		var dutyID int64
+		if queryErr = existingRows.Scan(&dutyID); queryErr != nil {
+			existingRows.Close()
+			writeJSON(w, 500, "Не удалось проверить сохранённые обязанности")
+			return
+		}
+		existing[dutyID] = true
+	}
+	if queryErr = existingRows.Err(); queryErr != nil {
+		existingRows.Close()
+		writeJSON(w, 500, "Не удалось проверить сохранённые обязанности")
+		return
+	}
+	existingRows.Close()
 	if _, err = tx.ExecContext(r.Context(), `DELETE FROM resume_duties WHERE resume_id=$1`, resumeID); err != nil {
 		writeJSON(w, 500, "Не удалось сохранить обязанности")
 		return
 	}
 	for _, id := range input.DutyIDs {
-		result, execErr := tx.ExecContext(r.Context(), `INSERT INTO resume_duties(resume_id,duty_id) SELECT $1,d.id FROM duties d JOIN duty_categories c ON c.id=d.category_id WHERE d.id=$2 AND d.is_active=TRUE AND c.is_active=TRUE`, resumeID, id)
+		result, execErr := tx.ExecContext(r.Context(), `INSERT INTO resume_duties(resume_id,duty_id) SELECT $1,d.id FROM duties d JOIN duty_categories c ON c.id=d.category_id WHERE d.id=$2 AND ((d.is_active=TRUE AND c.is_active=TRUE) OR $3)`, resumeID, id, existing[id])
 		if execErr != nil {
 			writeJSON(w, 500, "Не удалось сохранить обязанности")
 			return

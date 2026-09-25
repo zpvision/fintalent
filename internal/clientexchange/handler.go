@@ -255,21 +255,26 @@ func (h *Handler) catalog(w http.ResponseWriter, r *http.Request, u UserIdentity
 func (h *Handler) createListing(ctx context.Context, userID int64, input ListingInput) (int64, error) {
 	normalizeIndustryIDs(&input)
 	normalizeTransferReasonIDs(&input)
-	if err := h.validateInput(ctx, input, false); err != nil {
+	if err := h.validateInput(ctx, 0, input, false); err != nil {
 		return 0, err
 	}
+	tx, err := h.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
 	var id int64
-	err := h.db.QueryRowContext(ctx, `INSERT INTO client_exchange_listings(seller_user_id,title,client_inn,client_legal_name,industry_id,employee_range_id,tax_system_id,revenue_range_id,accounting_state_id,transfer_reason_id,transfer_type_id,transfer_reason_comment,transfer_price,monthly_commission_percent,commission_months,current_monthly_fee,operations_per_month,banks_count,has_vat,foreign_trade,bargain_allowed,region,city,client_since,desired_transfer_date,comment,current_step) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27) RETURNING id`, userID, clean(input.Title, 240), strings.TrimSpace(input.ClientINN), clean(input.ClientLegalName, 500), input.IndustryID, input.EmployeeRangeID, input.TaxSystemID, input.RevenueRangeID, input.AccountingStateID, input.TransferReasonID, input.TransferTypeID, clean(input.TransferReasonComment, 2000), input.TransferPrice, input.MonthlyCommission, input.CommissionMonths, input.CurrentMonthlyFee, input.OperationsPerMonth, input.BanksCount, input.HasVAT, input.ForeignTrade, input.BargainAllowed, clean(input.Region, 200), clean(input.City, 200), nullableDate(input.ClientSince), nullableDate(input.DesiredTransferDate), clean(input.Comment, 5000), clamp(input.CurrentStep, 1, 6)).Scan(&id)
+	err = tx.QueryRowContext(ctx, `INSERT INTO client_exchange_listings(seller_user_id,title,client_inn,client_legal_name,industry_id,employee_range_id,tax_system_id,revenue_range_id,accounting_state_id,transfer_reason_id,transfer_type_id,transfer_reason_comment,transfer_price,monthly_commission_percent,commission_months,current_monthly_fee,operations_per_month,banks_count,has_vat,foreign_trade,bargain_allowed,region,city,client_since,desired_transfer_date,comment,current_step) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27) RETURNING id`, userID, clean(input.Title, 240), strings.TrimSpace(input.ClientINN), clean(input.ClientLegalName, 500), input.IndustryID, input.EmployeeRangeID, input.TaxSystemID, input.RevenueRangeID, input.AccountingStateID, input.TransferReasonID, input.TransferTypeID, clean(input.TransferReasonComment, 2000), input.TransferPrice, input.MonthlyCommission, input.CommissionMonths, input.CurrentMonthlyFee, input.OperationsPerMonth, input.BanksCount, input.HasVAT, input.ForeignTrade, input.BargainAllowed, clean(input.Region, 200), clean(input.City, 200), nullableDate(input.ClientSince), nullableDate(input.DesiredTransferDate), clean(input.Comment, 5000), clamp(input.CurrentStep, 1, 6)).Scan(&id)
 	if err != nil {
 		return 0, errors.New("не удалось создать объявление")
 	}
-	if err = h.saveOptions(ctx, id, input); err != nil {
+	if err = h.saveOptionsTx(ctx, tx, id, input); err != nil {
 		return 0, err
 	}
-	return id, nil
+	return id, tx.Commit()
 }
 
-func (h *Handler) validateInput(ctx context.Context, in ListingInput, publishing bool) error {
+func (h *Handler) validateInput(ctx context.Context, listingID int64, in ListingInput, publishing bool) error {
 	normalizeIndustryIDs(&in)
 	normalizeTransferReasonIDs(&in)
 	if in.ClientINN != "" && !validINN(in.ClientINN) {
@@ -290,26 +295,28 @@ func (h *Handler) validateInput(ctx context.Context, in ListingInput, publishing
 		}
 	}
 	ids := []struct {
-		id   *int64
-		kind string
-	}{{in.IndustryID, "industry"}, {in.EmployeeRangeID, "employee_range"}, {in.TaxSystemID, "tax_system"}, {in.RevenueRangeID, "revenue_range"}, {in.AccountingStateID, "accounting_state"}, {in.TransferReasonID, "transfer_reason"}, {in.TransferTypeID, "transfer_type"}}
+		id     *int64
+		kind   string
+		column string
+	}{{in.IndustryID, "industry", "industry_id"}, {in.EmployeeRangeID, "employee_range", "employee_range_id"}, {in.TaxSystemID, "tax_system", "tax_system_id"}, {in.RevenueRangeID, "revenue_range", "revenue_range_id"}, {in.AccountingStateID, "accounting_state", "accounting_state_id"}, {in.TransferReasonID, "transfer_reason", "transfer_reason_id"}, {in.TransferTypeID, "transfer_type", "transfer_type_id"}}
 	for _, x := range ids {
 		if x.id != nil {
 			var ok bool
-			if err := h.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM client_exchange_dictionary_items WHERE id=$1 AND kind=$2 AND active AND deleted_at IS NULL)`, *x.id, x.kind).Scan(&ok); err != nil || !ok {
+			query := `SELECT EXISTS(SELECT 1 FROM client_exchange_dictionary_items WHERE id=$1 AND kind=$2 AND ((active AND deleted_at IS NULL) OR EXISTS(SELECT 1 FROM client_exchange_listings WHERE id=$3 AND ` + x.column + `=$1)))`
+			if err := h.db.QueryRowContext(ctx, query, *x.id, x.kind, listingID).Scan(&ok); err != nil || !ok {
 				return fmt.Errorf("некорректное значение справочника %s", x.kind)
 			}
 		}
 	}
 	for _, id := range in.IndustryIDs {
 		var ok bool
-		if err := h.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM client_exchange_dictionary_items WHERE id=$1 AND kind='industry' AND active AND deleted_at IS NULL)`, id).Scan(&ok); err != nil || !ok {
+		if err := h.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM client_exchange_dictionary_items WHERE id=$1 AND kind='industry' AND ((active AND deleted_at IS NULL) OR EXISTS(SELECT 1 FROM client_exchange_listing_options WHERE listing_id=$2 AND item_id=$1 AND kind='industry')))`, id, listingID).Scan(&ok); err != nil || !ok {
 			return errors.New("invalid industry")
 		}
 	}
 	for _, id := range in.TransferReasonIDs {
 		var ok bool
-		if err := h.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM client_exchange_dictionary_items WHERE id=$1 AND kind='transfer_reason' AND active AND deleted_at IS NULL)`, id).Scan(&ok); err != nil || !ok {
+		if err := h.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM client_exchange_dictionary_items WHERE id=$1 AND kind='transfer_reason' AND ((active AND deleted_at IS NULL) OR EXISTS(SELECT 1 FROM client_exchange_listing_options WHERE listing_id=$2 AND item_id=$1 AND kind='transfer_reason')))`, id, listingID).Scan(&ok); err != nil || !ok {
 			return errors.New("invalid transfer reason")
 		}
 	}
@@ -322,11 +329,37 @@ func (h *Handler) saveOptions(ctx context.Context, listingID int64, in ListingIn
 		return err
 	}
 	defer tx.Rollback()
+	if err = h.saveOptionsTx(ctx, tx, listingID, in); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (h *Handler) saveOptionsTx(ctx context.Context, tx *sql.Tx, listingID int64, in ListingInput) error {
+	normalizeIndustryIDs(&in)
+	normalizeTransferReasonIDs(&in)
+	existing := map[string]bool{}
+	rows, err := tx.QueryContext(ctx, `SELECT kind,item_id FROM client_exchange_listing_options WHERE listing_id=$1`, listingID)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var kind string
+		var id int64
+		if err = rows.Scan(&kind, &id); err != nil {
+			rows.Close()
+			return err
+		}
+		existing[kind+":"+strconv.FormatInt(id, 10)] = true
+	}
+	if err = rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
 	if _, err = tx.ExecContext(ctx, `DELETE FROM client_exchange_listing_options WHERE listing_id=$1`, listingID); err != nil {
 		return err
 	}
-	normalizeIndustryIDs(&in)
-	normalizeTransferReasonIDs(&in)
 	sets := []struct {
 		kind string
 		ids  []int64
@@ -334,7 +367,7 @@ func (h *Handler) saveOptions(ctx context.Context, listingID int64, in ListingIn
 	for _, set := range sets {
 		for _, id := range set.ids {
 			var ok bool
-			if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM client_exchange_dictionary_items WHERE id=$1 AND kind=$2 AND active AND deleted_at IS NULL)`, id, set.kind).Scan(&ok); err != nil || !ok {
+			if err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM client_exchange_dictionary_items WHERE id=$1 AND kind=$2 AND ((active AND deleted_at IS NULL) OR $3))`, id, set.kind, existing[set.kind+":"+strconv.FormatInt(id, 10)]).Scan(&ok); err != nil || !ok {
 				return errors.New("Выбран недоступный вариант")
 			}
 			if _, err = tx.ExecContext(ctx, `INSERT INTO client_exchange_listing_options(listing_id,item_id,kind) VALUES($1,$2,$3) ON CONFLICT DO NOTHING`, listingID, id, set.kind); err != nil {
@@ -342,7 +375,7 @@ func (h *Handler) saveOptions(ctx context.Context, listingID int64, in ListingIn
 			}
 		}
 	}
-	return tx.Commit()
+	return nil
 }
 
 func normalizeTransferReasonIDs(in *ListingInput) {

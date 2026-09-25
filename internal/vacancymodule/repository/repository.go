@@ -251,11 +251,29 @@ func (p *Postgres) SaveVacancyDuties(ctx context.Context, id int64, ids []int64)
 	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(702000000000000000::bigint + $1::bigint)`, id); err != nil {
 		return err
 	}
+	existing := map[int64]bool{}
+	rows, err := tx.QueryContext(ctx, `SELECT duty_id FROM vacancy_duties WHERE vacancy_id=$1`, id)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var dutyID int64
+		if err = rows.Scan(&dutyID); err != nil {
+			rows.Close()
+			return err
+		}
+		existing[dutyID] = true
+	}
+	if err = rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
 	if _, err = tx.ExecContext(ctx, `DELETE FROM vacancy_duties WHERE vacancy_id=$1`, id); err != nil {
 		return err
 	}
 	for _, dutyID := range ids {
-		result, execErr := tx.ExecContext(ctx, `INSERT INTO vacancy_duties(vacancy_id,duty_id) SELECT $1,d.id FROM duties d JOIN duty_categories c ON c.id=d.category_id WHERE d.id=$2 AND d.is_active=TRUE AND c.is_active=TRUE`, id, dutyID)
+		result, execErr := tx.ExecContext(ctx, `INSERT INTO vacancy_duties(vacancy_id,duty_id) SELECT $1,d.id FROM duties d JOIN duty_categories c ON c.id=d.category_id WHERE d.id=$2 AND ((d.is_active=TRUE AND c.is_active=TRUE) OR $3)`, id, dutyID, existing[dutyID])
 		if execErr != nil {
 			return execErr
 		}
@@ -378,6 +396,29 @@ func (p *Postgres) SaveResume(ctx context.Context, user int64, step int, categor
 	if _, err = tx.ExecContext(ctx, `SELECT pg_advisory_xact_lock(703000000000000000::bigint + $1::bigint)`, resumeID); err != nil {
 		return err
 	}
+	type archivedResumeCategory struct {
+		categoryID int64
+		blockID    sql.NullInt64
+		sortOrder  int
+	}
+	archived := []archivedResumeCategory{}
+	archivedRows, queryErr := tx.QueryContext(ctx, `SELECT rc.category_id,rc.block_id,rc.sort_order FROM resume_categories rc JOIN dictionary_items i ON i.id=rc.category_id WHERE rc.resume_id=$1 AND (i.active=FALSE OR i.deleted_at IS NOT NULL OR NOT EXISTS(SELECT 1 FROM applicant_survey_block_dictionaries bd WHERE bd.dictionary_id=i.dictionary_id))`, resumeID)
+	if queryErr != nil {
+		return queryErr
+	}
+	for archivedRows.Next() {
+		var item archivedResumeCategory
+		if queryErr = archivedRows.Scan(&item.categoryID, &item.blockID, &item.sortOrder); queryErr != nil {
+			archivedRows.Close()
+			return queryErr
+		}
+		archived = append(archived, item)
+	}
+	if queryErr = archivedRows.Err(); queryErr != nil {
+		archivedRows.Close()
+		return queryErr
+	}
+	archivedRows.Close()
 	if _, err = tx.ExecContext(ctx, `DELETE FROM resume_categories WHERE resume_id=$1`, resumeID); err != nil {
 		return err
 	}
@@ -390,6 +431,11 @@ func (p *Postgres) SaveResume(ctx context.Context, user int64, step int, categor
 			ON CONFLICT(resume_id,category_id) DO NOTHING`, resumeID, id, order)
 		if execErr != nil {
 			return execErr
+		}
+	}
+	for _, item := range archived {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO resume_categories(resume_id,category_id,block_id,sort_order) VALUES($1,$2,$3,$4) ON CONFLICT(resume_id,category_id) DO NOTHING`, resumeID, item.categoryID, item.blockID, item.sortOrder); err != nil {
+			return err
 		}
 	}
 	return tx.Commit()

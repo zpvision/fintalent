@@ -309,12 +309,30 @@ func saveResumeHelpTopics(ctx context.Context, userID int64, ids []int64) error 
 	if err = tx.QueryRowContext(ctx, `INSERT INTO resumes(user_id,current_step) VALUES($1,1) ON CONFLICT(user_id) DO UPDATE SET updated_at=NOW() RETURNING id`, userID).Scan(&resumeID); err != nil {
 		return err
 	}
+	existing := map[int64]bool{}
+	rows, err := tx.QueryContext(ctx, `SELECT topic_id FROM resume_help_topics WHERE resume_id=$1`, resumeID)
+	if err != nil {
+		return err
+	}
+	for rows.Next() {
+		var topicID int64
+		if err = rows.Scan(&topicID); err != nil {
+			rows.Close()
+			return err
+		}
+		existing[topicID] = true
+	}
+	if err = rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
 	if _, err = tx.ExecContext(ctx, `DELETE FROM resume_help_topics WHERE resume_id=$1`, resumeID); err != nil {
 		return err
 	}
 	for order, id := range ids {
 		result, insertErr := tx.ExecContext(ctx, `INSERT INTO resume_help_topics(resume_id,topic_id,sort_order)
-			SELECT $1,id,$3 FROM help_topics WHERE id=$2 AND is_active=TRUE AND deleted_at IS NULL`, resumeID, id, order)
+			SELECT $1,id,$3 FROM help_topics WHERE id=$2 AND ((is_active=TRUE AND deleted_at IS NULL) OR $4)`, resumeID, id, order, existing[id])
 		if insertErr != nil {
 			return insertErr
 		}

@@ -345,12 +345,24 @@ func (h *Handler) update(ctx context.Context, id, owner int64, in CompanyInput) 
 	if n == 0 {
 		return fmt.Errorf("недостаточно прав")
 	}
+	existingDirections, err := companyLinkedIDs(ctx, tx, `SELECT direction_id FROM accounting_company_direction_links WHERE company_id=$1`, id)
+	if err != nil {
+		return err
+	}
+	existingTaxSystems, err := companyLinkedIDs(ctx, tx, `SELECT tax_system_id FROM accounting_company_tax_system_links WHERE company_id=$1`, id)
+	if err != nil {
+		return err
+	}
+	existingServices, err := companyLinkedIDs(ctx, tx, `SELECT service_id FROM accounting_company_services WHERE company_id=$1 AND service_id IS NOT NULL`, id)
+	if err != nil {
+		return err
+	}
 	if _, err = tx.ExecContext(ctx, `DELETE FROM accounting_company_direction_links WHERE company_id=$1`, id); err != nil {
 		return err
 	}
 	keys := idSet(in.KeyDirectionIDs)
 	for i, directionID := range uniqueIDs(in.DirectionIDs, 10) {
-		if _, err = tx.ExecContext(ctx, `INSERT INTO accounting_company_direction_links(company_id,direction_id,is_key,sort_order) SELECT $1,id,$3,$4 FROM accounting_company_directions WHERE id=$2 AND active AND deleted_at IS NULL`, id, directionID, keys[directionID], i); err != nil {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO accounting_company_direction_links(company_id,direction_id,is_key,sort_order) SELECT $1,id,$3,$4 FROM accounting_company_directions WHERE id=$2 AND ((active AND deleted_at IS NULL) OR $5)`, id, directionID, keys[directionID], i, existingDirections[directionID]); err != nil {
 			return fmt.Errorf("некорректное направление")
 		}
 	}
@@ -358,7 +370,7 @@ func (h *Handler) update(ctx context.Context, id, owner int64, in CompanyInput) 
 		return err
 	}
 	for _, taxID := range uniqueIDs(in.TaxSystemIDs, 12) {
-		if _, err = tx.ExecContext(ctx, `INSERT INTO accounting_company_tax_system_links(company_id,tax_system_id) SELECT $1,id FROM accounting_company_tax_systems WHERE id=$2 AND active`, id, taxID); err != nil {
+		if _, err = tx.ExecContext(ctx, `INSERT INTO accounting_company_tax_system_links(company_id,tax_system_id) SELECT $1,id FROM accounting_company_tax_systems WHERE id=$2 AND (active OR $3)`, id, taxID, existingTaxSystems[taxID]); err != nil {
 			return fmt.Errorf("некорректная система налогообложения")
 		}
 	}
@@ -376,7 +388,8 @@ func (h *Handler) update(ctx context.Context, id, owner int64, in CompanyInput) 
 		if !allowedPriceType(pt) {
 			pt = "from_month"
 		}
-		_, err = tx.ExecContext(ctx, `INSERT INTO accounting_company_services(company_id,service_id,custom_name,price_from,price_type,sort_order) SELECT $1,id,$3,$4,$5,$6 FROM accounting_company_service_catalog WHERE id=$2 AND active AND deleted_at IS NULL`, id, s.ServiceID, clean(s.CustomName, 220), s.PriceFrom, pt, i)
+		wasExisting := s.ServiceID != nil && existingServices[*s.ServiceID]
+		_, err = tx.ExecContext(ctx, `INSERT INTO accounting_company_services(company_id,service_id,custom_name,price_from,price_type,sort_order) SELECT $1,id,$3,$4,$5,$6 FROM accounting_company_service_catalog WHERE id=$2 AND ((active AND deleted_at IS NULL) OR $7)`, id, s.ServiceID, clean(s.CustomName, 220), s.PriceFrom, pt, i, wasExisting)
 		if err != nil {
 			return fmt.Errorf("некорректная услуга")
 		}
@@ -401,6 +414,23 @@ func (h *Handler) update(ctx context.Context, id, owner int64, in CompanyInput) 
 		}
 	}
 	return tx.Commit()
+}
+
+func companyLinkedIDs(ctx context.Context, tx *sql.Tx, query string, companyID int64) (map[int64]bool, error) {
+	rows, err := tx.QueryContext(ctx, query, companyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	result := map[int64]bool{}
+	for rows.Next() {
+		var id int64
+		if err = rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		result[id] = true
+	}
+	return result, rows.Err()
 }
 
 func validate(in CompanyInput) error {

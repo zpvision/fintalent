@@ -102,7 +102,7 @@ func (h *Handler) listingRoute(w http.ResponseWriter, r *http.Request) {
 		if !decode(w, r, &in) {
 			return
 		}
-		if err := h.validateInput(r.Context(), in, false); err != nil {
+		if err := h.validateInput(r.Context(), id, in, false); err != nil {
 			fail(w, 400, err.Error())
 			return
 		}
@@ -140,11 +140,19 @@ func (h *Handler) listingRoute(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) updateListing(ctx context.Context, id int64, in ListingInput) error {
 	normalizeIndustryIDs(&in)
 	normalizeTransferReasonIDs(&in)
-	_, err := h.db.ExecContext(ctx, `UPDATE client_exchange_listings SET title=$2,client_inn=$3,client_legal_name=$4,industry_id=$5,employee_range_id=$6,tax_system_id=$7,revenue_range_id=$8,accounting_state_id=$9,transfer_reason_id=$10,transfer_type_id=$11,transfer_reason_comment=$12,transfer_price=$13,monthly_commission_percent=$14,commission_months=$15,current_monthly_fee=$16,operations_per_month=$17,banks_count=$18,has_vat=$19,foreign_trade=$20,bargain_allowed=$21,region=$22,city=$23,client_since=$24,desired_transfer_date=$25,comment=$26,current_step=$27,updated_at=NOW() WHERE id=$1`, id, clean(in.Title, 240), strings.TrimSpace(in.ClientINN), clean(in.ClientLegalName, 500), in.IndustryID, in.EmployeeRangeID, in.TaxSystemID, in.RevenueRangeID, in.AccountingStateID, in.TransferReasonID, in.TransferTypeID, clean(in.TransferReasonComment, 2000), in.TransferPrice, in.MonthlyCommission, in.CommissionMonths, in.CurrentMonthlyFee, in.OperationsPerMonth, in.BanksCount, in.HasVAT, in.ForeignTrade, in.BargainAllowed, clean(in.Region, 200), clean(in.City, 200), nullableDate(in.ClientSince), nullableDate(in.DesiredTransferDate), clean(in.Comment, 5000), clamp(in.CurrentStep, 1, 6))
+	tx, err := h.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	_, err = tx.ExecContext(ctx, `UPDATE client_exchange_listings SET title=$2,client_inn=$3,client_legal_name=$4,industry_id=$5,employee_range_id=$6,tax_system_id=$7,revenue_range_id=$8,accounting_state_id=$9,transfer_reason_id=$10,transfer_type_id=$11,transfer_reason_comment=$12,transfer_price=$13,monthly_commission_percent=$14,commission_months=$15,current_monthly_fee=$16,operations_per_month=$17,banks_count=$18,has_vat=$19,foreign_trade=$20,bargain_allowed=$21,region=$22,city=$23,client_since=$24,desired_transfer_date=$25,comment=$26,current_step=$27,updated_at=NOW() WHERE id=$1`, id, clean(in.Title, 240), strings.TrimSpace(in.ClientINN), clean(in.ClientLegalName, 500), in.IndustryID, in.EmployeeRangeID, in.TaxSystemID, in.RevenueRangeID, in.AccountingStateID, in.TransferReasonID, in.TransferTypeID, clean(in.TransferReasonComment, 2000), in.TransferPrice, in.MonthlyCommission, in.CommissionMonths, in.CurrentMonthlyFee, in.OperationsPerMonth, in.BanksCount, in.HasVAT, in.ForeignTrade, in.BargainAllowed, clean(in.Region, 200), clean(in.City, 200), nullableDate(in.ClientSince), nullableDate(in.DesiredTransferDate), clean(in.Comment, 5000), clamp(in.CurrentStep, 1, 6))
 	if err != nil {
 		return errors.New("не удалось сохранить объявление")
 	}
-	return h.saveOptions(ctx, id, in)
+	if err = h.saveOptionsTx(ctx, tx, id, in); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (h *Handler) listingAction(w http.ResponseWriter, r *http.Request, u UserIdentity, id int64, action string) {
@@ -206,7 +214,7 @@ func (h *Handler) listingAction(w http.ResponseWriter, r *http.Request, u UserId
 			fail(w, 500, "Не удалось проверить объявление")
 			return
 		}
-		if err = h.validateInput(r.Context(), in, true); err != nil {
+		if err = h.validateInput(r.Context(), id, in, true); err != nil {
 			fail(w, 400, err.Error())
 			return
 		}
