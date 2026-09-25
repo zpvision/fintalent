@@ -10,6 +10,9 @@ CREATE TABLE IF NOT EXISTS contact_threads (
     CHECK(sender_id <> recipient_id)
 );
 
+ALTER TABLE contact_threads ADD COLUMN IF NOT EXISTS sender_read_at TIMESTAMPTZ;
+ALTER TABLE contact_threads ADD COLUMN IF NOT EXISTS recipient_read_at TIMESTAMPTZ;
+
 CREATE TABLE IF NOT EXISTS contact_messages (
     id BIGSERIAL PRIMARY KEY,
     thread_id BIGINT NOT NULL REFERENCES contact_threads(id) ON DELETE CASCADE,

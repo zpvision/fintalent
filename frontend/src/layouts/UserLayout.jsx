@@ -25,12 +25,13 @@ export default function UserLayout({ children, active = '' }) {
 
   useEffect(() => {
     let active=true
-    const update=()=>Promise.all([apiClient.get('/api/v1/help/notifications',{redirectOnUnauthorized:false}),apiClient.get('/api/v1/contact-threads',{redirectOnUnauthorized:false})]).then(([help,threads])=>{if(active){setHelpRequests(help.incoming_new||0);setContactRequests((threads||[]).filter(x=>x.incoming&&x.status==='pending').length)}}).catch(()=>{})
+    const update=()=>Promise.all([apiClient.get('/api/v1/help/notifications',{redirectOnUnauthorized:false}),apiClient.get('/api/v1/contact-threads',{redirectOnUnauthorized:false})]).then(([help,threads])=>{if(active){setHelpRequests(help.incoming_new||0);setContactRequests((threads||[]).reduce((sum,x)=>sum+Number(x.unread_count||0),0))}}).catch(()=>{})
     update()
     const timer=window.setInterval(update,30000)
     window.addEventListener('focus',update)
     window.addEventListener('help:notifications-changed',update)
-    return()=>{active=false;window.clearInterval(timer);window.removeEventListener('focus',update);window.removeEventListener('help:notifications-changed',update)}
+    window.addEventListener('contact:notifications-changed',update)
+    return()=>{active=false;window.clearInterval(timer);window.removeEventListener('focus',update);window.removeEventListener('help:notifications-changed',update);window.removeEventListener('contact:notifications-changed',update)}
   },[])
 
   useEffect(()=>{const update=event=>setMarketOrders(event.detail);window.addEventListener('profimarket:orders-read',update);return()=>window.removeEventListener('profimarket:orders-read',update)},[])

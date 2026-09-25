@@ -47,7 +47,9 @@ func contactThreads(w http.ResponseWriter, r *http.Request) {
 		CASE WHEN t.sender_id=$1 THEN ru.full_name ELSE su.full_name END,
 		CASE WHEN t.sender_id=$1 THEN COALESCE(ru.avatar_url,'') ELSE COALESCE(su.avatar_url,'') END,
 		COALESCE((SELECT body FROM contact_messages WHERE thread_id=t.id ORDER BY id DESC LIMIT 1),''),
-		(SELECT COUNT(*) FROM contact_messages WHERE thread_id=t.id)
+		(SELECT COUNT(*) FROM contact_messages WHERE thread_id=t.id),
+		(SELECT COUNT(*) FROM contact_messages m WHERE m.thread_id=t.id AND m.author_id<>$1
+			AND m.created_at>COALESCE(CASE WHEN t.sender_id=$1 THEN t.sender_read_at ELSE t.recipient_read_at END,'epoch'::timestamptz))
 		FROM contact_threads t JOIN users su ON su.id=t.sender_id JOIN users ru ON ru.id=t.recipient_id
 		WHERE t.sender_id=$1 OR t.recipient_id=$1 ORDER BY t.updated_at DESC`, u.ID)
 	if err != nil {
@@ -61,9 +63,9 @@ func contactThreads(w http.ResponseWriter, r *http.Request) {
 		var id, sid, rid int64
 		var subject, status, name, avatar, last string
 		var updated any
-		var count int
-		if rows.Scan(&id, &subject, &status, &sid, &rid, &updated, &name, &avatar, &last, &count) == nil {
-			items = append(items, map[string]any{"id": id, "subject": subject, "status": status, "sender_id": sid, "recipient_id": rid, "incoming": rid == u.ID, "person": map[string]any{"name": name, "avatar": avatar}, "last_message": last, "messages_count": count, "updated_at": updated})
+		var count, unread int
+		if rows.Scan(&id, &subject, &status, &sid, &rid, &updated, &name, &avatar, &last, &count, &unread) == nil {
+			items = append(items, map[string]any{"id": id, "subject": subject, "status": status, "sender_id": sid, "recipient_id": rid, "incoming": rid == u.ID, "person": map[string]any{"name": name, "avatar": avatar}, "last_message": last, "messages_count": count, "unread_count": unread, "updated_at": updated})
 		}
 	}
 	writeAdminJSON(w, 200, items)
@@ -113,7 +115,7 @@ func createContactThread(w http.ResponseWriter, r *http.Request, u *user) {
 	}
 	defer tx.Rollback()
 	var id int64
-	if err = tx.QueryRowContext(r.Context(), `INSERT INTO contact_threads(sender_id,recipient_id,resume_id,subject) VALUES($1,$2,$3,$4) RETURNING id`, u.ID, recipient, p.ResumeID, p.Subject).Scan(&id); err == nil {
+	if err = tx.QueryRowContext(r.Context(), `INSERT INTO contact_threads(sender_id,recipient_id,resume_id,subject,sender_read_at) VALUES($1,$2,$3,$4,NOW()) RETURNING id`, u.ID, recipient, p.ResumeID, p.Subject).Scan(&id); err == nil {
 		_, err = tx.ExecContext(r.Context(), `INSERT INTO contact_messages(thread_id,author_id,body) VALUES($1,$2,$3)`, id, u.ID, p.Message)
 	}
 	if err != nil || tx.Commit() != nil {
@@ -147,6 +149,10 @@ func contactThreadAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == http.MethodGet && action == "messages" {
+		_, _ = db.ExecContext(r.Context(), `UPDATE contact_threads SET
+			sender_read_at=CASE WHEN sender_id=$2 THEN NOW() ELSE sender_read_at END,
+			recipient_read_at=CASE WHEN recipient_id=$2 THEN NOW() ELSE recipient_read_at END
+			WHERE id=$1`, id, u.ID)
 		rows, e := db.QueryContext(r.Context(), `SELECT m.id,m.author_id,u.full_name,m.body,m.created_at FROM contact_messages m JOIN users u ON u.id=m.author_id WHERE m.thread_id=$1 ORDER BY m.id`, id)
 		if e != nil {
 			writeJSON(w, 500, "Не удалось загрузить переписку")
