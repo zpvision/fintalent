@@ -13,6 +13,7 @@
     'admin-duties-nav': '/admin/duties/categories',
     'client-exchange-nav': '/admin/client-exchange/employee_range',
     'accounting-company-nav': '/admin/accounting-companies/directions',
+    'community-nav': '/admin/community',
     'help-topics-nav': '/admin/help-topics',
     'profimarket-admin-nav': '/admin/profimarket/purchases',
   }
@@ -80,7 +81,7 @@
         dictionaries: 'dictionary-nav', users: 'users-nav', publications: 'publications-nav',
         'applicant-survey': 'survey-nav', 'vacancy-survey': 'vacancy-survey-nav', testing: 'admin-testing-nav',
         'other-dictionaries': 'other-dictionaries-nav', duties: 'admin-duties-nav',
-        'client-exchange': 'client-exchange-nav', 'accounting-companies': 'accounting-company-nav',
+        'client-exchange': 'client-exchange-nav', 'accounting-companies': 'accounting-company-nav', community: 'community-nav',
         'help-topics': 'help-topics-nav', profimarket: 'profimarket-admin-nav',
       }
       const navID = navBySection[section] || 'dictionary-nav'

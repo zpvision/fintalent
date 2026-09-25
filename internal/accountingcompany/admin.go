@@ -23,6 +23,83 @@ type dictionaryInput struct {
 	Active      bool   `json:"active"`
 }
 
+func (h *Handler) adminCompanies(w http.ResponseWriter, r *http.Request) {
+	if !h.admin(r) {
+		failure(w, http.StatusForbidden, "Недостаточно прав")
+		return
+	}
+	if r.Method != http.MethodGet {
+		failure(w, http.StatusMethodNotAllowed, "Метод не поддерживается")
+		return
+	}
+	query := `SELECT jsonb_build_object(
+		'id',c.id,'name',c.name,'slug',c.slug,'logo',c.logo,'city',c.city,'verified',c.verified,
+		'owner_name',u.full_name,'owner_email',u.email,'published_at',c.published_at,'updated_at',c.updated_at,
+		'services_count',(SELECT count(*) FROM accounting_company_services s WHERE s.company_id=c.id),
+		'directions_count',(SELECT count(*) FROM accounting_company_direction_links d WHERE d.company_id=c.id)
+	) FROM accounting_companies c JOIN users u ON u.id=c.owner_user_id
+	WHERE c.status='published' AND c.deleted_at IS NULL`
+	args := []any{}
+	if search := strings.TrimSpace(r.URL.Query().Get("q")); search != "" {
+		args = append(args, search)
+		query += ` AND (c.name ILIKE '%'||$1||'%' OR c.city ILIKE '%'||$1||'%' OR u.full_name ILIKE '%'||$1||'%' OR u.email ILIKE '%'||$1||'%')`
+	}
+	query += ` ORDER BY c.published_at DESC NULLS LAST,c.updated_at DESC,c.id DESC`
+	rows, err := h.db.QueryContext(r.Context(), query, args...)
+	if err != nil {
+		failure(w, http.StatusInternalServerError, "Не удалось загрузить компании")
+		return
+	}
+	defer rows.Close()
+	items := []json.RawMessage{}
+	for rows.Next() {
+		var raw []byte
+		if err = rows.Scan(&raw); err != nil {
+			failure(w, http.StatusInternalServerError, "Не удалось загрузить компании")
+			return
+		}
+		items = append(items, raw)
+	}
+	if err = rows.Err(); err != nil {
+		failure(w, http.StatusInternalServerError, "Не удалось загрузить компании")
+		return
+	}
+	response(w, http.StatusOK, map[string]any{"items": items})
+}
+
+func (h *Handler) adminCompanyAction(w http.ResponseWriter, r *http.Request) {
+	if !h.admin(r) {
+		failure(w, http.StatusForbidden, "Недостаточно прав")
+		return
+	}
+	if r.Method != http.MethodPost {
+		failure(w, http.StatusMethodNotAllowed, "Метод не поддерживается")
+		return
+	}
+	tail := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/admin/community/accounting-companies/"), "/")
+	parts := strings.Split(tail, "/")
+	if len(parts) != 2 || parts[1] != "archive" {
+		failure(w, http.StatusNotFound, "Действие не найдено")
+		return
+	}
+	id, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil || id < 1 {
+		failure(w, http.StatusNotFound, "Компания не найдена")
+		return
+	}
+	result, err := h.db.ExecContext(r.Context(), `UPDATE accounting_companies SET status='archived',updated_at=NOW() WHERE id=$1 AND status='published' AND deleted_at IS NULL`, id)
+	if err != nil {
+		failure(w, http.StatusInternalServerError, "Не удалось снять компанию с публикации")
+		return
+	}
+	updated, _ := result.RowsAffected()
+	if updated == 0 {
+		failure(w, http.StatusConflict, "Компания уже снята с публикации или не найдена")
+		return
+	}
+	response(w, http.StatusOK, map[string]any{"id": id, "status": "archived"})
+}
+
 func (h *Handler) adminDictionaries(w http.ResponseWriter, r *http.Request) {
 	if !h.admin(r) {
 		failure(w, 403, "Недостаточно прав")

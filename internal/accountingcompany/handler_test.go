@@ -1,10 +1,30 @@
 package accountingcompany
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 )
+
+func TestAdminCompanyEndpointsRequireAdmin(t *testing.T) {
+	handler := New(nil, nil, func(*http.Request) bool { return false })
+	for _, test := range []struct {
+		method string
+		path   string
+		handle http.HandlerFunc
+	}{
+		{http.MethodGet, "/api/admin/community/accounting-companies", handler.adminCompanies},
+		{http.MethodPost, "/api/admin/community/accounting-companies/12/archive", handler.adminCompanyAction},
+	} {
+		request := httptest.NewRequest(test.method, test.path, nil)
+		recorder := httptest.NewRecorder()
+		test.handle(recorder, request)
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf("%s %s: status=%d, want %d", test.method, test.path, recorder.Code, http.StatusForbidden)
+		}
+	}
+}
 
 func TestDecodeAcceptsServiceFieldsReturnedByAPI(t *testing.T) {
 	request := httptest.NewRequest("PUT", "/api/accounting-companies/12", strings.NewReader(`{

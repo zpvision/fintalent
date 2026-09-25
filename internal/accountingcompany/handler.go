@@ -98,6 +98,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/accounting-companies/", h.companyRoute)
 	mux.HandleFunc("/api/admin/accounting-companies/dictionaries", h.adminDictionaries)
 	mux.HandleFunc("/api/admin/accounting-companies/dictionaries/", h.adminDictionary)
+	mux.HandleFunc("/api/admin/community/accounting-companies", h.adminCompanies)
+	mux.HandleFunc("/api/admin/community/accounting-companies/", h.adminCompanyAction)
 }
 
 func response(w http.ResponseWriter, status int, data any) {

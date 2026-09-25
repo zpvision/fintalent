@@ -31,4 +31,4 @@ const modal=document.querySelector('#new-modal');document.querySelector('#new-di
 const testingScript=document.createElement('script');testingScript.src='/static/admin-tests.js?v=3';document.body.append(testingScript);
 const otherDictionariesScript=document.createElement('script');otherDictionariesScript.src='/static/admin-other-dictionaries.js?v=2';document.body.append(otherDictionariesScript);
 const dutiesScript=document.createElement('script');dutiesScript.src='/static/admin-duties.js?v=2';document.body.append(dutiesScript);
-const routingScript=document.createElement('script');routingScript.src='/static/admin-routing.js?v=2';routingScript.dataset.adminRouting='true';document.body.append(routingScript);
+const routingScript=document.createElement('script');routingScript.src='/static/admin-routing.js?v=3';routingScript.dataset.adminRouting='true';document.body.append(routingScript);
