@@ -55,6 +55,10 @@ export function publishAccountingCompany(id, options) {
   return apiClient.post(`/api/accounting-companies/${encodeURIComponent(id)}/publish`, null, options)
 }
 
+export function unpublishAccountingCompany(id, options) {
+  return apiClient.post(`/api/accounting-companies/${encodeURIComponent(id)}/archive`, null, options)
+}
+
 export function uploadAccountingCompanyImage(id, kind, file, options) {
   const body = new FormData()
   body.append('company_id', id)
