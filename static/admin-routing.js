@@ -13,7 +13,7 @@
     'admin-duties-nav': '/admin/duties/categories',
     'client-exchange-nav': '/admin/client-exchange/employee_range',
     'accounting-company-nav': '/admin/accounting-companies/directions',
-    'community-nav': '/admin/community',
+    'community-nav': '/admin/community/companies',
     'help-topics-nav': '/admin/help-topics',
     'profimarket-admin-nav': '/admin/profimarket/purchases',
   }
@@ -110,6 +110,8 @@
         await clickWhenReady(`#client-exchange-admin [data-kind="${CSS.escape(detail)}"]`)
       } else if (section === 'accounting-companies' && detail) {
         await clickWhenReady(`#accounting-company-admin [data-kind="${CSS.escape(detail)}"]`)
+      } else if (section === 'community' && detail) {
+        await clickWhenReady(`#admin-community [data-community-tab="${CSS.escape(detail)}"]`)
       } else if (section === 'profimarket' && detail) {
         await clickWhenReady(`#profimarket-admin [data-pm-tab="${CSS.escape(detail)}"]`)
       }
@@ -142,6 +144,7 @@
     else if (target.dataset.pmTab) setPath(`/admin/profimarket/${target.dataset.pmTab}`)
     else if (target.dataset.kind && target.closest('#client-exchange-admin')) setPath(`/admin/client-exchange/${target.dataset.kind}`)
     else if (target.dataset.kind && target.closest('#accounting-company-admin')) setPath(`/admin/accounting-companies/${target.dataset.kind}`)
+    else if (target.dataset.communityTab) setPath(`/admin/community/${target.dataset.communityTab}`)
     else if (target.id === 'back') setPath('/admin/dictionaries')
   }, true)
 
