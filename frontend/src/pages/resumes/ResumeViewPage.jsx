@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams } from 'react-router-dom'
 import { ApiError } from '../../api/client'
-import { createHelpRequest, getPublicResume, getResumeKnowledge, setResumeKnowledgeConfirmation } from '../../api/resumes'
+import { createContactRequest, createHelpRequest, getPublicResume, getResumeKnowledge, setResumeKnowledgeConfirmation } from '../../api/resumes'
 import { useDocumentPage } from '../../hooks/useDocumentPage'
 import usePageStyles from '../../hooks/usePageStyles'
 import PublicLayout from '../../layouts/PublicLayout'
@@ -77,7 +77,7 @@ function OptionIcon({ item }) {
   return item.icon ? <img src={item.icon} alt="" /> : <span className="fallback-icon">◇</span>
 }
 
-function Sidebar({ data, knowledgeAvailable }) {
+function Sidebar({ data, knowledgeAvailable, onContact }) {
   const [active, setActive] = useState('#overview')
   const hasHelp = Boolean(data.help?.topics?.length)
   const links = [
@@ -107,7 +107,7 @@ function Sidebar({ data, knowledgeAvailable }) {
           </a>
         ))}
       </nav>
-      <div className="resume-contact-card"><span>✦</span><b>{data.profile_mode === 'professional' ? 'Хотите обсудить задачу?' : 'Заинтересовал специалист?'}</b><p>{data.profile_mode === 'professional' ? 'Свяжитесь со специалистом и обсудите опыт или возможное сотрудничество.' : 'Свяжитесь и предложите обсудить профессиональные возможности.'}</p><button type="button">Связаться</button></div>
+      <div className="resume-contact-card"><span>✦</span><b>{data.profile_mode === 'professional' ? 'Хотите обсудить задачу?' : 'Заинтересовал специалист?'}</b><p>{data.profile_mode === 'professional' ? 'Свяжитесь со специалистом и обсудите опыт или возможное сотрудничество.' : 'Свяжитесь и предложите обсудить профессиональные возможности.'}</p><button type="button" onClick={onContact} disabled={data.is_owner}>{data.is_owner ? 'Это ваш профиль' : 'Связаться'}</button></div>
     </aside>
   )
 }
@@ -391,18 +391,29 @@ function Knowledge({ data, resumeId, onReload }) {
   return <section className="resume-card resume-knowledge knowledge-complete" id="knowledge"><div className="knowledge-title"><div><span>ТЕСТЫ И ЗНАНИЯ</span><h2>Подтверждённые профессиональные знания</h2><p>Результаты тестирования и рекомендации профессионального сообщества</p></div>{data.is_owner ? <a href="/marketplace">Пройти новый тест <span>→</span></a> : null}</div><div className="knowledge-results">{results.map((item) => <KnowledgeResult item={item} data={data} onToggle={toggle} busy={busyTest === item.test_id} key={item.test_id} />)}</div></section>
 }
 
+function ContactModal({ data, onClose }) {
+  const [subject,setSubject]=useState('Предложение о сотрудничестве')
+  const [message,setMessage]=useState('')
+  const [busy,setBusy]=useState(false)
+  const [error,setError]=useState('')
+  const [sent,setSent]=useState(false)
+  async function submit(event){event.preventDefault();setBusy(true);setError('');try{await createContactRequest({resume_id:data.id,subject,message});setSent(true)}catch(e){if(e.status===401){location.assign(`/login?next=${encodeURIComponent(location.pathname)}`);return}setError(e.message)}finally{setBusy(false)}}
+  return createPortal(<div className="contact-request-modal" onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}><section role="dialog" aria-modal="true"><button className="contact-close" type="button" onClick={onClose}>×</button>{sent?<div className="contact-success"><i>✓</i><h2>Запрос отправлен</h2><p>{data.name} увидит его в разделе «Сообщения». Переписка откроется после принятия запроса.</p><button type="button" onClick={onClose}>Хорошо</button></div>:<form onSubmit={submit}><small>БЕЗОПАСНЫЙ КОНТАКТ</small><h2>Связаться со специалистом</h2><p>Сначала отправьте короткий запрос. Контактные данные не раскрываются, пока специалист его не примет.</p><label>Тема<input maxLength="200" value={subject} onChange={e=>setSubject(e.target.value)}/></label><label>Сообщение<textarea autoFocus maxLength="2000" value={message} onChange={e=>setMessage(e.target.value)} placeholder="Представьтесь и коротко опишите предложение"/></label><div className="contact-request-meta"><span>{message.length} / 2000</span><em>Не добавляйте пароли и данные банковских карт</em></div>{error&&<div className="contact-request-error">{error}</div>}<button className="contact-submit" disabled={busy||message.trim().length<10}>{busy?'Отправляем…':'Отправить запрос'}</button></form>}</section></div>,document.body)
+}
 function ResumePageContent({ data, knowledge, resumeId, reloadKnowledge }) {
+  const [contactOpen,setContactOpen]=useState(false)
   const positions = positionNames(data)
   const title = positions.join(', ') || data.experiences?.[0]?.position || 'Финансовый специалист'
   return (
     <div className="resume-view-shell">
-      <Sidebar data={data} knowledgeAvailable={Boolean(knowledge)} />
+      <Sidebar data={data} knowledgeAvailable={Boolean(knowledge)} onContact={()=>setContactOpen(true)} />
       <main className="resume-view-main">
         <div id="resume-view-content" className="resume-view-content">
           <ResumeHero data={data} title={title} />
           <ResumeHelp data={data} />
           <div className="resume-view-grid resume-view-grid-wide"><div className="resume-column"><Skills data={data} />{knowledge ? <Knowledge data={knowledge} resumeId={resumeId} onReload={reloadKnowledge} /> : null}</div></div>
           <div className="resume-career-grid"><div className="resume-career-primary"><Experience data={data} /><Languages data={data} /></div><Education data={data} /><section className="resume-card resume-career-placeholder" aria-hidden="true" /></div>
+          {contactOpen ? <ContactModal data={data} onClose={()=>setContactOpen(false)} /> : null}
         </div>
       </main>
     </div>
@@ -426,6 +437,7 @@ export default function ResumeViewPage() {
     '/static/resume-knowledge-empty.css?v=2',
     '/static/resume-zodiac.css?v=2',
     '/static/resume-help-public.css?v=3',
+    '/static/contact-messages.css?v=1',
   ])
   useDocumentPage({ title: resume ? `${resume.name} — ${title} | FinTalent` : 'Профиль — FinTalent' })
 

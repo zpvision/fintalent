@@ -14,6 +14,7 @@ export default function UserLayout({ children, active = '' }) {
   const [resume, setResume] = useState(null)
   const [marketOrders,setMarketOrders]=useState({total_count:0,new_count:0})
   const [helpRequests,setHelpRequests]=useState(0)
+  const [contactRequests,setContactRequests]=useState(0)
   const name = String(user?.full_name || 'Пользователь').trim() || 'Пользователь'
   const initial = name.charAt(0).toUpperCase()
 
@@ -24,7 +25,7 @@ export default function UserLayout({ children, active = '' }) {
 
   useEffect(() => {
     let active=true
-    const update=()=>apiClient.get('/api/v1/help/notifications',{redirectOnUnauthorized:false}).then(data=>{if(active)setHelpRequests(data.incoming_new||0)}).catch(()=>{})
+    const update=()=>Promise.all([apiClient.get('/api/v1/help/notifications',{redirectOnUnauthorized:false}),apiClient.get('/api/v1/contact-threads',{redirectOnUnauthorized:false})]).then(([help,threads])=>{if(active){setHelpRequests(help.incoming_new||0);setContactRequests((threads||[]).filter(x=>x.incoming&&x.status==='pending').length)}}).catch(()=>{})
     update()
     const timer=window.setInterval(update,30000)
     window.addEventListener('focus',update)
@@ -53,7 +54,7 @@ export default function UserLayout({ children, active = '' }) {
       <nav className="profile-menu">
         <div className="menu-group"><a className="home-link" href="/"><Icon>⌂</Icon><span>На главную</span></a></div>
         <div className="menu-group"><small>Для компаний</small><a className={active === 'vacancies' ? 'active' : ''} href="/profile?section=vacancies" target="_self"><Icon>▣</Icon><span>Мои вакансии</span></a><a className={active === 'tests' ? 'active' : ''} href="/tests?tab=mine" target="_self"><Icon>♧</Icon><span>Мои тесты</span><b className="menu-new"><MenuFire/>Новое</b></a><a className={active === 'employee-tests' ? 'active' : ''} href="/tests?tab=employees" target="_self"><Icon>♙</Icon><span>Тестирование сотрудников</span></a><a className={active === 'my-company' ? 'active' : ''} href="/profile?section=my-company" target="_self"><Icon>▦</Icon><span>Моя компания</span></a></div>
-        <div className="menu-group"><small>О компании</small><a className={`profile-market-link${active === 'profimarket' ? ' active' : ''}`} href="/profile?section=profimarket" target="_self"><Icon>◇</Icon><span>ПрофиМаркет</span><b className="menu-new"><MenuFire/>Новое</b>{marketOrders.new_count > 0 && <b className="market-order-count" aria-label={`${marketOrders.new_count} новых обращений`}>{marketOrders.new_count}</b>}</a><a className={active === 'profimarket-purchases' ? 'active' : ''} href="/profile?section=profimarket-purchases" target="_self"><Icon>▣</Icon><span>Мои покупки</span></a><a className={active === 'client-exchange' ? 'active' : ''} href="/profile?section=client-exchange" target="_self"><Icon>▤</Icon><span>Клиентская биржа</span></a><a className={active === 'help' ? 'active' : ''} href="/profile?section=help" target="_self"><Icon>♧</Icon><span>Помощь коллегам</span>{helpRequests>0&&<b className="help-request-count" aria-label={`${helpRequests} новых запросов помощи`}>{helpRequests>99?'99+':helpRequests}</b>}</a><a className={active === 'profile' ? 'active' : ''} href="/profile" target="_self"><Icon>▤</Icon><span>Профиль и настройки</span></a></div>
+        <div className="menu-group"><small>О компании</small><a className={active === 'messages' ? 'active' : ''} href="/profile?section=messages" target="_self"><Icon>✉</Icon><span>Сообщения</span>{contactRequests>0&&<b className="help-request-count" aria-label={`${contactRequests} новых запросов`}>{contactRequests>99?'99+':contactRequests}</b>}</a><a className={`profile-market-link${active === 'profimarket' ? ' active' : ''}`} href="/profile?section=profimarket" target="_self"><Icon>◇</Icon><span>ПрофиМаркет</span><b className="menu-new"><MenuFire/>Новое</b>{marketOrders.new_count > 0 && <b className="market-order-count" aria-label={`${marketOrders.new_count} новых обращений`}>{marketOrders.new_count}</b>}</a><a className={active === 'profimarket-purchases' ? 'active' : ''} href="/profile?section=profimarket-purchases" target="_self"><Icon>▣</Icon><span>Мои покупки</span></a><a className={active === 'client-exchange' ? 'active' : ''} href="/profile?section=client-exchange" target="_self"><Icon>▤</Icon><span>Клиентская биржа</span></a><a className={active === 'help' ? 'active' : ''} href="/profile?section=help" target="_self"><Icon>♧</Icon><span>Помощь коллегам</span>{helpRequests>0&&<b className="help-request-count" aria-label={`${helpRequests} новых запросов помощи`}>{helpRequests>99?'99+':helpRequests}</b>}</a><a className={active === 'profile' ? 'active' : ''} href="/profile" target="_self"><Icon>▤</Icon><span>Профиль и настройки</span></a></div>
       </nav><div className="assistant-card"><div><i>✦</i><b>ИИ-помощник</b></div><p>Подберёт кандидатов под ваши задачи и сэкономит время</p><button>Попробовать</button></div><div className="sidebar-user"><i>{initial}</i><span><b>{name}</b><small>{user.email || ''}</small></span><button onClick={logout} title="Выйти">↪</button></div></aside>{children}</div>
   </>
 }

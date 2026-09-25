@@ -28,3 +28,7 @@ export function createHelpRequest(payload, options) {
     ...options,
   })
 }
+
+export function createContactRequest(payload, options) {
+  return apiClient.post('/api/v1/contact-threads', payload, { redirectOnUnauthorized: false, ...options })
+}

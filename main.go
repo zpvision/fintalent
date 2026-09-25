@@ -131,6 +131,7 @@ func main() {
 	registerClientExchangeRoutes()
 	registerAccountingCompanyRoutes()
 	registerHelpRoutes()
+	registerContactMessageRoutes()
 	testRepo := testrepository.New(db)
 	testService := testservice.New(testRepo)
 	testHandler := testhandler.New(testService, func(r *http.Request) (int64, error) {
@@ -255,6 +256,9 @@ func prepareDatabase() error {
 		return err
 	}
 	if err := prepareHelpDatabase(ctx); err != nil {
+		return err
+	}
+	if err := prepareContactMessagesDatabase(ctx); err != nil {
 		return err
 	}
 	if !demoDataEnabled() {
