@@ -1,4 +1,4 @@
-document.head.insertAdjacentHTML('beforeend','<link rel="stylesheet" href="/static/admin-users.css?v=2">');
+document.head.insertAdjacentHTML('beforeend','<link rel="stylesheet" href="/static/admin-users.css?v=3">');
 const usersNav=document.querySelector('#users-nav'),usersSection=document.querySelector('#users-section'),usersList=document.querySelector('#users-list'),usersEmpty=document.querySelector('#users-empty'),userModal=document.querySelector('#user-modal'),userForm=document.querySelector('#user-form'),passwordModal=document.querySelector('#password-modal'),passwordForm=document.querySelector('#password-form');
 let adminUsers=[];
 
@@ -14,6 +14,10 @@ async function showUsers(){
 }
 
 function renderUsers(){
+  let summary=usersSection.querySelector('.users-summary');
+  if(!summary){summary=document.createElement('div');summary.className='users-summary';usersSection.prepend(summary)}
+  const blocked=adminUsers.filter(user=>user.is_blocked).length;
+  summary.innerHTML=`<article><i>♙</i><span><small>ВСЕГО ПРОФИЛЕЙ</small><b>${adminUsers.length}</b><em>зарегистрированных пользователей</em></span></article><article class="blocked"><i>!</i><span><small>ЗАБЛОКИРОВАНО</small><b>${blocked}</b><em>${blocked?'доступ к аккаунтам закрыт':'заблокированных нет'}</em></span></article>`;
   usersEmpty.classList.toggle('hidden',adminUsers.length!==0);document.querySelector('.users-table-wrap').classList.toggle('hidden',adminUsers.length===0);
   usersList.innerHTML=adminUsers.map(user=>`<tr class="${user.is_blocked?'blocked':''}" data-id="${user.id}"><td><b>${esc(user.email)}</b>${user.is_blocked?'<small>Аккаунт заблокирован</small>':''}</td><td>${esc(user.full_name)}</td><td>${user.resume_id?`<a class="secondary user-profile" href="/profiles/view/${user.resume_id}" target="_blank" rel="noopener">Открыть профиль ↗</a>`:'<span class="user-profile-empty">Нет опубликованного профиля</span>'}</td><td><button class="secondary user-edit">Изменить</button></td><td><button class="${user.is_blocked?'secondary':'danger'} user-block">${user.is_blocked?'Разблокировать':'Заблокировать'}</button></td><td><button class="secondary user-password">Изменить пароль</button></td></tr>`).join('');
   usersList.querySelectorAll('.user-edit').forEach(button=>button.onclick=()=>openUserModal(button.closest('tr')));
