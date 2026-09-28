@@ -23,37 +23,70 @@ export default function usePageStyles(stylesheets) {
     pendingStyleOwners.add(owner)
     document.documentElement.classList.add('react-page-styles-loading')
     const sharedStylesStart = document.querySelector('link[href="/static/layout-safety.css"]')
+    let notice
+    const clearNotice = () => { notice?.remove(); notice = undefined }
+    const showFailure = () => {
+      if (notice || !activeStyleOwners.has(owner)) return
+      notice = document.createElement('div')
+      notice.setAttribute('role', 'alert')
+      notice.dataset.pageStylesError = String(owner)
+      // Outside #root: the page stays hidden until its styles really load.
+      Object.assign(notice.style, { position: 'fixed', top: '90px', left: '16px', right: '16px', zIndex: '10000', padding: '20px', background: '#fff', color: '#20243c', border: '1px solid #ddd', borderRadius: '12px', textAlign: 'center' })
+      const message = document.createElement('p')
+      message.textContent = 'Не удалось загрузить оформление страницы. Проверьте соединение и повторите.'
+      const retry = document.createElement('button')
+      retry.type = 'button'; retry.textContent = 'Повторить загрузку'
+      retry.addEventListener('click', () => { clearNotice(); entries.forEach(entry => entry.retry()) })
+      notice.append(message, retry)
+      document.body.append(notice)
+    }
     const entries = key.split('\u0000').filter(Boolean).map((href) => {
-      const link = document.createElement('link')
-      link.rel = 'stylesheet'
-      link.dataset.reactPageStyle = 'true'
-      link.dataset.reactPageStyleOwner = String(owner)
-      const ready = new Promise((resolve) => {
-        let settled = false
-        const finish = () => {
-          if (settled) return
-          settled = true
-          resolve()
+      let link, timer, retryTimer, detach, resolveReady, loaded = false, attempts = 0, cancelled = false
+      const ready = new Promise(resolve => { resolveReady = resolve })
+      const stop = () => { clearTimeout(timer); clearTimeout(retryTimer); detach?.() }
+      const start = () => {
+        if (loaded || cancelled || !activeStyleOwners.has(owner)) return
+        stop(); link?.remove(); attempts++
+        link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.dataset.reactPageStyle = 'true'
+        link.dataset.reactPageStyleOwner = String(owner)
+        const success = () => {
+          if (cancelled || loaded) return
+          stop(); loaded = true; resolveReady(true)
         }
-        link.addEventListener('load', finish, { once: true })
-        link.addEventListener('error', finish, { once: true })
-        window.setTimeout(finish, 3000)
-      })
-      link.href = href
-      document.head.insertBefore(link, sharedStylesStart)
-      return { link, ready }
+        const failure = () => {
+          stop()
+          if (cancelled) return
+          showFailure()
+          if (attempts < 3) retryTimer = window.setTimeout(start, 500)
+        }
+        link.addEventListener('load', success, { once: true })
+        link.addEventListener('error', failure, { once: true })
+        detach = () => { link.removeEventListener('load', success); link.removeEventListener('error', failure) }
+        timer = window.setTimeout(failure, 10000)
+        const url = new URL(href, location.href)
+        if (attempts > 1) url.searchParams.set('_style_retry', `${owner}-${attempts}`)
+        link.href = url.href
+        document.head.insertBefore(link, sharedStylesStart)
+      }
+      start()
+      return { ready, retry: start, cancel: () => { cancelled = true; stop(); resolveReady(false) } }
     })
 
-    Promise.all(entries.map((entry) => entry.ready)).then(() => {
+    Promise.all(entries.map((entry) => entry.ready)).then((loaded) => {
+      if (!activeStyleOwners.has(owner) || loaded.some(value => !value)) return
+      clearNotice()
       pendingStyleOwners.delete(owner)
-      if (activeStyleOwners.has(owner)) removeInactiveStyles()
-      else entries.forEach((entry) => entry.link.remove())
+      removeInactiveStyles()
       finishLoadingWhenReady()
     })
 
     return () => {
       activeStyleOwners.delete(owner)
       pendingStyleOwners.delete(owner)
+      clearNotice()
+      entries.forEach(entry => entry.cancel())
       // Keep the previous page styled until the replacement styles have loaded.
       queueMicrotask(() => {
         if (!pendingStyleOwners.size) removeInactiveStyles()

@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"io"
@@ -38,6 +39,12 @@ func publicationActionAPI(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	action := parts[1]
+	switch action {
+	case "reaction", "bookmark", "comments", "recommendations", "versions", "report", "progress":
+		if !requirePublicationAccess(w, r, id, r.Method == http.MethodGet) {
+			return
+		}
+	}
 	switch action {
 	case "publish", "unpublish", "relevance":
 		publicationStateAction(w, r, id, action)
@@ -207,10 +214,18 @@ func togglePublicationReaction(w http.ResponseWriter, r *http.Request, id int64)
 		writeJSON(w, 400, "Некорректная реакция")
 		return
 	}
+	tx, ok := beginPublicationInteraction(w, r, id)
+	if !ok {
+		return
+	}
+	defer tx.Rollback()
 	var active bool
-	err = db.QueryRowContext(r.Context(), `WITH removed AS (DELETE FROM publication_reactions WHERE publication_id=$1 AND user_id=$2 AND reaction_type=$3 RETURNING 1),added AS (INSERT INTO publication_reactions(publication_id,user_id,reaction_type) SELECT $1,$2,$3 WHERE NOT EXISTS(SELECT 1 FROM removed) ON CONFLICT DO NOTHING RETURNING 1) SELECT EXISTS(SELECT 1 FROM added)`, id, u.ID, in.Type).Scan(&active)
+	err = tx.QueryRowContext(r.Context(), `WITH removed AS (DELETE FROM publication_reactions WHERE publication_id=$1 AND user_id=$2 AND reaction_type=$3 RETURNING 1),added AS (INSERT INTO publication_reactions(publication_id,user_id,reaction_type) SELECT $1,$2,$3 WHERE NOT EXISTS(SELECT 1 FROM removed) ON CONFLICT DO NOTHING RETURNING 1) SELECT EXISTS(SELECT 1 FROM added)`, id, u.ID, in.Type).Scan(&active)
 	if err != nil {
 		writeJSON(w, 500, "Не удалось сохранить реакцию")
+		return
+	}
+	if !commitPublicationInteraction(w, tx) {
 		return
 	}
 	writeAdminJSON(w, 200, map[string]any{"active": active})
@@ -226,10 +241,18 @@ func togglePublicationBookmark(w http.ResponseWriter, r *http.Request, id int64)
 		writeJSON(w, 401, "Требуется авторизация")
 		return
 	}
+	tx, ok := beginPublicationInteraction(w, r, id)
+	if !ok {
+		return
+	}
+	defer tx.Rollback()
 	var active bool
-	err = db.QueryRowContext(r.Context(), `WITH removed AS (DELETE FROM publication_bookmarks WHERE publication_id=$1 AND user_id=$2 RETURNING 1),added AS (INSERT INTO publication_bookmarks(publication_id,user_id) SELECT $1,$2 WHERE NOT EXISTS(SELECT 1 FROM removed) ON CONFLICT DO NOTHING RETURNING 1) SELECT EXISTS(SELECT 1 FROM added)`, id, u.ID).Scan(&active)
+	err = tx.QueryRowContext(r.Context(), `WITH removed AS (DELETE FROM publication_bookmarks WHERE publication_id=$1 AND user_id=$2 RETURNING 1),added AS (INSERT INTO publication_bookmarks(publication_id,user_id) SELECT $1,$2 WHERE NOT EXISTS(SELECT 1 FROM removed) ON CONFLICT DO NOTHING RETURNING 1) SELECT EXISTS(SELECT 1 FROM added)`, id, u.ID).Scan(&active)
 	if err != nil {
 		writeJSON(w, 500, "Не удалось сохранить закладку")
+		return
+	}
+	if !commitPublicationInteraction(w, tx) {
 		return
 	}
 	writeAdminJSON(w, 200, map[string]any{"active": active})
@@ -244,7 +267,11 @@ func publicationAuthorAPI(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 404, "Действие не найдено")
 		return
 	}
-	authorID, _ := strconv.ParseInt(parts[0], 10, 64)
+	authorID, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil || authorID <= 0 {
+		writeJSON(w, 400, "Некорректный автор")
+		return
+	}
 	u, err := userFromRequest(r)
 	if err != nil {
 		writeJSON(w, 401, "Требуется авторизация")
@@ -254,14 +281,35 @@ func publicationAuthorAPI(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, "Нельзя подписаться на себя")
 		return
 	}
+	tx, err := db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeJSON(w, 500, "Не удалось изменить подписку")
+		return
+	}
+	defer tx.Rollback()
+	var found int64
+	if err := tx.QueryRowContext(r.Context(), `SELECT id FROM users WHERE id=$1 AND (NOT is_blocked OR is_system) FOR SHARE`, authorID).Scan(&found); err != nil {
+		if err == sql.ErrNoRows {
+			writeJSON(w, 404, "Автор не найден")
+		} else {
+			writeJSON(w, 500, "Не удалось проверить автора")
+		}
+		return
+	}
 	var active bool
-	err = db.QueryRowContext(r.Context(), `WITH removed AS (DELETE FROM author_subscriptions WHERE subscriber_id=$1 AND author_id=$2 RETURNING 1),added AS (INSERT INTO author_subscriptions(subscriber_id,author_id) SELECT $1,$2 WHERE NOT EXISTS(SELECT 1 FROM removed) ON CONFLICT DO NOTHING RETURNING 1) SELECT EXISTS(SELECT 1 FROM added)`, u.ID, authorID).Scan(&active)
+	err = tx.QueryRowContext(r.Context(), `WITH removed AS (DELETE FROM author_subscriptions WHERE subscriber_id=$1 AND author_id=$2 RETURNING 1),added AS (INSERT INTO author_subscriptions(subscriber_id,author_id) SELECT $1,$2 WHERE NOT EXISTS(SELECT 1 FROM removed) ON CONFLICT DO NOTHING RETURNING 1) SELECT EXISTS(SELECT 1 FROM added)`, u.ID, authorID).Scan(&active)
 	if err != nil {
 		writeJSON(w, 500, "Не удалось изменить подписку")
 		return
 	}
 	if active {
-		_, _ = db.ExecContext(r.Context(), `INSERT INTO notifications(user_id,type,title,body,entity_type,entity_id) SELECT $1,'new_follower','Новый подписчик',$2,'user',$3`, authorID, u.FullName+" подписался на ваши публикации", u.ID)
+		if _, err := tx.ExecContext(r.Context(), `INSERT INTO notifications(user_id,type,title,body,entity_type,entity_id) SELECT $1,'new_follower','Новый подписчик',$2,'user',$3`, authorID, u.FullName+" подписался на ваши публикации", u.ID); err != nil {
+			writeJSON(w, 500, "Не удалось сохранить уведомление")
+			return
+		}
+	}
+	if !commitPublicationInteraction(w, tx) {
+		return
 	}
 	writeAdminJSON(w, 200, map[string]any{"active": active})
 }

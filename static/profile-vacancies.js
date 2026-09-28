@@ -1,5 +1,5 @@
 (()=>{
-  const escapeHTML=value=>{const node=document.createElement('span');node.textContent=value??'';return node.innerHTML}
+  const escapeHTML=value=>{const node=document.createElement('span');node.textContent=value??'';return node.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
   const money=value=>Number(value).toLocaleString('ru-RU')
   const date=value=>new Date(value).toLocaleDateString('ru-RU',{day:'2-digit',month:'long',year:'numeric'})
   const statusLabel=status=>({published:'Опубликована',draft:'Черновик',archived:'В архиве'})[status]||status

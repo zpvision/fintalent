@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"log"
@@ -64,9 +66,15 @@ func contactThreads(w http.ResponseWriter, r *http.Request) {
 		var subject, status, name, avatar, last string
 		var updated any
 		var count, unread int
-		if rows.Scan(&id, &subject, &status, &sid, &rid, &updated, &name, &avatar, &last, &count, &unread) == nil {
-			items = append(items, map[string]any{"id": id, "subject": subject, "status": status, "sender_id": sid, "recipient_id": rid, "incoming": rid == u.ID, "person": map[string]any{"name": name, "avatar": avatar}, "last_message": last, "messages_count": count, "unread_count": unread, "updated_at": updated})
+		if err = rows.Scan(&id, &subject, &status, &sid, &rid, &updated, &name, &avatar, &last, &count, &unread); err != nil {
+			writeJSON(w, 500, "Не удалось загрузить сообщения")
+			return
 		}
+		items = append(items, map[string]any{"id": id, "subject": subject, "status": status, "sender_id": sid, "recipient_id": rid, "incoming": rid == u.ID, "person": map[string]any{"name": name, "avatar": avatar}, "last_message": last, "messages_count": count, "unread_count": unread, "updated_at": updated})
+	}
+	if err = rows.Err(); err != nil {
+		writeJSON(w, 500, "Не удалось загрузить сообщения")
+		return
 	}
 	writeAdminJSON(w, 200, items)
 }
@@ -82,13 +90,24 @@ func createContactThread(w http.ResponseWriter, r *http.Request, u *user) {
 	}
 	p.Subject = strings.TrimSpace(p.Subject)
 	p.Message = strings.TrimSpace(p.Message)
-	if p.ResumeID < 1 || len([]rune(p.Message)) < 10 || len([]rune(p.Message)) > 2000 {
+	if len([]rune(p.Subject)) > 200 || p.ResumeID < 1 || len([]rune(p.Message)) < 10 || len([]rune(p.Message)) > 2000 {
 		writeJSON(w, 400, "Напишите сообщение от 10 до 2000 символов")
 		return
 	}
 	var recipient int64
 	var recipientName, recipientEmail string
-	if err := db.QueryRowContext(r.Context(), `SELECT r.user_id,u.full_name,u.email FROM resumes r JOIN users u ON u.id=r.user_id WHERE r.id=$1 AND r.deleted_at IS NULL AND r.status='published'`, p.ResumeID).Scan(&recipient, &recipientName, &recipientEmail); err != nil {
+	tx, err := db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeJSON(w, 500, "Не удалось отправить запрос")
+		return
+	}
+	defer tx.Rollback()
+	if err = tx.QueryRowContext(r.Context(), `SELECT r.user_id,u.full_name,u.email FROM resumes r JOIN users u ON u.id=r.user_id WHERE r.id=$1 AND r.deleted_at IS NULL AND r.status='published' AND NOT u.is_blocked AND NOT u.is_system AND (r.visibility='public' OR EXISTS(SELECT 1 FROM resume_help_topics h JOIN help_topics ht ON ht.id=h.topic_id WHERE h.resume_id=r.id AND ht.is_active AND ht.deleted_at IS NULL)) FOR SHARE OF r,u`, p.ResumeID).Scan(&recipient, &recipientName, &recipientEmail); err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			log.Printf("contact profile access: %v", err)
+			writeJSON(w, 500, "Не удалось проверить профиль")
+			return
+		}
 		writeJSON(w, 404, "Профиль недоступен")
 		return
 	}
@@ -96,33 +115,51 @@ func createContactThread(w http.ResponseWriter, r *http.Request, u *user) {
 		writeJSON(w, 400, "Нельзя отправить запрос самому себе")
 		return
 	}
+	var sender int64
+	if err = tx.QueryRowContext(r.Context(), `SELECT id FROM users WHERE id=$1 AND NOT is_blocked AND NOT is_system FOR SHARE`, u.ID).Scan(&sender); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSON(w, 401, "Войдите в аккаунт")
+		} else {
+			writeJSON(w, 500, "Не удалось проверить отправителя")
+		}
+		return
+	}
+	if _, err = tx.ExecContext(r.Context(), "SELECT pg_advisory_xact_lock(hashtextextended($1,0))", fmt.Sprintf("contact:%d:%d", u.ID, recipient)); err != nil {
+		writeJSON(w, 500, "Не удалось отправить запрос")
+		return
+	}
 	var blocked bool
-	_ = db.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM contact_threads WHERE sender_id=$1 AND recipient_id=$2 AND status='blocked')`, u.ID, recipient).Scan(&blocked)
+	err = tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM contact_threads WHERE sender_id=$1 AND recipient_id=$2 AND status='blocked')`, u.ID, recipient).Scan(&blocked)
+	if err != nil {
+		writeJSON(w, 500, "Не удалось проверить запрос")
+		return
+	}
 	if blocked {
 		writeJSON(w, 403, "Пользователь ограничил новые сообщения")
 		return
 	}
 	var recent int
-	_ = db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM contact_threads WHERE sender_id=$1 AND recipient_id=$2 AND created_at>NOW()-INTERVAL '7 days'`, u.ID, recipient).Scan(&recent)
+	err = tx.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM contact_threads WHERE sender_id=$1 AND recipient_id=$2 AND created_at>NOW()-INTERVAL '7 days'`, u.ID, recipient).Scan(&recent)
+	if err != nil {
+		writeJSON(w, 500, "Не удалось проверить запрос")
+		return
+	}
 	if recent >= 2 {
 		writeJSON(w, 429, "Можно отправить не более двух запросов этому специалисту за 7 дней")
 		return
 	}
-	tx, err := db.BeginTx(r.Context(), nil)
-	if err != nil {
-		writeJSON(w, 500, "Не удалось отправить запрос")
-		return
-	}
-	defer tx.Rollback()
 	var id int64
 	if err = tx.QueryRowContext(r.Context(), `INSERT INTO contact_threads(sender_id,recipient_id,resume_id,subject,sender_read_at) VALUES($1,$2,$3,$4,NOW()) RETURNING id`, u.ID, recipient, p.ResumeID, p.Subject).Scan(&id); err == nil {
 		_, err = tx.ExecContext(r.Context(), `INSERT INTO contact_messages(thread_id,author_id,body) VALUES($1,$2,$3)`, id, u.ID, p.Message)
+	}
+	if err == nil {
+		data := eventNotificationEmailData{RecipientName: recipientName, Badge: "НОВЫЙ ЗАПРОС", Title: "С вами хотят связаться", Intro: u.FullName + " отправил(а) запрос через профессиональный профиль.", CardLabel: "Сообщение", CardTitle: p.Message, ButtonText: "Открыть сообщения", ButtonURL: applicationBaseURL() + "/profile?section=messages", Accent: template.CSS("#5b5bd6"), Footer: "Ответьте на запрос в личном кабинете FinTalent."}
+		err = enqueueNotification(r.Context(), tx, "event", recipientName, recipientEmail, "Новый запрос на связь — FinTalent", data, "")
 	}
 	if err != nil || tx.Commit() != nil {
 		writeJSON(w, 500, "Не удалось отправить запрос")
 		return
 	}
-	sendEventNotificationAsync("contact request", recipientName, recipientEmail, "Новый запрос на связь — FinTalent", eventNotificationEmailData{RecipientName: recipientName, Badge: "НОВЫЙ ЗАПРОС", Title: "С вами хотят связаться", Intro: u.FullName + " отправил(а) запрос через профессиональный профиль.", CardLabel: "Сообщение", CardTitle: p.Message, ButtonText: "Открыть сообщения", ButtonURL: applicationBaseURL() + "/profile?section=messages", Accent: template.CSS("#5b5bd6"), Footer: "Ответьте на запрос в личном кабинете FinTalent."})
 	writeAdminJSON(w, 201, map[string]any{"id": id, "message": "Запрос отправлен"})
 }
 
@@ -164,15 +201,40 @@ func contactThreadAction(w http.ResponseWriter, r *http.Request) {
 			var mid, aid int64
 			var name, body string
 			var at any
-			if rows.Scan(&mid, &aid, &name, &body, &at) == nil {
-				out = append(out, map[string]any{"id": mid, "author_id": aid, "author_name": name, "body": body, "created_at": at, "mine": aid == u.ID})
+			if e = rows.Scan(&mid, &aid, &name, &body, &at); e != nil {
+				writeJSON(w, 500, "Не удалось загрузить переписку")
+				return
 			}
+			out = append(out, map[string]any{"id": mid, "author_id": aid, "author_name": name, "body": body, "created_at": at, "mine": aid == u.ID})
+		}
+		if e = rows.Err(); e != nil {
+			writeJSON(w, 500, "Не удалось загрузить переписку")
+			return
 		}
 		writeAdminJSON(w, 200, out)
 		return
 	}
 	if r.Method != http.MethodPost {
 		writeJSON(w, 405, "Метод не поддерживается")
+		return
+	}
+	tx, err := db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeJSON(w, 500, "Не удалось выполнить действие")
+		return
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(r.Context(), "SELECT pg_advisory_xact_lock(hashtextextended($1,0))", fmt.Sprintf("contact:%d:%d", sid, rid)); err != nil {
+		writeJSON(w, 500, "Не удалось выполнить действие")
+		return
+	}
+	if err = tx.QueryRowContext(r.Context(), `SELECT t.sender_id,t.recipient_id,t.status FROM contact_threads t JOIN users su ON su.id=t.sender_id JOIN users ru ON ru.id=t.recipient_id WHERE t.id=$1 AND (t.sender_id=$2 OR t.recipient_id=$2) AND NOT su.is_blocked AND NOT ru.is_blocked FOR UPDATE OF t FOR SHARE OF su,ru`, id, u.ID).Scan(&sid, &rid, &status); err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			log.Printf("contact action access: %v", err)
+			writeJSON(w, 500, "Не удалось выполнить действие")
+			return
+		}
+		writeJSON(w, 404, "Диалог недоступен")
 		return
 	}
 	var p struct {
@@ -188,7 +250,7 @@ func contactThreadAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		next := map[string]string{"accept": "accepted", "decline": "declined", "block": "blocked"}[action]
-		_, err = db.ExecContext(r.Context(), `UPDATE contact_threads SET status=$1,updated_at=NOW() WHERE id=$2`, next, id)
+		_, err = tx.ExecContext(r.Context(), `UPDATE contact_threads SET status=$1,updated_at=NOW() WHERE id=$2`, next, id)
 	case "messages":
 		if status != "accepted" {
 			writeJSON(w, 409, "Переписка ещё не открыта")
@@ -199,22 +261,27 @@ func contactThreadAction(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, 400, "Сообщение должно быть от 1 до 4000 символов")
 			return
 		}
-		_, err = db.ExecContext(r.Context(), `WITH ins AS (INSERT INTO contact_messages(thread_id,author_id,body) VALUES($1,$2,$3) RETURNING 1) UPDATE contact_threads SET updated_at=NOW() WHERE id=$1 AND EXISTS(SELECT 1 FROM ins)`, id, u.ID, p.Message)
+		_, err = tx.ExecContext(r.Context(), `WITH ins AS (INSERT INTO contact_messages(thread_id,author_id,body) VALUES($1,$2,$3) RETURNING 1) UPDATE contact_threads SET updated_at=NOW() WHERE id=$1 AND EXISTS(SELECT 1 FROM ins)`, id, u.ID, p.Message)
 	case "report":
 		p.Reason = strings.TrimSpace(p.Reason)
 		if len([]rune(p.Reason)) < 5 || len([]rune(p.Reason)) > 1000 {
 			writeJSON(w, 400, "Опишите причину жалобы")
 			return
 		}
-		_, err = db.ExecContext(r.Context(), `INSERT INTO contact_reports(thread_id,reporter_id,reason) VALUES($1,$2,$3) ON CONFLICT(thread_id,reporter_id) DO UPDATE SET reason=EXCLUDED.reason,created_at=NOW()`, id, u.ID, p.Reason)
+		_, err = tx.ExecContext(r.Context(), `INSERT INTO contact_reports(thread_id,reporter_id,reason) VALUES($1,$2,$3) ON CONFLICT(thread_id,reporter_id) DO UPDATE SET reason=EXCLUDED.reason,created_at=NOW()`, id, u.ID, p.Reason)
 		if err == nil {
-			go sendContactReportEmail(id, u, p.Reason)
+			data := eventNotificationEmailData{RecipientName: "Команда FinTalent", Badge: "ЖАЛОБА", Title: "Жалоба на переписку", Intro: fmt.Sprintf("Диалог №%d", id), CardLabel: "Причина", CardTitle: p.Reason, ButtonText: "Открыть FinTalent", ButtonURL: applicationBaseURL() + "/admin"}
+			err = enqueueNotification(r.Context(), tx, "event", "FinTalent", "info@fintalent.ru", "Жалоба на переписку — FinTalent", data, "")
 		}
 	default:
 		writeJSON(w, 404, "Действие не найдено")
 		return
 	}
 	if err != nil {
+		writeJSON(w, 500, "Не удалось выполнить действие")
+		return
+	}
+	if err = tx.Commit(); err != nil {
 		writeJSON(w, 500, "Не удалось выполнить действие")
 		return
 	}

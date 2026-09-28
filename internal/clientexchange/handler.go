@@ -275,6 +275,15 @@ func (h *Handler) createListing(ctx context.Context, userID int64, input Listing
 }
 
 func (h *Handler) validateInput(ctx context.Context, listingID int64, in ListingInput, publishing bool) error {
+	return validateListingInput(ctx, h.db, listingID, in, publishing)
+}
+
+type listingReader interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+}
+
+func validateListingInput(ctx context.Context, source listingReader, listingID int64, in ListingInput, publishing bool) error {
 	normalizeIndustryIDs(&in)
 	normalizeTransferReasonIDs(&in)
 	if in.ClientINN != "" && !validINN(in.ClientINN) {
@@ -303,20 +312,20 @@ func (h *Handler) validateInput(ctx context.Context, listingID int64, in Listing
 		if x.id != nil {
 			var ok bool
 			query := `SELECT EXISTS(SELECT 1 FROM client_exchange_dictionary_items WHERE id=$1 AND kind=$2 AND ((active AND deleted_at IS NULL) OR EXISTS(SELECT 1 FROM client_exchange_listings WHERE id=$3 AND ` + x.column + `=$1)))`
-			if err := h.db.QueryRowContext(ctx, query, *x.id, x.kind, listingID).Scan(&ok); err != nil || !ok {
+			if err := source.QueryRowContext(ctx, query, *x.id, x.kind, listingID).Scan(&ok); err != nil || !ok {
 				return fmt.Errorf("некорректное значение справочника %s", x.kind)
 			}
 		}
 	}
 	for _, id := range in.IndustryIDs {
 		var ok bool
-		if err := h.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM client_exchange_dictionary_items WHERE id=$1 AND kind='industry' AND ((active AND deleted_at IS NULL) OR EXISTS(SELECT 1 FROM client_exchange_listing_options WHERE listing_id=$2 AND item_id=$1 AND kind='industry')))`, id, listingID).Scan(&ok); err != nil || !ok {
+		if err := source.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM client_exchange_dictionary_items WHERE id=$1 AND kind='industry' AND ((active AND deleted_at IS NULL) OR EXISTS(SELECT 1 FROM client_exchange_listing_options WHERE listing_id=$2 AND item_id=$1 AND kind='industry')))`, id, listingID).Scan(&ok); err != nil || !ok {
 			return errors.New("invalid industry")
 		}
 	}
 	for _, id := range in.TransferReasonIDs {
 		var ok bool
-		if err := h.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM client_exchange_dictionary_items WHERE id=$1 AND kind='transfer_reason' AND ((active AND deleted_at IS NULL) OR EXISTS(SELECT 1 FROM client_exchange_listing_options WHERE listing_id=$2 AND item_id=$1 AND kind='transfer_reason')))`, id, listingID).Scan(&ok); err != nil || !ok {
+		if err := source.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM client_exchange_dictionary_items WHERE id=$1 AND kind='transfer_reason' AND ((active AND deleted_at IS NULL) OR EXISTS(SELECT 1 FROM client_exchange_listing_options WHERE listing_id=$2 AND item_id=$1 AND kind='transfer_reason')))`, id, listingID).Scan(&ok); err != nil || !ok {
 			return errors.New("invalid transfer reason")
 		}
 	}

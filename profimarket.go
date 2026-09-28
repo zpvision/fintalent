@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/mail"
 	"os"
@@ -351,6 +350,9 @@ func profiMarketReviewsAPI(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, "Некорректное решение")
 			return
 		}
+		if !requireProfiAccess(w, r, solutionID, true) {
+			return
+		}
 		u := profiCurrentUser(r)
 		userID := int64(0)
 		if u != nil {
@@ -385,7 +387,7 @@ func profiMarketReviewsAPI(w http.ResponseWriter, r *http.Request) {
 		if userID > 0 {
 			err = db.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM profimarket_purchases p JOIN profimarket_solutions s ON s.id=p.solution_id WHERE p.solution_id=$1 AND p.buyer_user_id=$2 AND p.status='COMPLETED' AND s.author_user_id<>$2)`, solutionID, userID).Scan(&canReview)
 			if err != nil {
-				writeJSON(w, http.StatusInternalServerError, "Не удалось проверить покупку")
+				writeJSON(w, http.StatusInternalServerError, "Не удалось проверить заявку")
 				return
 			}
 		}
@@ -413,15 +415,18 @@ func profiMarketReviewsAPI(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, "Укажите оценку от 1 до 5 и комментарий до 2000 символов")
 		return
 	}
+	if !requireProfiAccess(w, r, input.SolutionID, false) {
+		return
+	}
 	var purchaseID int64
 	err := db.QueryRowContext(r.Context(), `SELECT p.id FROM profimarket_purchases p JOIN profimarket_solutions s ON s.id=p.solution_id
 		WHERE p.solution_id=$1 AND p.buyer_user_id=$2 AND p.status='COMPLETED' AND s.author_user_id<>$2 ORDER BY p.created_at DESC,p.id DESC LIMIT 1`, input.SolutionID, u.ID).Scan(&purchaseID)
 	if errors.Is(err, sql.ErrNoRows) {
-		writeJSON(w, http.StatusForbidden, "Отзыв доступен после покупки или оформления пробного периода")
+		writeJSON(w, http.StatusForbidden, "Отзыв доступен после отправки заявки автору")
 		return
 	}
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, "Не удалось проверить покупку")
+		writeJSON(w, http.StatusInternalServerError, "Не удалось проверить заявку")
 		return
 	}
 	_, err = db.ExecContext(r.Context(), `INSERT INTO profimarket_reviews(solution_id,purchase_id,user_id,rating,comment) VALUES($1,$2,$3,$4,$5)
@@ -442,6 +447,9 @@ func profiMarketQuestionsAPI(w http.ResponseWriter, r *http.Request) {
 		solutionID, err := strconv.ParseInt(r.URL.Query().Get("solution_id"), 10, 64)
 		if err != nil || solutionID <= 0 {
 			writeJSON(w, http.StatusBadRequest, "Некорректное решение")
+			return
+		}
+		if !requireProfiAccess(w, r, solutionID, true) {
 			return
 		}
 		current := profiCurrentUser(r)
@@ -512,7 +520,7 @@ func profiMarketQuestionsAPI(w http.ResponseWriter, r *http.Request) {
 	}
 	var solutionTitle, solutionSlug, ownerName, ownerEmail string
 	var ownerID int64
-	err := db.QueryRowContext(r.Context(), `SELECT s.author_user_id,s.title,s.slug,u.full_name,u.email FROM profimarket_solutions s JOIN users u ON u.id=s.author_user_id WHERE s.id=$1 AND s.deleted_at IS NULL AND (s.status='PUBLISHED' OR s.author_user_id=$2)`, input.SolutionID, current.ID).Scan(&ownerID, &solutionTitle, &solutionSlug, &ownerName, &ownerEmail)
+	err := db.QueryRowContext(r.Context(), `SELECT s.author_user_id,s.title,s.slug,u.full_name,u.email FROM profimarket_solutions s JOIN users u ON u.id=s.author_user_id WHERE s.id=$1 AND s.deleted_at IS NULL AND (NOT u.is_blocked OR u.is_system) AND (s.status='PUBLISHED' OR s.author_user_id=$2)`, input.SolutionID, current.ID).Scan(&ownerID, &solutionTitle, &solutionSlug, &ownerName, &ownerEmail)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeJSON(w, http.StatusNotFound, "Решение не найдено")
 		return
@@ -560,7 +568,7 @@ func profiMarketQuestionActionAPI(w http.ResponseWriter, r *http.Request) {
 	}
 	var askerName, askerEmail, solutionTitle, solutionSlug, question string
 	err = db.QueryRowContext(r.Context(), `UPDATE profimarket_questions q SET answer=$1,answered_at=NOW(),updated_at=NOW()
-		FROM profimarket_solutions s,users u WHERE q.id=$2 AND s.id=q.solution_id AND s.author_user_id=$3 AND u.id=q.user_id
+		FROM profimarket_solutions s,users u WHERE q.id=$2 AND s.id=q.solution_id AND s.author_user_id=$3 AND s.deleted_at IS NULL AND s.status='PUBLISHED' AND u.id=q.user_id
 		RETURNING u.full_name,u.email,s.title,s.slug,q.question`, input.Answer, id, current.ID).Scan(&askerName, &askerEmail, &solutionTitle, &solutionSlug, &question)
 	if errors.Is(err, sql.ErrNoRows) {
 		writeJSON(w, http.StatusForbidden, "Ответить может только автор решения")
@@ -631,6 +639,9 @@ func decodeStringArray(raw []byte) []string {
 	return values
 }
 func validateProfiInput(input *profiSolutionInput, publishing bool) error {
+	if err := validateProfiResources(input); err != nil {
+		return err
+	}
 	input.Type = strings.ToUpper(strings.TrimSpace(input.Type))
 	validTypes := map[string]bool{"REGULATION": true, "AI_ASSISTANT": true, "AUTOMATION": true, "INSTRUCTION": true, "ONEC_INTEGRATION": true, "TEMPLATE": true, "CHECKLIST": true}
 	if !validTypes[input.Type] {
@@ -925,6 +936,9 @@ func profiMarketSolutionAPI(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, 200, "Решение снято с публикации")
 	case "favorite":
+		if !requireProfiAccess(w, r, id, false) {
+			return
+		}
 		profiFavoriteAction(w, r, id, u)
 	case "purchase":
 		profiPurchaseAction(w, r, id, u)
@@ -1065,27 +1079,47 @@ func loadProfiSolution(ctx context.Context, key string, u *user) (*profiSolution
 		}
 		rows.Close()
 	}
-	rows, _ = db.QueryContext(ctx, `SELECT id,title,description,COALESCE(image_url,''),COALESCE(icon_image_url,''),COALESCE(numbering_color,''),sort_order FROM profimarket_regulation_sections WHERE solution_id=$1 ORDER BY sort_order,id`, x.ID)
-	if rows != nil {
-		for rows.Next() {
-			var s profiSection
-			if rows.Scan(&s.ID, &s.Title, &s.Description, &s.ImageURL, &s.IconImageURL, &s.NumberingColor, &s.SortOrder) != nil {
-				continue
-			}
-			s.Items = []profiItem{}
-			ir, _ := db.QueryContext(ctx, `SELECT id,title,description,sort_order FROM profimarket_regulation_items WHERE section_id=$1 ORDER BY sort_order,id`, s.ID)
-			if ir != nil {
-				for ir.Next() {
-					var it profiItem
-					if ir.Scan(&it.ID, &it.Title, &it.Description, &it.SortOrder) == nil {
-						s.Items = append(s.Items, it)
-					}
-				}
-				ir.Close()
-			}
-			x.Sections = append(x.Sections, s)
+	rows, err = db.QueryContext(ctx, `SELECT id,title,description,COALESCE(image_url,''),COALESCE(icon_image_url,''),COALESCE(numbering_color,''),sort_order FROM profimarket_regulation_sections WHERE solution_id=$1 ORDER BY sort_order,id`, x.ID)
+	if err != nil {
+		return nil, err
+	}
+	indexes := map[int64]int{}
+	for rows.Next() {
+		var section profiSection
+		if err = rows.Scan(&section.ID, &section.Title, &section.Description, &section.ImageURL, &section.IconImageURL, &section.NumberingColor, &section.SortOrder); err != nil {
+			rows.Close()
+			return nil, err
 		}
-		rows.Close()
+		section.Items = []profiItem{}
+		indexes[section.ID] = len(x.Sections)
+		x.Sections = append(x.Sections, section)
+	}
+	err = rows.Err()
+	rows.Close()
+	if err != nil {
+		return nil, err
+	}
+	if len(x.Sections) > 0 {
+		items, e := db.QueryContext(ctx, `SELECT i.section_id,i.id,i.title,i.description,i.sort_order FROM profimarket_regulation_items i JOIN profimarket_regulation_sections s ON s.id=i.section_id WHERE s.solution_id=$1 ORDER BY i.section_id,i.sort_order,i.id`, x.ID)
+		if e != nil {
+			return nil, e
+		}
+		for items.Next() {
+			var sectionID int64
+			var item profiItem
+			if e = items.Scan(&sectionID, &item.ID, &item.Title, &item.Description, &item.SortOrder); e != nil {
+				items.Close()
+				return nil, e
+			}
+			if index, ok := indexes[sectionID]; ok {
+				x.Sections[index].Items = append(x.Sections[index].Items, item)
+			}
+		}
+		e = items.Err()
+		items.Close()
+		if e != nil {
+			return nil, e
+		}
 	}
 	loadFeatures := func(table string, target *[]profiFeature) {
 		columns := "id,icon,title,description,sort_order"
@@ -1168,6 +1202,11 @@ func profiPurchaseAction(w http.ResponseWriter, r *http.Request, id int64, u *us
 		writeJSON(w, 401, "Требуется авторизация")
 		return
 	}
+	requestKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+	if len(requestKey) > 100 || strings.ContainsAny(requestKey, " \r\n\t") {
+		writeJSON(w, 400, "Некорректный ключ запроса")
+		return
+	}
 	var input profiPurchaseInput
 	if !profiDecode(w, r, &input) {
 		return
@@ -1194,14 +1233,42 @@ func profiPurchaseAction(w http.ResponseWriter, r *http.Request, id int64, u *us
 	}
 	tx, err := db.BeginTx(r.Context(), nil)
 	if err != nil {
-		writeJSON(w, 500, "Не удалось оформить покупку")
+		writeJSON(w, 500, "Не удалось оформить заявку")
 		return
 	}
 	defer tx.Rollback()
+	fingerprintData, _ := json.Marshal(struct {
+		ID    int64
+		Input profiPurchaseInput
+	}{id, input})
+	fingerprint := hashSessionToken(string(fingerprintData))
+	if requestKey != "" {
+		if _, err = tx.ExecContext(r.Context(), "SELECT pg_advisory_xact_lock(hashtextextended($1,0))", fmt.Sprintf("purchase:%d:%s", u.ID, requestKey)); err != nil {
+			writeJSON(w, 500, "Не удалось оформить заявку")
+			return
+		}
+		var existingID int64
+		var existingFingerprint string
+		err = tx.QueryRowContext(r.Context(), "SELECT id,request_fingerprint FROM profimarket_purchases WHERE buyer_user_id=$1 AND request_key=$2", u.ID, requestKey).Scan(&existingID, &existingFingerprint)
+		if err == nil {
+			if existingFingerprint != fingerprint {
+				writeJSON(w, 409, "Ключ запроса уже использован")
+				return
+			}
+			profiRespond(w, 200, map[string]any{"purchase_id": existingID, "message": "Заявка уже оформлена"})
+			return
+		}
+		if err != sql.ErrNoRows {
+			writeJSON(w, 500, "Не удалось проверить заявку")
+			return
+		}
+	}
 	var purchaseID int64
-	err = tx.QueryRowContext(r.Context(), `INSERT INTO profimarket_purchases(solution_id,buyer_user_id,seller_user_id,amount,currency,pricing_type,status,product_title_snapshot,product_slug_snapshot,product_type_snapshot,product_cover_snapshot,product_description_snapshot,seller_name_snapshot) VALUES($1,$2,$3,$4,$5,$6,'COMPLETED',$7,$8,$9,$10,$11,$12) RETURNING id`, x.ID, u.ID, x.AuthorUserID, x.Price, x.Currency, x.PricingType, x.Title, x.Slug, x.Type, x.CoverImage, x.ShortDescription, x.AuthorName).Scan(&purchaseID)
+	// The current commercial model is a submitted lead, not a captured payment.
+	// Keep the historical API status; amount is the author's quoted price.
+	err = tx.QueryRowContext(r.Context(), `INSERT INTO profimarket_purchases(solution_id,buyer_user_id,seller_user_id,amount,currency,pricing_type,status,product_title_snapshot,product_slug_snapshot,product_type_snapshot,product_cover_snapshot,product_description_snapshot,seller_name_snapshot,request_key,request_fingerprint) VALUES($1,$2,$3,$4,$5,$6,'COMPLETED',$7,$8,$9,$10,$11,$12,NULLIF($13,''),$14) RETURNING id`, x.ID, u.ID, x.AuthorUserID, x.Price, x.Currency, x.PricingType, x.Title, x.Slug, x.Type, x.CoverImage, x.ShortDescription, x.AuthorName, requestKey, fingerprint).Scan(&purchaseID)
 	if err != nil {
-		writeJSON(w, 500, "Не удалось оформить покупку")
+		writeJSON(w, 500, "Не удалось оформить заявку")
 		return
 	}
 	if x.Type == "REGULATION" {
@@ -1211,7 +1278,7 @@ func profiPurchaseAction(w http.ResponseWriter, r *http.Request, id int64, u *us
 			return
 		}
 	}
-	actionTitle := "Новая покупка"
+	actionTitle := "Новая заявка"
 	if x.Type == "AI_ASSISTANT" && x.TrialDays > 0 {
 		actionTitle = "Новая заявка на бесплатный период"
 	}
@@ -1220,43 +1287,42 @@ func profiPurchaseAction(w http.ResponseWriter, r *http.Request, id int64, u *us
 		writeJSON(w, 500, "Не удалось уведомить продавца о заказе")
 		return
 	}
-	if err = tx.Commit(); err != nil {
-		writeJSON(w, 500, "Не удалось завершить покупку")
-		return
-	}
 	priceText := fmt.Sprintf("%.0f ₽", x.Price)
 	if x.PricingType == "FREE" || x.Price == 0 {
 		priceText = "Бесплатно"
 	}
-	buyerTitle := "Покупка успешно оформлена"
-	buyerIntro := "Решение добавлено в раздел «Мои покупки». Автор получил ваши контакты и сможет связаться с вами для передачи материалов или уточнения деталей."
+	buyerTitle := "Заявка отправлена"
+	buyerIntro := "Заявка сохранена в личном кабинете. Автор получил ваши контакты. Оплата на сайте не производится; условия и передачу материалов согласуйте с автором."
 	if x.Type == "AI_ASSISTANT" && x.TrialDays > 0 {
 		buyerTitle = "Заявка на бесплатный период отправлена"
 		buyerIntro = "Автор решения получил вашу заявку и контакты. Все сведения о заявке сохранены в личном кабинете."
 	}
-	sendEventNotificationAsync("profimarket purchase buyer", u.FullName, u.Email, buyerTitle+" — FinTalent", eventNotificationEmailData{
-		Badge: "ПрофиМаркет · Покупка", Title: buyerTitle, Intro: buyerIntro,
+	err = enqueueNotification(r.Context(), tx, "event", u.FullName, u.Email, buyerTitle+" — FinTalent", eventNotificationEmailData{
+		Badge: "ПрофиМаркет · Заявка", Title: buyerTitle, Intro: buyerIntro,
 		CardLabel: "Решение", CardTitle: x.Title, Details: priceText,
-		ButtonText: "Открыть мои покупки", ButtonURL: applicationBaseURL() + "/profile?section=profimarket-purchases",
+		ButtonText: "Открыть мои заявки", ButtonURL: applicationBaseURL() + "/profile?section=profimarket-purchases",
 		Accent: "#6544ea", Footer: fmt.Sprintf("Заказ №%d", purchaseID),
-	})
-	var sellerName, sellerEmail string
-	if db.QueryRowContext(r.Context(), `SELECT full_name,email FROM users WHERE id=$1`, x.AuthorUserID).Scan(&sellerName, &sellerEmail) == nil {
-		emailData := profiMarketOrderEmailData{BuyerName: u.FullName, BuyerEmail: u.Email, ProductTitle: x.Title, ActionTitle: actionTitle, PriceText: priceText, PurchaseID: purchaseID}
-		var emailErr error
-		for attempt := 1; attempt <= 2; attempt++ {
-			emailErr = sendProfiMarketOrderEmail(sellerName, sellerEmail, emailData)
-			if emailErr == nil {
-				log.Printf("profimarket order email sent to seller %d for purchase %d", x.AuthorUserID, purchaseID)
-				break
-			}
-			log.Printf("profimarket order email attempt %d to seller %d for purchase %d: %v", attempt, x.AuthorUserID, purchaseID, emailErr)
-			if attempt == 1 {
-				time.Sleep(400 * time.Millisecond)
-			}
-		}
+	}, fmt.Sprintf("purchase:%d:buyer", purchaseID))
+	if err != nil {
+		writeJSON(w, 500, "Не удалось сохранить уведомление")
+		return
 	}
-	message := "Покупка оформлена. Автор получил ваши контакты и свяжется с вами."
+	var sellerName, sellerEmail string
+	if err = tx.QueryRowContext(r.Context(), "SELECT full_name,email FROM users WHERE id=$1", x.AuthorUserID).Scan(&sellerName, &sellerEmail); err != nil {
+		writeJSON(w, 500, "Не удалось оформить заявку")
+		return
+	}
+	emailData := profiMarketOrderEmailData{BuyerName: u.FullName, BuyerEmail: u.Email, ProductTitle: x.Title, ActionTitle: actionTitle, PriceText: priceText, PurchaseID: purchaseID}
+	if err = enqueueNotification(r.Context(), tx, "order", sellerName, sellerEmail, "", emailData, fmt.Sprintf("purchase:%d:seller", purchaseID)); err != nil {
+		writeJSON(w, 500, "Не удалось сохранить уведомление")
+		return
+	}
+	if err = tx.Commit(); err != nil {
+		writeJSON(w, 500, "Не удалось оформить заявку")
+		return
+	}
+
+	message := "Заявка отправлена. Автор получил ваши контакты. Оплата на сайте не производится."
 	if x.Type == "AI_ASSISTANT" && x.TrialDays > 0 {
 		message = "Заявка на бесплатный период отправлена автору. Он получил ваши контакты и свяжется с вами."
 	}

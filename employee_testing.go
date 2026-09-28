@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"database/sql"
+	_ "embed"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -18,7 +19,12 @@ import (
 	"time"
 
 	"FinTalent/internal/testmodule/domain"
+	"FinTalent/internal/testmodule/dto"
+	"FinTalent/internal/testmodule/repository"
 )
+
+//go:embed migrations/067_invitation_expiry.sql
+var invitationExpiryMigration string
 
 const employeeTestingMigration = `
 CREATE TABLE IF NOT EXISTS company_test_employees (
@@ -96,6 +102,10 @@ func registerEmployeeTestingRoutes() {
 
 func prepareEmployeeTestingDatabase(ctx context.Context) error {
 	_, err := db.ExecContext(ctx, employeeTestingMigration)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, invitationExpiryMigration)
 	return err
 }
 
@@ -491,14 +501,17 @@ func employeeTestingInvitations(w http.ResponseWriter, r *http.Request) {
 			TestURL:         applicationBaseURL() + relativeURL,
 		}})
 	}
+	for _, invitation := range emails {
+		if err = enqueueNotification(r.Context(), tx, "employee", invitation.data.EmployeeName, invitation.address, "", invitation.data, ""); err != nil {
+			jsonError(w, 500, "Не удалось сохранить приглашения")
+			return
+		}
+	}
 	if err = tx.Commit(); err != nil {
 		jsonError(w, 500, "Не удалось создать приглашения")
 		return
 	}
-	for _, invitation := range emails {
-		sendEmployeeTestInvitationAsync(invitation.address, invitation.data)
-	}
-	jsonResponse(w, 201, map[string]any{"items": links, "email_sent": true, "message": "Приглашения созданы. Письма с персональными ссылками отправлены выбранным сотрудникам."})
+	jsonResponse(w, 201, map[string]any{"items": links, "email_sent": false, "email_queued": true, "message": "Приглашения созданы. Письма с персональными ссылками поставлены в очередь отправки."})
 }
 
 func employeeTestingInvitationAction(w http.ResponseWriter, r *http.Request) {
@@ -508,7 +521,7 @@ func employeeTestingInvitationAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	parts := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/employee-testing/invitations/"), "/"), "/")
-	if r.Method != http.MethodPost || len(parts) != 2 || parts[1] != "retake" {
+	if r.Method != http.MethodPost || len(parts) != 2 || (parts[1] != "retake" && parts[1] != "revoke") {
 		jsonError(w, http.StatusMethodNotAllowed, "Метод не поддерживается")
 		return
 	}
@@ -518,6 +531,19 @@ func employeeTestingInvitationAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if parts[1] == "revoke" {
+		result, err := db.ExecContext(r.Context(), "UPDATE company_test_invitations SET status='revoked' WHERE id=$1 AND owner_user_id=$2 AND status IN('sent','started')", invitationID, u.ID)
+		if err != nil {
+			jsonError(w, 500, "Не удалось отозвать приглашение")
+			return
+		}
+		if n, _ := result.RowsAffected(); n != 1 {
+			jsonError(w, 404, "Приглашение недоступно")
+			return
+		}
+		jsonResponse(w, 200, map[string]bool{"revoked": true})
+		return
+	}
 	var employeeID, testID, versionID, questionCount int64
 	var employeeName, employeeEmail, testTitle string
 	var timeLimitSeconds int
@@ -529,7 +555,13 @@ func employeeTestingInvitationAction(w http.ResponseWriter, r *http.Request) {
 
 	token := invitationToken()
 	var newInvitationID int64
-	err = db.QueryRowContext(r.Context(), `INSERT INTO company_test_invitations(owner_user_id,employee_id,test_id,test_version_id,token) VALUES($1,$2,$3,$4,$5) RETURNING id`, u.ID, employeeID, testID, versionID, token).Scan(&newInvitationID)
+	tx, err := db.BeginTx(r.Context(), nil)
+	if err != nil {
+		jsonError(w, 500, "Не удалось назначить пересдачу")
+		return
+	}
+	defer tx.Rollback()
+	err = tx.QueryRowContext(r.Context(), `INSERT INTO company_test_invitations(owner_user_id,employee_id,test_id,test_version_id,token) VALUES($1,$2,$3,$4,$5) RETURNING id`, u.ID, employeeID, testID, versionID, token).Scan(&newInvitationID)
 	if err != nil {
 		jsonError(w, http.StatusInternalServerError, "Не удалось назначить пересдачу")
 		return
@@ -539,7 +571,7 @@ func employeeTestingInvitationAction(w http.ResponseWriter, r *http.Request) {
 		durationMinutes = (timeLimitSeconds + 59) / 60
 	}
 	relativeURL := "/employee-test?token=" + token
-	sendEmployeeTestInvitationAsync(employeeEmail, employeeTestInvitationEmailData{
+	err = enqueueNotification(r.Context(), tx, "employee", employeeName, employeeEmail, "", employeeTestInvitationEmailData{
 		EmployeeName:    employeeName,
 		OrganizerName:   u.FullName,
 		TestTitle:       testTitle,
@@ -547,10 +579,18 @@ func employeeTestingInvitationAction(w http.ResponseWriter, r *http.Request) {
 		DurationMinutes: durationMinutes,
 		TestURL:         applicationBaseURL() + relativeURL,
 		IsRetake:        true,
-	})
+	}, "")
+	if err != nil {
+		jsonError(w, 500, "Не удалось сохранить приглашение")
+		return
+	}
+	if err = tx.Commit(); err != nil {
+		jsonError(w, 500, "Не удалось сохранить приглашение")
+		return
+	}
 	jsonResponse(w, http.StatusCreated, map[string]any{
-		"id": newInvitationID, "url": relativeURL, "email_sent": true,
-		"message": "Пользователю назначен новый тест и отправлена ссылка на почту",
+		"id": newInvitationID, "url": relativeURL, "email_sent": false, "email_queued": true,
+		"message": "Назначена пересдача. Письмо со ссылкой поставлено в очередь отправки.",
 	})
 }
 
@@ -622,64 +662,31 @@ func employeeTestInfo(w http.ResponseWriter, r *http.Request, token string) {
 	var attemptStarted sql.NullTime
 	var limit, questionCount int
 	var shuffleAnswers bool
-	if db.QueryRowContext(r.Context(), `SELECT i.id,i.test_id,i.test_version_id,e.full_name,v.title,i.status,i.attempt_id,i.started_at,COALESCE(t.time_limit_seconds,0),(SELECT COUNT(*) FROM test_questions q WHERE q.test_version_id=i.test_version_id),v.shuffle_answers FROM company_test_invitations i JOIN company_test_employees e ON e.id=i.employee_id JOIN test_versions v ON v.id=i.test_version_id JOIN tests t ON t.id=i.test_id WHERE i.token=$1 AND i.status<>'revoked'`, token).Scan(&id, &testID, &versionID, &employee, &title, &status, &attempt, &attemptStarted, &limit, &questionCount, &shuffleAnswers) != nil {
+	if db.QueryRowContext(r.Context(), `SELECT i.id,i.test_id,i.test_version_id,e.full_name,v.title,i.status,i.attempt_id,i.started_at,COALESCE((SELECT (a.context->>'time_limit_seconds')::int FROM test_attempts a WHERE a.id=i.attempt_id),t.time_limit_seconds,0),(SELECT COUNT(*) FROM test_questions q WHERE q.test_version_id=i.test_version_id),v.shuffle_answers FROM company_test_invitations i JOIN company_test_employees e ON e.id=i.employee_id JOIN test_versions v ON v.id=i.test_version_id JOIN tests t ON t.id=i.test_id WHERE i.token=$1 AND i.status<>'revoked' AND i.expires_at>NOW() AND EXISTS(SELECT 1 FROM users owner WHERE owner.id=i.owner_user_id AND NOT owner.is_blocked AND NOT owner.is_system)`, token).Scan(&id, &testID, &versionID, &employee, &title, &status, &attempt, &attemptStarted, &limit, &questionCount, &shuffleAnswers) != nil {
 		jsonError(w, 404, "Ссылка недействительна")
 		return
 	}
 	questions := []map[string]any{}
 	answeredQuestionIDs := []int64{}
 	if attempt.Valid {
-		rows, err := db.QueryContext(r.Context(), `SELECT q.id,q.question,q.question_type,q.points FROM test_questions q WHERE q.test_version_id=$1 ORDER BY q.sort_order,q.id`, versionID)
+		loaded, err := repository.New(db).GetAttempt(r.Context(), attempt.Int64)
 		if err != nil {
 			jsonError(w, 500, "Не удалось загрузить вопросы теста")
 			return
 		}
-		defer rows.Close()
-		for rows.Next() {
-			var q domain.Question
-			if err = rows.Scan(&q.ID, &q.Question, &q.Type, &q.Points); err != nil {
-				jsonError(w, 500, "Не удалось загрузить вопросы теста")
-				return
-			}
-			arows, err := db.QueryContext(r.Context(), `SELECT id,answer FROM test_answers WHERE question_id=$1 ORDER BY sort_order,id`, q.ID)
-			if err != nil {
-				jsonError(w, 500, "Не удалось загрузить варианты ответа")
-				return
-			}
-			for arows.Next() {
-				var a domain.Answer
-				if err = arows.Scan(&a.ID, &a.Answer); err != nil {
-					arows.Close()
-					jsonError(w, 500, "Не удалось загрузить варианты ответа")
-					return
-				}
-				q.Answers = append(q.Answers, a)
-			}
-			err = arows.Err()
-			arows.Close()
-			if err != nil {
-				jsonError(w, 500, "Не удалось загрузить варианты ответа")
-				return
-			}
-			domain.PrepareAnswerOrder([]domain.Question{q}, attempt.Int64, shuffleAnswers)
+		domain.HideQuestionSolutions(loaded.Questions)
+		for _, q := range loaded.Questions {
 			answers := []map[string]any{}
 			for _, a := range q.Answers {
 				answers = append(answers, map[string]any{"id": a.ID, "answer": a.Answer})
 			}
 			questions = append(questions, map[string]any{"id": q.ID, "question": q.Question, "question_type": q.Type, "points": q.Points, "answers": answers})
 		}
-		if rows.Err() != nil {
-			jsonError(w, 500, "Не удалось загрузить вопросы теста")
-			return
-		}
-		answeredRows, answeredErr := db.QueryContext(r.Context(), `SELECT DISTINCT question_id FROM test_attempt_answers WHERE attempt_id=$1 ORDER BY question_id`, attempt.Int64)
-		if answeredErr == nil {
-			defer answeredRows.Close()
-			for answeredRows.Next() {
-				var questionID int64
-				if answeredRows.Scan(&questionID) == nil {
-					answeredQuestionIDs = append(answeredQuestionIDs, questionID)
-				}
+		seen := map[int64]bool{}
+		for _, a := range loaded.Answers {
+			if !seen[a.QuestionID] {
+				answeredQuestionIDs = append(answeredQuestionIDs, a.QuestionID)
+				seen[a.QuestionID] = true
 			}
 		}
 	}
@@ -704,7 +711,7 @@ func employeeTestStart(w http.ResponseWriter, r *http.Request, token string) {
 	var invitationID, testID, versionID, ownerID int64
 	var attempt sql.NullInt64
 	var status string
-	if tx.QueryRowContext(r.Context(), `SELECT id,test_id,test_version_id,owner_user_id,attempt_id,status FROM company_test_invitations WHERE token=$1 FOR UPDATE`, token).Scan(&invitationID, &testID, &versionID, &ownerID, &attempt, &status) != nil || status == "revoked" {
+	if tx.QueryRowContext(r.Context(), `SELECT id,test_id,test_version_id,owner_user_id,attempt_id,status FROM company_test_invitations WHERE token=$1 AND expires_at>NOW() AND EXISTS(SELECT 1 FROM users owner WHERE owner.id=owner_user_id AND NOT owner.is_blocked AND NOT owner.is_system) AND EXISTS(SELECT 1 FROM tests t JOIN users author ON author.id=t.author_id WHERE t.id=test_id AND t.deleted_at IS NULL AND ((t.author_id=owner_user_id AND t.status IN('draft','published')) OR (t.status='published' AND t.visibility IN('public','marketplace'))) AND (NOT author.is_blocked OR author.is_system)) FOR UPDATE`, token).Scan(&invitationID, &testID, &versionID, &ownerID, &attempt, &status) != nil || status == "revoked" {
 		jsonError(w, 404, "Ссылка недействительна")
 		return
 	}
@@ -714,7 +721,7 @@ func employeeTestStart(w http.ResponseWriter, r *http.Request, token string) {
 	}
 	attemptID := attempt.Int64
 	if !attempt.Valid {
-		err = tx.QueryRowContext(r.Context(), `INSERT INTO test_attempts(test_id,test_version_id,user_id,max_score,context) SELECT $1,$2,$3,COALESCE(SUM(points),0),jsonb_build_object('employee_invitation_id',$4::bigint) FROM test_questions WHERE test_version_id=$2 RETURNING id`, testID, versionID, ownerID, invitationID).Scan(&attemptID)
+		err = tx.QueryRowContext(r.Context(), `INSERT INTO test_attempts(test_id,test_version_id,user_id,max_score,context) SELECT $1,$2,$3,COALESCE(SUM(points),0),jsonb_build_object('employee_invitation_id',$4::bigint,'time_limit_seconds',(SELECT COALESCE(time_limit_seconds,0) FROM tests WHERE id=$1),'passing_percent',(SELECT passing_percent FROM tests WHERE id=$1)) FROM test_questions WHERE test_version_id=$2 RETURNING id`, testID, versionID, ownerID, invitationID).Scan(&attemptID)
 		if err != nil {
 			jsonError(w, 500, "Не удалось начать тест")
 			return
@@ -737,35 +744,21 @@ func employeeTestAnswer(w http.ResponseWriter, r *http.Request, token string) {
 	if !decodeJSONBody(w, r, &in) {
 		return
 	}
-	var attemptID int64
-	if db.QueryRowContext(r.Context(), `SELECT i.attempt_id FROM company_test_invitations i JOIN tests t ON t.id=i.test_id WHERE i.token=$1 AND i.status='started' AND (COALESCE(t.time_limit_seconds,0)=0 OR i.started_at+(t.time_limit_seconds*INTERVAL '1 second')>NOW())`, token).Scan(&attemptID) != nil {
-		jsonError(w, 403, "Попытка недоступна")
-		return
-	}
 	tx, err := db.BeginTx(r.Context(), nil)
 	if err != nil {
 		jsonError(w, 500, "Не удалось сохранить ответ")
 		return
 	}
 	defer tx.Rollback()
-	var responseSeconds int
-	if err = tx.QueryRowContext(r.Context(), `SELECT GREATEST(0,EXTRACT(EPOCH FROM NOW()-COALESCE((SELECT MAX(answered_at) FROM test_attempt_answers WHERE attempt_id=$1),(SELECT started_at FROM test_attempts WHERE id=$1)))::int)`, attemptID).Scan(&responseSeconds); err != nil {
-		jsonError(w, 500, "Не удалось сохранить время ответа")
+	var attemptID int64
+	if err = tx.QueryRowContext(r.Context(), `SELECT i.attempt_id FROM company_test_invitations i JOIN users u ON u.id=i.owner_user_id WHERE i.token=$1 AND i.status='started' AND i.expires_at>NOW() AND NOT u.is_blocked AND NOT u.is_system FOR UPDATE OF i`, token).Scan(&attemptID); err != nil {
+		jsonError(w, 403, "Попытка недоступна")
 		return
 	}
-	if _, err = tx.ExecContext(r.Context(), `DELETE FROM test_attempt_answers WHERE attempt_id=$1 AND question_id=$2`, attemptID, in.QuestionID); err != nil {
-		jsonError(w, 500, "Не удалось сохранить ответ")
+	err = repository.SaveAttemptAnswerTx(r.Context(), tx, attemptID, dto.SubmitAnswer{QuestionID: in.QuestionID, SelectedAnswerIDs: in.SelectedAnswerIDs, TextAnswer: strings.TrimSpace(in.TextAnswer)})
+	if errors.Is(err, repository.ErrForbidden) {
+		jsonError(w, 403, "Ответ или попытка недоступны")
 		return
-	}
-	if len(in.SelectedAnswerIDs) == 0 {
-		_, err = tx.ExecContext(r.Context(), `INSERT INTO test_attempt_answers(attempt_id,question_id,text_answer,response_seconds) SELECT a.id,q.id,$3,$4 FROM test_attempts a JOIN test_questions q ON q.test_version_id=a.test_version_id WHERE a.id=$1 AND q.id=$2 AND a.status='started'`, attemptID, in.QuestionID, strings.TrimSpace(in.TextAnswer), responseSeconds)
-	} else {
-		for _, answerID := range in.SelectedAnswerIDs {
-			_, err = tx.ExecContext(r.Context(), `INSERT INTO test_attempt_answers(attempt_id,question_id,selected_answer_id,response_seconds) SELECT a.id,q.id,ta.id,$4 FROM test_attempts a JOIN test_questions q ON q.test_version_id=a.test_version_id JOIN test_answers ta ON ta.question_id=q.id WHERE a.id=$1 AND q.id=$2 AND ta.id=$3 AND a.status='started'`, attemptID, in.QuestionID, answerID, responseSeconds)
-			if err != nil {
-				break
-			}
-		}
 	}
 	if err != nil || tx.Commit() != nil {
 		jsonError(w, 500, "Не удалось сохранить ответ")
@@ -775,13 +768,19 @@ func employeeTestAnswer(w http.ResponseWriter, r *http.Request, token string) {
 }
 
 func employeeTestFinish(w http.ResponseWriter, r *http.Request, token string) {
+	tx, err := db.BeginTx(r.Context(), nil)
+	if err != nil {
+		jsonError(w, 500, "Не удалось завершить тест")
+		return
+	}
+	defer tx.Rollback()
 	var invitationID, attemptID, versionID int64
 	var passing float64
-	if db.QueryRowContext(r.Context(), `SELECT i.id,i.attempt_id,i.test_version_id,t.passing_percent FROM company_test_invitations i JOIN tests t ON t.id=i.test_id WHERE i.token=$1 AND i.status='started'`, token).Scan(&invitationID, &attemptID, &versionID, &passing) != nil {
+	if tx.QueryRowContext(r.Context(), `SELECT i.id,i.attempt_id,i.test_version_id,COALESCE((a.context->>'passing_percent')::numeric,t.passing_percent) FROM company_test_invitations i JOIN tests t ON t.id=i.test_id JOIN test_attempts a ON a.id=i.attempt_id JOIN users u ON u.id=i.owner_user_id WHERE i.token=$1 AND i.status='started' AND i.expires_at>NOW() AND NOT u.is_blocked AND NOT u.is_system AND a.status='started' FOR UPDATE OF i,a`, token).Scan(&invitationID, &attemptID, &versionID, &passing) != nil {
 		jsonError(w, 403, "Попытка недоступна")
 		return
 	}
-	rows, err := db.QueryContext(r.Context(), `SELECT id,question_type,points FROM test_questions WHERE test_version_id=$1`, versionID)
+	rows, err := tx.QueryContext(r.Context(), `SELECT id,question_type,points FROM test_questions WHERE test_version_id=$1`, versionID)
 	if err != nil {
 		jsonError(w, 500, "Не удалось завершить тест")
 		return
@@ -794,25 +793,55 @@ func employeeTestFinish(w http.ResponseWriter, r *http.Request, token string) {
 	}
 	grades := []grade{}
 	score, max := 0.0, 0.0
+	type question struct {
+		id     int64
+		kind   string
+		points float64
+	}
+	var questions []question
 	for rows.Next() {
-		var qid int64
-		var typ string
-		var points float64
-		if rows.Scan(&qid, &typ, &points) != nil {
-			continue
+		var q question
+		if err = rows.Scan(&q.id, &q.kind, &q.points); err != nil {
+			jsonError(w, 500, "Не удалось прочитать вопросы")
+			return
 		}
+		questions = append(questions, q)
+	}
+	if err = rows.Err(); err != nil {
+		jsonError(w, 500, "Не удалось прочитать вопросы")
+		return
+	}
+	rows.Close()
+	for _, q := range questions {
+		qid, typ, points := q.id, q.kind, q.points
 		max += points
 		correct := false
 		if typ == "text" {
 			var expected, actual string
-			_ = db.QueryRowContext(r.Context(), `SELECT COALESCE((SELECT lower(trim(answer)) FROM test_answers WHERE question_id=$1 AND is_correct LIMIT 1),'')`, qid).Scan(&expected)
-			_ = db.QueryRowContext(r.Context(), `SELECT COALESCE((SELECT lower(trim(text_answer)) FROM test_attempt_answers WHERE attempt_id=$1 AND question_id=$2 LIMIT 1),'')`, attemptID, qid).Scan(&actual)
+			err = tx.QueryRowContext(r.Context(), `SELECT COALESCE((SELECT lower(trim(answer)) FROM test_answers WHERE question_id=$1 AND is_correct LIMIT 1),'')`, qid).Scan(&expected)
+			if err != nil {
+				jsonError(w, 500, "Не удалось проверить ответы")
+				return
+			}
+			err = tx.QueryRowContext(r.Context(), `SELECT COALESCE((SELECT lower(trim(text_answer)) FROM test_attempt_answers WHERE attempt_id=$1 AND question_id=$2 LIMIT 1),'')`, attemptID, qid).Scan(&actual)
+			if err != nil {
+				jsonError(w, 500, "Не удалось проверить ответы")
+				return
+			}
 			correct = expected != "" && expected == actual
 		} else {
 			var expected, selected int
 			var wrong bool
-			_ = db.QueryRowContext(r.Context(), `SELECT COUNT(*) FILTER(WHERE is_correct),COUNT(*) FILTER(WHERE NOT is_correct AND id IN(SELECT selected_answer_id FROM test_attempt_answers WHERE attempt_id=$1 AND question_id=$2))>0 FROM test_answers WHERE question_id=$2`, attemptID, qid).Scan(&expected, &wrong)
-			_ = db.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM test_attempt_answers aa JOIN test_answers a ON a.id=aa.selected_answer_id WHERE aa.attempt_id=$1 AND aa.question_id=$2 AND a.is_correct`, attemptID, qid).Scan(&selected)
+			err = tx.QueryRowContext(r.Context(), `SELECT COUNT(*) FILTER(WHERE is_correct),COUNT(*) FILTER(WHERE NOT is_correct AND id IN(SELECT selected_answer_id FROM test_attempt_answers WHERE attempt_id=$1 AND question_id=$2))>0 FROM test_answers WHERE question_id=$2`, attemptID, qid).Scan(&expected, &wrong)
+			if err != nil {
+				jsonError(w, 500, "Не удалось проверить ответы")
+				return
+			}
+			err = tx.QueryRowContext(r.Context(), `SELECT COUNT(*) FROM test_attempt_answers aa JOIN test_answers a ON a.id=aa.selected_answer_id WHERE aa.attempt_id=$1 AND aa.question_id=$2 AND a.is_correct`, attemptID, qid).Scan(&selected)
+			if err != nil {
+				jsonError(w, 500, "Не удалось проверить ответы")
+				return
+			}
 			correct = expected > 0 && expected == selected && !wrong
 		}
 		if correct {
@@ -825,18 +854,16 @@ func employeeTestFinish(w http.ResponseWriter, r *http.Request, token string) {
 		percent = math.Round(score/max*10000) / 100
 	}
 	passed := percent >= passing
-	tx, err := db.BeginTx(r.Context(), nil)
-	if err != nil {
-		jsonError(w, 500, "Не удалось завершить тест")
-		return
-	}
-	defer tx.Rollback()
 	for _, g := range grades {
 		earned := 0.0
 		if g.correct {
 			earned = g.points
 		}
-		_, _ = tx.ExecContext(r.Context(), `UPDATE test_attempt_answers SET is_correct=$1,earned_points=$2 WHERE attempt_id=$3 AND question_id=$4`, g.correct, earned, attemptID, g.id)
+		_, err = tx.ExecContext(r.Context(), `UPDATE test_attempt_answers SET is_correct=$1,earned_points=$2 WHERE attempt_id=$3 AND question_id=$4`, g.correct, earned, attemptID, g.id)
+		if err != nil {
+			jsonError(w, 500, "Не удалось сохранить результат")
+			return
+		}
 	}
 	res, err := tx.ExecContext(r.Context(), `UPDATE test_attempts SET score=$1,max_score=$2,percent=$3,passed=$4,finished_at=NOW(),duration_seconds=EXTRACT(EPOCH FROM NOW()-started_at)::int,status='finished' WHERE id=$5 AND status='started'`, score, max, percent, passed, attemptID)
 	if err != nil {

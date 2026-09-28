@@ -91,10 +91,6 @@ func prepareGeographyDatabase(ctx context.Context) error {
 				log.Printf("Справочник городов России синхронизирован: %d записей", synced)
 			}
 		}
-	} else {
-		if _, err = db.ExecContext(ctx, `DELETE FROM cities WHERE country_id=$1 AND external_id IS NULL`, countryID); err != nil {
-			return err
-		}
 	}
 	if err = seedFeaturedRussianCities(ctx, countryID); err != nil {
 		return err
@@ -164,9 +160,7 @@ func syncRussianLocations(ctx context.Context, countryID int64) (int, error) {
 		return 0, err
 	}
 	defer tx.Rollback()
-	if _, err = tx.ExecContext(ctx, `DELETE FROM cities WHERE country_id=$1 AND external_id IS NULL`, countryID); err != nil {
-		return 0, err
-	}
+	// Keep legacy IDs: profiles can still reference these rows.
 	statement, err := tx.PrepareContext(ctx, `INSERT INTO cities(country_id,name,region_name,external_id) VALUES($1,$2,$3,$4)
 		ON CONFLICT(external_id) WHERE external_id IS NOT NULL DO UPDATE SET name=EXCLUDED.name,region_name=EXCLUDED.region_name,country_id=EXCLUDED.country_id`)
 	if err != nil {

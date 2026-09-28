@@ -59,8 +59,13 @@ func prepareMarketplaceDatabase(ctx context.Context) error {
 	); CREATE INDEX IF NOT EXISTS test_positions_position_idx ON test_positions(position_id,test_id);`); err != nil {
 		return err
 	}
-	if err := seedPositionTests(ctx); err != nil {
-		return err
+	// Position templates contain unsupported case questions and ungraded text
+	// answers. Do not publish new versions in a real catalog until curated.
+	// Existing tests and their attempts remain untouched.
+	if seedMarketplaceDemoData() {
+		if err := seedPositionTests(ctx); err != nil {
+			return err
+		}
 	}
 	return seedAccountingTopicTests(ctx)
 }
@@ -107,7 +112,7 @@ var accountingTopicTestSeeds = []accountingTopicTestSeed{
 
 const accountingTopicTestSeedQuery = `INSERT INTO tests(author_id,slug,category,category_id,difficulty,status,visibility,is_free,passing_percent,time_limit_seconds)
 	VALUES($1,$2,$3::varchar,(SELECT id FROM test_categories WHERE name=$3::text),$4,'published','marketplace',TRUE,70,1200)
-	ON CONFLICT(slug) DO UPDATE SET author_id=EXCLUDED.author_id,category=EXCLUDED.category,category_id=EXCLUDED.category_id,difficulty=EXCLUDED.difficulty,updated_at=NOW()
+	ON CONFLICT(slug) DO UPDATE SET author_id=EXCLUDED.author_id
 	RETURNING id`
 
 const positionTestSeedQuery = `INSERT INTO tests(author_id,slug,category,category_id,difficulty,status,visibility,is_free,passing_percent,time_limit_seconds)
@@ -132,7 +137,7 @@ func seedAccountingTopicTests(ctx context.Context) error {
 		}
 		var versionID int64
 		err = tx.QueryRowContext(ctx, `INSERT INTO test_versions(test_id,version,title,description,created_by,published_at)
-			VALUES($1,1,$2,$3,$4,NOW()) ON CONFLICT(test_id,version) DO UPDATE SET title=EXCLUDED.title,description=EXCLUDED.description,created_by=EXCLUDED.created_by,published_at=COALESCE(test_versions.published_at,NOW()),updated_at=NOW() RETURNING id`, testID, item.Title, item.Description, authorID).Scan(&versionID)
+			VALUES($1,1,$2,$3,$4,NOW()) ON CONFLICT(test_id,version) DO UPDATE SET test_id=EXCLUDED.test_id RETURNING id`, testID, item.Title, item.Description, authorID).Scan(&versionID)
 		if err != nil {
 			return err
 		}
@@ -300,7 +305,7 @@ func seedPositionTests(ctx context.Context) error {
 		var versionID int64
 		title := p.name
 		description := "Комплексная проверка практических знаний, внимательности и профессиональных навыков для должности «" + p.name + "»."
-		err = tx.QueryRowContext(ctx, `INSERT INTO test_versions(test_id,version,title,description,created_by,published_at) VALUES($1,1,$2,$3,$4,NOW()) ON CONFLICT(test_id,version) DO UPDATE SET title=EXCLUDED.title,description=EXCLUDED.description,created_by=EXCLUDED.created_by,published_at=NOW() RETURNING id`, testID, title, description, authorID).Scan(&versionID)
+		err = tx.QueryRowContext(ctx, `INSERT INTO test_versions(test_id,version,title,description,created_by,published_at) VALUES($1,1,$2,$3,$4,NOW()) ON CONFLICT(test_id,version) DO UPDATE SET test_id=EXCLUDED.test_id RETURNING id`, testID, title, description, authorID).Scan(&versionID)
 		if err != nil {
 			return err
 		}
@@ -401,6 +406,15 @@ func marketplaceTestReviews(w http.ResponseWriter, r *http.Request) {
 	testID, err := strconv.ParseInt(r.URL.Query().Get("test_id"), 10, 64)
 	if err != nil || testID <= 0 {
 		writeJSON(w, http.StatusBadRequest, "Некорректный тест")
+		return
+	}
+	var allowed bool
+	if err = db.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM tests t JOIN users u ON u.id=t.author_id WHERE t.id=$1 AND t.status='published' AND t.visibility IN('public','marketplace') AND t.deleted_at IS NULL AND (NOT u.is_blocked OR u.is_system))`, testID).Scan(&allowed); err != nil {
+		writeJSON(w, 500, "Не удалось загрузить отзывы")
+		return
+	}
+	if !allowed {
+		writeJSON(w, 404, "Тест не найден")
 		return
 	}
 	rows, err := db.QueryContext(r.Context(), `SELECT r.rating,r.comment,u.full_name,r.created_at FROM test_reviews r JOIN users u ON u.id=r.employer_id WHERE r.test_id=$1 ORDER BY r.created_at DESC,r.id DESC LIMIT 20`, testID)

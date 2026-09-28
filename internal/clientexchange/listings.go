@@ -31,16 +31,15 @@ func (h *Handler) getListingJSON(ctx context.Context, id, viewerID int64, ownerV
 		'accounting_programs',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',d.id,'name',d.name,'icon',d.icon) ORDER BY d.sort_order) FROM client_exchange_listing_options o JOIN client_exchange_dictionary_items d ON d.id=o.item_id WHERE o.listing_id=l.id AND o.kind='accounting_program'),'[]'::jsonb),
 		'transfer_reasons',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',d.id,'name',d.name,'icon',d.icon) ORDER BY d.sort_order) FROM client_exchange_listing_options o JOIN client_exchange_dictionary_items d ON d.id=o.item_id WHERE o.listing_id=l.id AND o.kind='transfer_reason'),'[]'::jsonb),
 		'private',CASE WHEN l.seller_user_id=$2 OR EXISTS(SELECT 1 FROM client_exchange_responses cr WHERE cr.listing_id=l.id AND cr.buyer_user_id=$2 AND cr.status='accepted') THEN jsonb_build_object('client_inn',l.client_inn,'client_legal_name',l.client_legal_name) ELSE NULL END,
-		'seller',jsonb_build_object('name',CASE WHEN l.seller_user_id=$2 OR EXISTS(SELECT 1 FROM client_exchange_responses cr WHERE cr.listing_id=l.id AND cr.buyer_user_id=$2 AND cr.status='accepted') THEN u.full_name ELSE 'Бухгалтерская компания' END,'avatar',COALESCE(u.avatar_url,''),'region',l.region,'verified',true,'email',CASE WHEN l.seller_user_id=$2 OR EXISTS(SELECT 1 FROM client_exchange_responses cr WHERE cr.listing_id=l.id AND cr.buyer_user_id=$2 AND cr.status='accepted') THEN u.email ELSE NULL END),
+		'seller',jsonb_build_object('name',CASE WHEN l.seller_user_id=$2 OR EXISTS(SELECT 1 FROM client_exchange_responses cr WHERE cr.listing_id=l.id AND cr.buyer_user_id=$2 AND cr.status='accepted') THEN u.full_name ELSE 'Бухгалтерская компания' END,'avatar',COALESCE(u.avatar_url,''),'region',l.region,'verified',EXISTS(SELECT 1 FROM accounting_companies ac WHERE ac.owner_user_id=l.seller_user_id AND ac.verified AND ac.status='published' AND ac.deleted_at IS NULL),'email',CASE WHEN l.seller_user_id=$2 OR EXISTS(SELECT 1 FROM client_exchange_responses cr WHERE cr.listing_id=l.id AND cr.buyer_user_id=$2 AND cr.status='accepted') THEN u.email ELSE NULL END),
 		'published_at',l.published_at,'created_at',l.created_at,'updated_at',l.updated_at,'transferred_at',l.transferred_at,'current_step',l.current_step
 	) FROM client_exchange_listings l JOIN users u ON u.id=l.seller_user_id
 	LEFT JOIN client_exchange_dictionary_items i ON i.id=l.industry_id LEFT JOIN client_exchange_dictionary_items er ON er.id=l.employee_range_id
 	LEFT JOIN client_exchange_dictionary_items ts ON ts.id=l.tax_system_id LEFT JOIN client_exchange_dictionary_items rr ON rr.id=l.revenue_range_id
 	LEFT JOIN client_exchange_dictionary_items ast ON ast.id=l.accounting_state_id LEFT JOIN client_exchange_dictionary_items tr ON tr.id=l.transfer_reason_id
 	LEFT JOIN client_exchange_dictionary_items tt ON tt.id=l.transfer_type_id WHERE l.id=$1 AND l.deleted_at IS NULL AND (l.seller_user_id=$2 OR NOT u.is_blocked OR u.is_system)`
-	if !ownerView {
-		query += ` AND (l.status IN ('active','has_responses','buyer_selected','transfer_in_progress','transferred') OR l.seller_user_id=$2 OR l.selected_buyer_user_id=$2)`
-	}
+	// A caller requesting an owner-shaped response is not an authorization check.
+	query += ` AND (l.status IN ('active','has_responses','buyer_selected','transfer_in_progress','transferred') OR l.seller_user_id=$2 OR l.selected_buyer_user_id=$2)`
 	var raw []byte
 	if err := h.db.QueryRowContext(ctx, query, id, viewerID).Scan(&raw); err != nil {
 		return nil, err
@@ -126,9 +125,13 @@ func (h *Handler) listingRoute(w http.ResponseWriter, r *http.Request) {
 			fail(w, 409, "Историю успешной передачи удалить нельзя")
 			return
 		}
-		_, err := h.db.ExecContext(r.Context(), `UPDATE client_exchange_listings SET deleted_at=NOW(),updated_at=NOW() WHERE id=$1`, id)
+		result, err := h.db.ExecContext(r.Context(), `UPDATE client_exchange_listings SET deleted_at=NOW(),updated_at=NOW() WHERE id=$1 AND deleted_at IS NULL AND status<>'transferred' AND (seller_user_id=$2 OR $3)`, id, u.ID, h.admin(r))
 		if err != nil {
 			fail(w, 500, "Не удалось удалить объявление")
+			return
+		}
+		if n, err := result.RowsAffected(); err != nil || n != 1 {
+			fail(w, 409, "Объявление уже изменилось. Обновите страницу")
 			return
 		}
 		respond(w, 200, map[string]string{"message": "Объявление удалено"})
@@ -145,9 +148,12 @@ func (h *Handler) updateListing(ctx context.Context, id int64, in ListingInput) 
 		return err
 	}
 	defer tx.Rollback()
-	_, err = tx.ExecContext(ctx, `UPDATE client_exchange_listings SET title=$2,client_inn=$3,client_legal_name=$4,industry_id=$5,employee_range_id=$6,tax_system_id=$7,revenue_range_id=$8,accounting_state_id=$9,transfer_reason_id=$10,transfer_type_id=$11,transfer_reason_comment=$12,transfer_price=$13,monthly_commission_percent=$14,commission_months=$15,current_monthly_fee=$16,operations_per_month=$17,banks_count=$18,has_vat=$19,foreign_trade=$20,bargain_allowed=$21,region=$22,city=$23,client_since=$24,desired_transfer_date=$25,comment=$26,current_step=$27,updated_at=NOW() WHERE id=$1`, id, clean(in.Title, 240), strings.TrimSpace(in.ClientINN), clean(in.ClientLegalName, 500), in.IndustryID, in.EmployeeRangeID, in.TaxSystemID, in.RevenueRangeID, in.AccountingStateID, in.TransferReasonID, in.TransferTypeID, clean(in.TransferReasonComment, 2000), in.TransferPrice, in.MonthlyCommission, in.CommissionMonths, in.CurrentMonthlyFee, in.OperationsPerMonth, in.BanksCount, in.HasVAT, in.ForeignTrade, in.BargainAllowed, clean(in.Region, 200), clean(in.City, 200), nullableDate(in.ClientSince), nullableDate(in.DesiredTransferDate), clean(in.Comment, 5000), clamp(in.CurrentStep, 1, 6))
+	result, err := tx.ExecContext(ctx, `UPDATE client_exchange_listings SET title=$2,client_inn=$3,client_legal_name=$4,industry_id=$5,employee_range_id=$6,tax_system_id=$7,revenue_range_id=$8,accounting_state_id=$9,transfer_reason_id=$10,transfer_type_id=$11,transfer_reason_comment=$12,transfer_price=$13,monthly_commission_percent=$14,commission_months=$15,current_monthly_fee=$16,operations_per_month=$17,banks_count=$18,has_vat=$19,foreign_trade=$20,bargain_allowed=$21,region=$22,city=$23,client_since=$24,desired_transfer_date=$25,comment=$26,current_step=$27,updated_at=NOW() WHERE id=$1 AND status NOT IN('buyer_selected','transfer_in_progress','transferred') AND deleted_at IS NULL`, id, clean(in.Title, 240), strings.TrimSpace(in.ClientINN), clean(in.ClientLegalName, 500), in.IndustryID, in.EmployeeRangeID, in.TaxSystemID, in.RevenueRangeID, in.AccountingStateID, in.TransferReasonID, in.TransferTypeID, clean(in.TransferReasonComment, 2000), in.TransferPrice, in.MonthlyCommission, in.CommissionMonths, in.CurrentMonthlyFee, in.OperationsPerMonth, in.BanksCount, in.HasVAT, in.ForeignTrade, in.BargainAllowed, clean(in.Region, 200), clean(in.City, 200), nullableDate(in.ClientSince), nullableDate(in.DesiredTransferDate), clean(in.Comment, 5000), clamp(in.CurrentStep, 1, 6))
 	if err != nil {
 		return errors.New("не удалось сохранить объявление")
+	}
+	if n, e := result.RowsAffected(); e != nil || n != 1 {
+		return errors.New("объявление уже изменилось или недоступно для редактирования")
 	}
 	if err = h.saveOptionsTx(ctx, tx, id, in); err != nil {
 		return err
@@ -177,7 +183,13 @@ func (h *Handler) listingAction(w http.ResponseWriter, r *http.Request, u UserId
 		return
 	}
 	var current string
-	if err := h.db.QueryRowContext(r.Context(), `SELECT status FROM client_exchange_listings WHERE id=$1 AND deleted_at IS NULL`, id).Scan(&current); err != nil {
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		fail(w, 500, "Не удалось изменить статус")
+		return
+	}
+	defer tx.Rollback()
+	if err := tx.QueryRowContext(r.Context(), `SELECT status FROM client_exchange_listings WHERE id=$1 AND seller_user_id=$2 AND deleted_at IS NULL FOR UPDATE`, id, u.ID).Scan(&current); err != nil {
 		fail(w, 404, "Объявление не найдено")
 		return
 	}
@@ -209,33 +221,46 @@ func (h *Handler) listingAction(w http.ResponseWriter, r *http.Request, u UserId
 		return
 	}
 	if action == "publish" {
-		in, err := h.loadInput(r.Context(), id)
+		in, err := loadListingInput(r.Context(), tx, id)
 		if err != nil {
 			fail(w, 500, "Не удалось проверить объявление")
 			return
 		}
-		if err = h.validateInput(r.Context(), id, in, true); err != nil {
+		if err = validateListingInput(r.Context(), tx, id, in, true); err != nil {
 			fail(w, 400, err.Error())
 			return
 		}
 	}
-	query := `UPDATE client_exchange_listings SET status=$2::varchar,updated_at=NOW(),published_at=CASE WHEN $2::varchar='active' THEN NOW() ELSE published_at END,transferred_at=CASE WHEN $2::varchar='transferred' THEN NOW() ELSE transferred_at END WHERE id=$1`
-	if _, err := h.db.ExecContext(r.Context(), query, id, next); err != nil {
+	query := `UPDATE client_exchange_listings SET status=$2::varchar,updated_at=NOW(),published_at=CASE WHEN $2::varchar='active' THEN NOW() ELSE published_at END,transferred_at=CASE WHEN $2::varchar='transferred' THEN NOW() ELSE transferred_at END WHERE id=$1 AND seller_user_id=$3 AND status=$4 AND deleted_at IS NULL`
+	result, err := tx.ExecContext(r.Context(), query, id, next, u.ID, current)
+	if err != nil {
 		fail(w, 500, "Не удалось изменить статус")
 		return
 	}
+	if n, err := result.RowsAffected(); err != nil || n != 1 {
+		fail(w, 409, "Статус уже изменился. Обновите страницу")
+		return
+	}
 	if next == "transferred" {
-		_, _ = h.db.ExecContext(r.Context(), `INSERT INTO client_exchange_notifications(user_id,type,title,message,listing_id)
+		_, err = tx.ExecContext(r.Context(), `INSERT INTO client_exchange_notifications(user_id,type,title,message,listing_id)
 			SELECT selected_buyer_user_id,'transfer_completed','Передача клиента завершена','Продавец отметил клиента переданным.',id
 			FROM client_exchange_listings WHERE id=$1 AND selected_buyer_user_id IS NOT NULL`, id)
+		if err != nil {
+			fail(w, 500, "Не удалось сохранить уведомление")
+			return
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		fail(w, 500, "Не удалось изменить статус")
+		return
 	}
 	respond(w, 200, map[string]any{"status": next, "label": statusLabels()[next]})
 }
 
-func (h *Handler) loadInput(ctx context.Context, id int64) (ListingInput, error) {
+func loadListingInput(ctx context.Context, source listingReader, id int64) (ListingInput, error) {
 	var x ListingInput
 	var clientSince, desired sql.NullTime
-	err := h.db.QueryRowContext(ctx, `SELECT title,client_inn,client_legal_name,industry_id,employee_range_id,tax_system_id,revenue_range_id,accounting_state_id,transfer_reason_id,transfer_type_id,transfer_reason_comment,transfer_price,monthly_commission_percent,commission_months,current_monthly_fee,operations_per_month,banks_count,has_vat,foreign_trade,bargain_allowed,region,city,client_since,desired_transfer_date,comment,current_step FROM client_exchange_listings WHERE id=$1`, id).Scan(&x.Title, &x.ClientINN, &x.ClientLegalName, &x.IndustryID, &x.EmployeeRangeID, &x.TaxSystemID, &x.RevenueRangeID, &x.AccountingStateID, &x.TransferReasonID, &x.TransferTypeID, &x.TransferReasonComment, &x.TransferPrice, &x.MonthlyCommission, &x.CommissionMonths, &x.CurrentMonthlyFee, &x.OperationsPerMonth, &x.BanksCount, &x.HasVAT, &x.ForeignTrade, &x.BargainAllowed, &x.Region, &x.City, &clientSince, &desired, &x.Comment, &x.CurrentStep)
+	err := source.QueryRowContext(ctx, `SELECT title,client_inn,client_legal_name,industry_id,employee_range_id,tax_system_id,revenue_range_id,accounting_state_id,transfer_reason_id,transfer_type_id,transfer_reason_comment,transfer_price,monthly_commission_percent,commission_months,current_monthly_fee,operations_per_month,banks_count,has_vat,foreign_trade,bargain_allowed,region,city,client_since,desired_transfer_date,comment,current_step FROM client_exchange_listings WHERE id=$1`, id).Scan(&x.Title, &x.ClientINN, &x.ClientLegalName, &x.IndustryID, &x.EmployeeRangeID, &x.TaxSystemID, &x.RevenueRangeID, &x.AccountingStateID, &x.TransferReasonID, &x.TransferTypeID, &x.TransferReasonComment, &x.TransferPrice, &x.MonthlyCommission, &x.CommissionMonths, &x.CurrentMonthlyFee, &x.OperationsPerMonth, &x.BanksCount, &x.HasVAT, &x.ForeignTrade, &x.BargainAllowed, &x.Region, &x.City, &clientSince, &desired, &x.Comment, &x.CurrentStep)
 	if clientSince.Valid {
 		s := clientSince.Time.Format("2006-01-02")
 		x.ClientSince = &s
@@ -244,15 +269,23 @@ func (h *Handler) loadInput(ctx context.Context, id int64) (ListingInput, error)
 		s := desired.Time.Format("2006-01-02")
 		x.DesiredTransferDate = &s
 	}
-	rows, rowsErr := h.db.QueryContext(ctx, `SELECT item_id FROM client_exchange_listing_options WHERE listing_id=$1 AND kind='industry' ORDER BY item_id`, id)
-	if rowsErr == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var industryID int64
-			if rows.Scan(&industryID) == nil {
-				x.IndustryIDs = append(x.IndustryIDs, industryID)
-			}
+	if err != nil {
+		return x, err
+	}
+	rows, rowsErr := source.QueryContext(ctx, `SELECT item_id FROM client_exchange_listing_options WHERE listing_id=$1 AND kind='industry' ORDER BY item_id`, id)
+	if rowsErr != nil {
+		return x, rowsErr
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var industryID int64
+		if err := rows.Scan(&industryID); err != nil {
+			return x, err
 		}
+		x.IndustryIDs = append(x.IndustryIDs, industryID)
+	}
+	if err := rows.Err(); err != nil {
+		return x, err
 	}
 	normalizeIndustryIDs(&x)
 	return x, err
@@ -264,7 +297,7 @@ func (h *Handler) owns(ctx context.Context, id, userID int64) bool {
 	return ok
 }
 func (h *Handler) recordView(ctx context.Context, id, userID int64) error {
-	res, err := h.db.ExecContext(ctx, `INSERT INTO client_exchange_views(listing_id,user_id) SELECT id,$2 FROM client_exchange_listings WHERE id=$1 AND seller_user_id<>$2 AND deleted_at IS NULL ON CONFLICT DO NOTHING`, id, userID)
+	res, err := h.db.ExecContext(ctx, `INSERT INTO client_exchange_views(listing_id,user_id) SELECT l.id,$2 FROM client_exchange_listings l JOIN users u ON u.id=l.seller_user_id WHERE l.id=$1 AND l.seller_user_id<>$2 AND l.deleted_at IS NULL AND (NOT u.is_blocked OR u.is_system) AND l.status IN ('active','has_responses','buyer_selected','transfer_in_progress','transferred') ON CONFLICT DO NOTHING`, id, userID)
 	if err != nil {
 		return err
 	}
@@ -304,14 +337,31 @@ func (h *Handler) listByQuery(w http.ResponseWriter, r *http.Request, viewer int
 		return
 	}
 	defer rows.Close()
-	items := []json.RawMessage{}
+	ids := []int64{}
 	for rows.Next() {
 		var id int64
-		if rows.Scan(&id) == nil {
-			if b, e := h.getListingJSON(r.Context(), id, viewer, true); e == nil {
-				items = append(items, b)
-			}
+		if err := rows.Scan(&id); err != nil {
+			fail(w, 500, "Не удалось загрузить объявления")
+			return
 		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		fail(w, 500, "Не удалось загрузить объявления")
+		return
+	}
+	rows.Close()
+	items := []json.RawMessage{}
+	for _, id := range ids {
+		b, err := h.getListingJSON(r.Context(), id, viewer, true)
+		if errors.Is(err, sql.ErrNoRows) {
+			continue
+		}
+		if err != nil {
+			fail(w, 500, "Не удалось загрузить объявления")
+			return
+		}
+		items = append(items, b)
 	}
 	respond(w, 200, map[string]any{"items": items})
 }
@@ -319,14 +369,21 @@ func (h *Handler) listByQuery(w http.ResponseWriter, r *http.Request, viewer int
 func (h *Handler) favorite(w http.ResponseWriter, r *http.Request, u UserIdentity, id int64) {
 	switch r.Method {
 	case http.MethodPost:
-		_, err := h.db.ExecContext(r.Context(), `INSERT INTO client_exchange_favorites(user_id,listing_id) SELECT $1,id FROM client_exchange_listings WHERE id=$2 AND seller_user_id<>$1 AND deleted_at IS NULL ON CONFLICT DO NOTHING`, u.ID, id)
+		result, err := h.db.ExecContext(r.Context(), `INSERT INTO client_exchange_favorites(user_id,listing_id) SELECT $1,l.id FROM client_exchange_listings l JOIN users u ON u.id=l.seller_user_id WHERE l.id=$2 AND l.seller_user_id<>$1 AND l.deleted_at IS NULL AND (NOT u.is_blocked OR u.is_system) AND l.status IN ('active','has_responses','buyer_selected','transfer_in_progress','transferred') ON CONFLICT(user_id,listing_id) DO UPDATE SET listing_id=EXCLUDED.listing_id`, u.ID, id)
 		if err != nil {
 			fail(w, 400, "Не удалось добавить в избранное")
 			return
 		}
+		if n, err := result.RowsAffected(); err != nil || n != 1 {
+			fail(w, 404, "Объявление не найдено")
+			return
+		}
 		respond(w, 200, map[string]bool{"favorite": true})
 	case http.MethodDelete:
-		_, _ = h.db.ExecContext(r.Context(), `DELETE FROM client_exchange_favorites WHERE user_id=$1 AND listing_id=$2`, u.ID, id)
+		if _, err := h.db.ExecContext(r.Context(), `DELETE FROM client_exchange_favorites WHERE user_id=$1 AND listing_id=$2`, u.ID, id); err != nil {
+			fail(w, 500, "Не удалось удалить из избранного")
+			return
+		}
 		respond(w, 200, map[string]bool{"favorite": false})
 	default:
 		fail(w, 405, "Метод не поддерживается")

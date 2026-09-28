@@ -62,11 +62,10 @@ func redirectFrontendPrefix(sourcePrefix, targetPrefix string) http.HandlerFunc 
 }
 
 func serveFrontendRoot(legacyFilename string) http.HandlerFunc {
-	legacyHandler := servePage(legacyFilename)
 	reactHandler := serveFrontendPage(legacyFilename)
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
-			legacyHandler(w, r)
+			http.NotFound(w, r)
 			return
 		}
 		reactHandler(w, r)

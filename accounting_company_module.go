@@ -70,10 +70,12 @@ func accountingCompanyUpload(w http.ResponseWriter, r *http.Request) {
 		jsonResponse(w, 401, map[string]string{"error": "Требуется авторизация"})
 		return
 	}
+	r.Body = http.MaxBytesReader(w, r.Body, 4<<20)
 	if err = r.ParseMultipartForm(4 << 20); err != nil {
 		jsonResponse(w, 400, map[string]string{"error": "Файл слишком большой"})
 		return
 	}
+	defer r.MultipartForm.RemoveAll()
 	companyID, _ := strconv.ParseInt(r.FormValue("company_id"), 10, 64)
 	kind := r.FormValue("kind")
 	folder := map[string]string{"logo": "logos", "manager": "managers", "header": "headers"}[kind]
@@ -113,7 +115,10 @@ func accountingCompanyUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := make([]byte, 12)
-	_, _ = rand.Read(token)
+	if _, err = rand.Read(token); err != nil {
+		jsonResponse(w, 500, map[string]string{"error": "Не удалось сохранить файл"})
+		return
+	}
 	name := fmt.Sprintf("company-%d-%s.%s", companyID, hex.EncodeToString(token), extension)
 	dir := filepath.Join("static", "uploads", "accounting-companies", folder)
 	if err = os.MkdirAll(dir, 0755); err != nil {
@@ -121,7 +126,16 @@ func accountingCompanyUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	path := filepath.Join(dir, name)
-	if err = os.WriteFile(path, data, 0644); err != nil {
+	output, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	if err != nil {
+		jsonResponse(w, 500, map[string]string{"error": "Не удалось сохранить файл"})
+		return
+	}
+	_, writeErr := output.Write(data)
+	closeErr := output.Close()
+	if writeErr != nil || closeErr != nil {
+		// Only remove the new file created exclusively by this request.
+		_ = os.Remove(path)
 		jsonResponse(w, 500, map[string]string{"error": "Не удалось сохранить файл"})
 		return
 	}

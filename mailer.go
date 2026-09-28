@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	_ "embed"
 	"encoding/base64"
@@ -223,11 +224,11 @@ func sendEventNotificationEmail(recipientName, recipientEmail, subject string, d
 }
 
 func sendEventNotificationAsync(label, recipientName, recipientEmail, subject string, data eventNotificationEmailData) {
-	go func() {
-		if err := sendEventNotificationEmail(recipientName, recipientEmail, subject, data); err != nil {
-			log.Printf("email %s to %s failed: %v", label, recipientEmail, err)
-		}
-	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := enqueueNotification(ctx, db, "event", recipientName, recipientEmail, subject, data, ""); err != nil {
+		log.Printf("email %s: could not queue notification", label)
+	}
 }
 
 func sendEmployeeTestInvitationEmail(recipientEmail string, data employeeTestInvitationEmailData) error {
@@ -255,11 +256,11 @@ func sendEmployeeTestInvitationEmail(recipientEmail string, data employeeTestInv
 }
 
 func sendEmployeeTestInvitationAsync(recipientEmail string, data employeeTestInvitationEmailData) {
-	go func() {
-		if err := sendEmployeeTestInvitationEmail(recipientEmail, data); err != nil {
-			log.Printf("employee test invitation to %s failed: %v", recipientEmail, err)
-		}
-	}()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := enqueueNotification(ctx, db, "employee", data.EmployeeName, recipientEmail, "", data, ""); err != nil {
+		log.Print("employee invitation: could not queue notification")
+	}
 }
 
 func buildHTMLMessage(from, to mail.Address, subject string, htmlBody []byte) ([]byte, error) {

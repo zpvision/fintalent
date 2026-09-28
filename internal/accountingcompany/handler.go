@@ -6,11 +6,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
+	"net"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type User struct {
@@ -100,6 +104,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/admin/accounting-companies/dictionaries/", h.adminDictionary)
 	mux.HandleFunc("/api/admin/community/accounting-companies", h.adminCompanies)
 	mux.HandleFunc("/api/admin/community/accounting-companies/", h.adminCompanyAction)
+	mux.HandleFunc("/api/admin/community/company-reviews", h.adminReviews)
+	mux.HandleFunc("/api/admin/community/company-reviews/", h.adminReviewAction)
 }
 
 func response(w http.ResponseWriter, status int, data any) {
@@ -110,6 +116,17 @@ func response(w http.ResponseWriter, status int, data any) {
 
 func failure(w http.ResponseWriter, status int, message string) {
 	response(w, status, map[string]string{"error": message})
+}
+
+func companyWriteError(w http.ResponseWriter, err error) {
+	var pgError *pgconn.PgError
+	var networkError net.Error
+	if errors.As(err, &pgError) || errors.As(err, &networkError) || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		log.Printf("company write failed: %T", err)
+		failure(w, 500, "Не удалось сохранить компанию")
+		return
+	}
+	failure(w, 400, err.Error())
 }
 
 func decode(w http.ResponseWriter, r *http.Request, target any) bool {
@@ -192,7 +209,7 @@ func (h *Handler) companies(w http.ResponseWriter, r *http.Request) {
 		}
 		id, err := h.create(r.Context(), u, in)
 		if err != nil {
-			failure(w, 400, err.Error())
+			companyWriteError(w, err)
 			return
 		}
 		h.sendCompany(w, r, id, u.ID, true)
@@ -273,7 +290,7 @@ func (h *Handler) companyRoute(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := h.update(r.Context(), id, u.ID, in); err != nil {
-			failure(w, 400, err.Error())
+			companyWriteError(w, err)
 			return
 		}
 		h.sendCompany(w, r, id, u.ID, true)
@@ -315,16 +332,24 @@ func (h *Handler) create(ctx context.Context, u User, in CompanyInput) (int64, e
 	if in.HeaderImageType == "" {
 		in.HeaderImageType = "template"
 	}
+	if err := validate(in); err != nil {
+		return 0, err
+	}
+	tx, err := h.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
 	var id int64
 	slug := slugify(in.Name) + "-" + strconv.FormatInt(time.Now().Unix()%1000000, 10)
-	err := h.db.QueryRowContext(ctx, `INSERT INTO accounting_companies(owner_user_id,name,slug,email,manager_name,header_image_type,current_step) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id`, u.ID, clean(in.Name, 240), slug, clean(in.Email, 254), clean(in.ManagerName, 240), in.HeaderImageType, clamp(in.CurrentStep, 1, 5)).Scan(&id)
+	err = tx.QueryRowContext(ctx, `INSERT INTO accounting_companies(owner_user_id,name,slug,email,manager_name,header_image_type,current_step) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id`, u.ID, clean(in.Name, 240), slug, clean(in.Email, 254), clean(in.ManagerName, 240), in.HeaderImageType, clamp(in.CurrentStep, 1, 5)).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("не удалось создать компанию")
 	}
-	if err = h.update(ctx, id, u.ID, in); err != nil {
+	if err = h.updateTx(ctx, tx, id, u.ID, in); err != nil {
 		return 0, err
 	}
-	return id, nil
+	return id, tx.Commit()
 }
 
 func (h *Handler) update(ctx context.Context, id, owner int64, in CompanyInput) error {
@@ -336,6 +361,12 @@ func (h *Handler) update(ctx context.Context, id, owner int64, in CompanyInput) 
 		return err
 	}
 	defer tx.Rollback()
+	if err = h.updateTx(ctx, tx, id, owner, in); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+func (h *Handler) updateTx(ctx context.Context, tx *sql.Tx, id, owner int64, in CompanyInput) error {
 	advantages, _ := json.Marshal(limitStrings(in.Advantages, 8, 180))
 	res, err := tx.ExecContext(ctx, `UPDATE accounting_companies SET name=$3,short_description=$4,full_description=$5,logo=$6,city=$7,address=$8,remote_all_russia=$9,founded_year=$10,employee_count=$11,inn=$12,phone=$13,email=$14,website=$15,telegram=$16,whatsapp=$17,vk=$18,work_hours=$19,manager_name=$20,manager_position=$21,manager_photo=$22,manager_description=$23,manager_user_id=$24,accent_style_id=$25,header_image_type=$26,header_template_id=$27,custom_header_image=$28,advantages=$29,current_step=$30,updated_at=NOW() WHERE id=$1 AND owner_user_id=$2 AND deleted_at IS NULL`, id, owner, clean(in.Name, 240), clean(in.ShortDescription, 500), clean(in.FullDescription, 12000), in.Logo, clean(in.City, 180), clean(in.Address, 500), in.RemoteAllRussia, in.FoundedYear, in.EmployeeCount, strings.TrimSpace(in.INN), clean(in.Phone, 80), clean(in.Email, 254), clean(in.Website, 500), clean(in.Telegram, 500), clean(in.Whatsapp, 500), clean(in.VK, 500), clean(in.WorkHours, 180), clean(in.ManagerName, 240), clean(in.ManagerPosition, 180), in.ManagerPhoto, clean(in.ManagerDescription, 700), in.ManagerUserID, in.AccentStyleID, in.HeaderImageType, in.HeaderTemplateID, in.CustomHeaderImage, advantages, clamp(in.CurrentStep, 1, 5))
 	if err != nil {
@@ -362,7 +393,11 @@ func (h *Handler) update(ctx context.Context, id, owner int64, in CompanyInput) 
 	}
 	keys := idSet(in.KeyDirectionIDs)
 	for i, directionID := range uniqueIDs(in.DirectionIDs, 10) {
-		if _, err = tx.ExecContext(ctx, `INSERT INTO accounting_company_direction_links(company_id,direction_id,is_key,sort_order) SELECT $1,id,$3,$4 FROM accounting_company_directions WHERE id=$2 AND ((active AND deleted_at IS NULL) OR $5)`, id, directionID, keys[directionID], i, existingDirections[directionID]); err != nil {
+		res, err := tx.ExecContext(ctx, `INSERT INTO accounting_company_direction_links(company_id,direction_id,is_key,sort_order) SELECT $1,id,$3,$4 FROM accounting_company_directions WHERE id=$2 AND ((active AND deleted_at IS NULL) OR $5)`, id, directionID, keys[directionID], i, existingDirections[directionID])
+		if err != nil {
+			return fmt.Errorf("некорректное направление")
+		}
+		if n, err := res.RowsAffected(); err != nil || n != 1 {
 			return fmt.Errorf("некорректное направление")
 		}
 	}
@@ -370,7 +405,11 @@ func (h *Handler) update(ctx context.Context, id, owner int64, in CompanyInput) 
 		return err
 	}
 	for _, taxID := range uniqueIDs(in.TaxSystemIDs, 12) {
-		if _, err = tx.ExecContext(ctx, `INSERT INTO accounting_company_tax_system_links(company_id,tax_system_id) SELECT $1,id FROM accounting_company_tax_systems WHERE id=$2 AND (active OR $3)`, id, taxID, existingTaxSystems[taxID]); err != nil {
+		res, err := tx.ExecContext(ctx, `INSERT INTO accounting_company_tax_system_links(company_id,tax_system_id) SELECT $1,id FROM accounting_company_tax_systems WHERE id=$2 AND (active OR $3)`, id, taxID, existingTaxSystems[taxID])
+		if err != nil {
+			return fmt.Errorf("некорректная система налогообложения")
+		}
+		if n, err := res.RowsAffected(); err != nil || n != 1 {
 			return fmt.Errorf("некорректная система налогообложения")
 		}
 	}
@@ -389,8 +428,11 @@ func (h *Handler) update(ctx context.Context, id, owner int64, in CompanyInput) 
 			pt = "from_month"
 		}
 		wasExisting := s.ServiceID != nil && existingServices[*s.ServiceID]
-		_, err = tx.ExecContext(ctx, `INSERT INTO accounting_company_services(company_id,service_id,custom_name,price_from,price_type,sort_order) SELECT $1,id,$3,$4,$5,$6 FROM accounting_company_service_catalog WHERE id=$2 AND ((active AND deleted_at IS NULL) OR $7)`, id, s.ServiceID, clean(s.CustomName, 220), s.PriceFrom, pt, i, wasExisting)
+		res, err := tx.ExecContext(ctx, `INSERT INTO accounting_company_services(company_id,service_id,custom_name,price_from,price_type,sort_order) SELECT $1,id,$3,$4,$5,$6 FROM accounting_company_service_catalog WHERE id=$2 AND ((active AND deleted_at IS NULL) OR $7)`, id, s.ServiceID, clean(s.CustomName, 220), s.PriceFrom, pt, i, wasExisting)
 		if err != nil {
+			return fmt.Errorf("некорректная услуга")
+		}
+		if n, err := res.RowsAffected(); err != nil || n != 1 {
 			return fmt.Errorf("некорректная услуга")
 		}
 	}
@@ -413,7 +455,7 @@ func (h *Handler) update(ctx context.Context, id, owner int64, in CompanyInput) 
 			return err
 		}
 	}
-	return tx.Commit()
+	return nil
 }
 
 func companyLinkedIDs(ctx context.Context, tx *sql.Tx, query string, companyID int64) (map[int64]bool, error) {
@@ -686,12 +728,26 @@ func (h *Handler) catalog(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 	items := []json.RawMessage{}
+	var companyIDs []int64
 	for rows.Next() {
 		var id int64
-		if rows.Scan(&id) == nil {
-			if raw, _, _, e := h.companyJSON(r.Context(), id, 0); e == nil {
-				items = append(items, raw)
-			}
+		if err = rows.Scan(&id); err != nil {
+			failure(w, 500, "Не удалось загрузить каталог")
+			return
+		}
+		companyIDs = append(companyIDs, id)
+	}
+	if err = rows.Err(); err != nil {
+		failure(w, 500, "Не удалось загрузить каталог")
+		return
+	}
+	rows.Close()
+	for _, id := range companyIDs {
+		if raw, _, _, e := h.companyJSON(r.Context(), id, 0); e == nil {
+			items = append(items, raw)
+		} else if !errors.Is(e, sql.ErrNoRows) {
+			failure(w, 500, "Не удалось загрузить каталог")
+			return
 		}
 	}
 	response(w, 200, map[string]any{"items": items, "page": page, "limit": limit, "total": total, "pages": maxInt(1, (total+limit-1)/limit)})
@@ -704,7 +760,7 @@ func (h *Handler) passport(w http.ResponseWriter, r *http.Request, id int64) {
 	}
 	var owner int64
 	var status string
-	if err := h.db.QueryRowContext(r.Context(), `SELECT owner_user_id,status FROM accounting_companies WHERE id=$1 AND deleted_at IS NULL`, id).Scan(&owner, &status); err != nil {
+	if err := h.db.QueryRowContext(r.Context(), `SELECT c.owner_user_id,c.status FROM accounting_companies c JOIN users u ON u.id=c.owner_user_id WHERE c.id=$1 AND c.deleted_at IS NULL AND (NOT u.is_blocked OR u.is_system)`, id).Scan(&owner, &status); err != nil {
 		failure(w, 404, "Компания не найдена")
 		return
 	}
@@ -713,16 +769,17 @@ func (h *Handler) passport(w http.ResponseWriter, r *http.Request, id int64) {
 		failure(w, 404, "Компания не найдена")
 		return
 	}
-	rows, err := h.db.QueryContext(r.Context(), `WITH results AS (
-	 SELECT v.title competency,a.percent,e.id specialist_id,i.finished_at,a.id attempt_id,e.full_name specialist_name
+	rows, err := h.db.QueryContext(r.Context(), `WITH raw_results AS (
+	 SELECT v.title competency,a.percent,'employee:'||e.id::text specialist_id,i.finished_at,a.id attempt_id,e.full_name specialist_name,0 source_order
 	 FROM company_test_invitations i JOIN company_test_employees e ON e.id=i.employee_id JOIN test_attempts a ON a.id=i.attempt_id JOIN test_versions v ON v.id=a.test_version_id
 	 WHERE i.owner_user_id=$1 AND i.status='finished' AND a.status='finished'
 	 UNION ALL
-	 SELECT v.title,a.percent,a.user_id,a.finished_at,a.id,u.full_name
+	 SELECT v.title,a.percent,'user:'||a.user_id::text,a.finished_at,a.id,u.full_name,1
 	 FROM test_attempts a JOIN test_versions v ON v.id=a.test_version_id JOIN users u ON u.id=a.user_id
-	 WHERE a.status='finished' AND (a.user_id=$1 OR a.user_id IN (SELECT user_id FROM accounting_company_team WHERE company_id=$2 AND active AND user_id IS NOT NULL))
-	), grouped AS (SELECT competency,round(avg(percent),2) score,count(DISTINCT specialist_id) specialists,count(*) tests,max(finished_at) last_at FROM results GROUP BY competency)
-	SELECT competency,score,specialists,tests,last_at FROM grouped ORDER BY score DESC,competency`, owner, id)
+	 WHERE a.status='finished' AND NOT (a.context ? 'employee_invitation_id') AND (a.user_id=$1 OR a.user_id IN (SELECT user_id FROM accounting_company_team WHERE company_id=$2 AND active AND user_id IS NOT NULL))
+	), results AS (SELECT DISTINCT ON(attempt_id) * FROM raw_results ORDER BY attempt_id,source_order,specialist_id),
+	grouped AS (SELECT competency,round(avg(percent),2) score,count(DISTINCT specialist_id) specialists,count(*) tests,max(finished_at) last_at FROM results GROUP BY competency)
+	SELECT competency,score,specialists,tests,last_at,(SELECT count(DISTINCT specialist_id) FROM results) FROM grouped ORDER BY score DESC,competency`, owner, id)
 	if err != nil {
 		failure(w, 500, "Не удалось сформировать Паспорт компетенций")
 		return
@@ -737,40 +794,54 @@ func (h *Handler) passport(w http.ResponseWriter, r *http.Request, id int64) {
 	}
 	scores := []score{}
 	totalTests := 0
-	specialistsMax := 0
+	totalSpecialists := 0
 	sum := 0.0
 	for rows.Next() {
 		var s score
 		var last sql.NullTime
-		if rows.Scan(&s.Name, &s.Percent, &s.Specialists, &s.Tests, &last) == nil {
+		if err := rows.Scan(&s.Name, &s.Percent, &s.Specialists, &s.Tests, &last, &totalSpecialists); err != nil {
+			failure(w, 500, "Не удалось сформировать Паспорт компетенций")
+			return
+		} else {
 			if last.Valid {
 				s.LastAt = &last.Time
 			}
 			scores = append(scores, s)
 			totalTests += s.Tests
-			if s.Specialists > specialistsMax {
-				specialistsMax = s.Specialists
-			}
 			sum += s.Percent
 		}
 	}
+	if err := rows.Err(); err != nil {
+		failure(w, 500, "Не удалось сформировать Паспорт компетенций")
+		return
+	}
+	rows.Close()
 	index := 0.0
 	if len(scores) > 0 {
 		index = float64(int(sum/float64(len(scores))*100)) / 100
 	}
-	var history []json.RawMessage
-	historyRows, e := h.db.QueryContext(r.Context(), `SELECT jsonb_build_object('test_title',v.title,'specialist_name',e.full_name,'percent',a.percent,'finished_at',a.finished_at,'passed',a.passed) FROM company_test_invitations i JOIN company_test_employees e ON e.id=i.employee_id JOIN test_attempts a ON a.id=i.attempt_id JOIN test_versions v ON v.id=a.test_version_id WHERE i.owner_user_id=$1 AND i.status='finished' ORDER BY a.finished_at DESC LIMIT 50`, owner)
-	if e == nil {
+	history := []json.RawMessage{}
+	historyRows, e := h.db.QueryContext(r.Context(), `SELECT item FROM (SELECT DISTINCT ON(a.id) a.id,a.finished_at,jsonb_build_object('test_title',v.title,'specialist_name',e.full_name,'percent',a.percent,'finished_at',a.finished_at,'passed',a.passed) item FROM company_test_invitations i JOIN company_test_employees e ON e.id=i.employee_id JOIN test_attempts a ON a.id=i.attempt_id JOIN test_versions v ON v.id=a.test_version_id WHERE i.owner_user_id=$1 AND i.status='finished' AND a.status='finished' ORDER BY a.id,'employee:'||e.id::text,i.id) history ORDER BY finished_at DESC,id DESC LIMIT 50`, owner)
+	if e != nil {
+		failure(w, 500, "Не удалось загрузить историю тестов")
+		return
+	} else {
 		defer historyRows.Close()
 		history = []json.RawMessage{}
 		for historyRows.Next() {
 			var raw []byte
-			if historyRows.Scan(&raw) == nil {
-				history = append(history, raw)
+			if err := historyRows.Scan(&raw); err != nil {
+				failure(w, 500, "Не удалось загрузить историю тестов")
+				return
 			}
+			history = append(history, raw)
+		}
+		if err := historyRows.Err(); err != nil {
+			failure(w, 500, "Не удалось загрузить историю тестов")
+			return
 		}
 	}
-	response(w, 200, map[string]any{"company_id": id, "overall_index": index, "confirmed_competencies": len(scores), "tests_count": totalTests, "specialists_count": specialistsMax, "scores": scores, "history": history})
+	response(w, 200, map[string]any{"company_id": id, "overall_index": index, "confirmed_competencies": len(scores), "tests_count": totalTests, "specialists_count": totalSpecialists, "scores": scores, "history": history})
 }
 
 func (h *Handler) reviews(w http.ResponseWriter, r *http.Request, id int64) {
@@ -794,17 +865,31 @@ func (h *Handler) reviews(w http.ResponseWriter, r *http.Request, id int64) {
 		failure(w, 400, "Добавьте текст отзыва и оценку от 1 до 5")
 		return
 	}
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		failure(w, 500, "Не удалось отправить отзыв")
+		return
+	}
+	defer tx.Rollback()
 	var owner int64
-	if h.db.QueryRowContext(r.Context(), `SELECT owner_user_id FROM accounting_companies WHERE id=$1 AND status='published' AND deleted_at IS NULL`, id).Scan(&owner) != nil {
-		failure(w, 404, "Компания не найдена")
+	if err := tx.QueryRowContext(r.Context(), `SELECT c.owner_user_id FROM accounting_companies c JOIN users u ON u.id=c.owner_user_id WHERE c.id=$1 AND c.status='published' AND c.deleted_at IS NULL AND (NOT u.is_blocked OR u.is_system) FOR SHARE OF c,u`, id).Scan(&owner); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			failure(w, 404, "Компания не найдена")
+		} else {
+			failure(w, 500, "Не удалось проверить компанию")
+		}
 		return
 	}
 	if owner == u.ID {
 		failure(w, 400, "Нельзя оставить отзыв своей компании")
 		return
 	}
-	_, err := h.db.ExecContext(r.Context(), `INSERT INTO accounting_company_reviews(company_id,author_user_id,author_name,author_company,text,rating) VALUES($1,$2,$3,$4,$5,$6)`, id, u.ID, clean(u.FullName, 180), clean(in.AuthorCompany, 220), clean(in.Text, 4000), in.Rating)
+	_, err = tx.ExecContext(r.Context(), `INSERT INTO accounting_company_reviews(company_id,author_user_id,author_name,author_company,text,rating) VALUES($1,$2,$3,$4,$5,$6)`, id, u.ID, clean(u.FullName, 180), clean(in.AuthorCompany, 220), clean(in.Text, 4000), in.Rating)
 	if err != nil {
+		failure(w, 500, "Не удалось отправить отзыв")
+		return
+	}
+	if err := tx.Commit(); err != nil {
 		failure(w, 500, "Не удалось отправить отзыв")
 		return
 	}

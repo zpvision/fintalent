@@ -8,6 +8,8 @@ import (
 	"database/sql/driver"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -60,12 +62,18 @@ func loadLocalEnv(path string) {
 
 func main() {
 	loadLocalEnv(".env")
+	if err := validateProductionConfig(); err != nil {
+		log.Fatal(err)
+	}
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
 		log.Fatal("DATABASE_URL удалённой облачной PostgreSQL обязателен")
 	}
 	var err error
 	db, err = sql.Open("pgx", databaseURL)
+	if err == nil {
+		err = configureDatabasePool()
+	}
 	if err != nil {
 		if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production") {
 			log.Fatalf("Ошибка настройки PostgreSQL: %v", err)
@@ -81,6 +89,11 @@ func main() {
 	}
 
 	fs := http.FileServer(http.Dir("static"))
+	http.HandleFunc("/health/ready", healthReady)
+	http.HandleFunc("/health/live", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(204)
+	})
 	http.Handle("/static/", http.StripPrefix("/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 		fs.ServeHTTP(w, r)
@@ -153,14 +166,16 @@ func main() {
 	}
 	server := &http.Server{
 		Addr:              listenAddress,
-		Handler:           securityHeaders(http.DefaultServeMux),
+		Handler:           securityHeaders(requestSecurity(http.DefaultServeMux)),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,
 		IdleTimeout:       90 * time.Second,
 	}
 	log.Printf("FinTalent запущен на %s", listenAddress)
-	log.Fatal(server.ListenAndServe())
+	if err := serveUntilShutdown(server); err != nil {
+		log.Fatal(err)
+	}
 }
 
 func securityHeaders(next http.Handler) http.Handler {
@@ -168,7 +183,17 @@ func securityHeaders(next http.Handler) http.Handler {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "SAMEORIGIN")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		if r.URL.Path == "/employee-test" || strings.HasPrefix(r.URL.Path, "/api/employee-test/") {
+			w.Header().Set("Referrer-Policy", "no-referrer")
+			w.Header().Set("Cache-Control", "no-store")
+		}
 		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(self)")
+		// Protect direct navigation to historical SVG uploads too; validation only
+		// affects new files. Reverse proxies serving uploads must mirror this header.
+		if strings.HasPrefix(r.URL.Path, "/static/uploads/") && strings.HasSuffix(strings.ToLower(r.URL.Path), ".svg") {
+			w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
+		}
+		w.Header().Set("Content-Security-Policy-Report-Only", "default-src 'self'; script-src 'self' 'unsafe-inline' https://mc.yandex.ru https://yastatic.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' https: data: blob:; connect-src 'self' https://mc.yandex.ru https://mc.yandex.com; frame-src https://rutube.ru https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; base-uri 'self'")
 		if secureCookies() {
 			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		}
@@ -177,7 +202,7 @@ func securityHeaders(next http.Handler) http.Handler {
 }
 
 func prepareDatabase() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 	if err := db.PingContext(ctx); err != nil {
 		return err
@@ -217,64 +242,70 @@ func prepareDatabase() error {
 		return err
 	}
 	if err := preparePasswordResetDatabase(ctx); err != nil {
-		return err
+		return fmt.Errorf("preparePasswordResetDatabase: %w", err)
+	}
+	if err := prepareAdminSessionsDatabase(ctx); err != nil {
+		return fmt.Errorf("prepareAdminSessionsDatabase: %w", err)
 	}
 	if err := prepareProfilePurposeDatabase(ctx); err != nil {
-		return err
+		return fmt.Errorf("prepareProfilePurposeDatabase: %w", err)
 	}
 	if err := prepareAdminDatabase(ctx); err != nil {
-		return err
+		return fmt.Errorf("prepareAdminDatabase: %w", err)
 	}
 	if err := prepareVacancyModuleDatabase(ctx); err != nil {
-		return err
+		return fmt.Errorf("prepareVacancyModuleDatabase: %w", err)
 	}
 	if err := prepareTestingDatabase(ctx); err != nil {
-		return err
+		return fmt.Errorf("prepareTestingDatabase: %w", err)
 	}
 	if err := prepareEmployeeTestingDatabase(ctx); err != nil {
-		return err
+		return fmt.Errorf("prepareEmployeeTestingDatabase: %w", err)
 	}
 	if err := prepareTestCategories(ctx); err != nil {
-		return err
+		return fmt.Errorf("prepareTestCategories: %w", err)
 	}
 	if err := prepareMarketplaceDatabase(ctx); err != nil {
-		return err
+		return fmt.Errorf("prepareMarketplaceDatabase: %w", err)
 	}
 	if err := prepareProfiMarketDatabase(ctx); err != nil {
-		return err
+		return fmt.Errorf("prepareProfiMarketDatabase: %w", err)
+	}
+	if err := prepareNotificationOutboxDatabase(ctx); err != nil {
+		return fmt.Errorf("prepareNotificationOutboxDatabase: %w", err)
 	}
 	if err := prepareGeographyDatabase(ctx); err != nil {
-		return err
+		return fmt.Errorf("prepareGeographyDatabase: %w", err)
 	}
 	if err := preparePublicationDatabase(ctx); err != nil {
-		return err
+		return fmt.Errorf("preparePublicationDatabase: %w", err)
 	}
 	if err := prepareClientExchangeDatabase(ctx); err != nil {
-		return err
+		return fmt.Errorf("prepareClientExchangeDatabase: %w", err)
 	}
 	if err := prepareAccountingCompanyDatabase(ctx); err != nil {
-		return err
+		return fmt.Errorf("prepareAccountingCompanyDatabase: %w", err)
 	}
 	if err := prepareHelpDatabase(ctx); err != nil {
-		return err
+		return fmt.Errorf("prepareHelpDatabase: %w", err)
 	}
 	if err := prepareContactMessagesDatabase(ctx); err != nil {
-		return err
+		return fmt.Errorf("prepareContactMessagesDatabase: %w", err)
 	}
 	if !demoDataEnabled() {
 		return nil
 	}
 	if err := prepareDemoContent(ctx); err != nil {
-		return err
+		return fmt.Errorf("prepareDemoContent: %w", err)
 	}
 	if err := prepareProfiMarketDemo(ctx); err != nil {
-		return err
+		return fmt.Errorf("prepareProfiMarketDemo: %w", err)
 	}
 	if err := preparePublicationDemo(ctx); err != nil {
-		return err
+		return fmt.Errorf("preparePublicationDemo: %w", err)
 	}
 	if err := prepareClientExchangeDemo(ctx); err != nil {
-		return err
+		return fmt.Errorf("prepareClientExchangeDemo: %w", err)
 	}
 	return prepareAccountingCompanyDemo(ctx)
 }
@@ -310,7 +341,7 @@ func servePage(filename string) http.HandlerFunc {
 			}
 			content = []byte(strings.Replace(string(content), "</head>", `<link rel="icon" href="/favicon.ico?v=2" type="image/x-icon"><link rel="stylesheet" href="/static/layout-safety.css"><link rel="stylesheet" href="/static/site-header.css?v=3"><link rel="stylesheet" href="/static/site-background.css?v=1"><link rel="stylesheet" href="/static/accounting-company-responsive.css?v=1"><script src="/static/site-errors.js?v=1"></script></head>`, 1))
 			if filepath.Base(filename) == "profile.html" {
-				content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/profile-avatar.js?v=2"></script><script src="/static/profile-client-exchange.js?v=1"></script><script src="/static/profile-accounting-company.js?v=1"></script><script src="/static/profile-help.js?v=2"></script></body>`, 1))
+				content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/profile-avatar.js?v=2"></script><script src="/static/profile-client-exchange.js?v=1"></script><script src="/static/profile-accounting-company.js?v=1"></script><script src="/static/profile-help.js?v=3"></script></body>`, 1))
 			}
 			if filepath.Base(filename) == "admin.html" {
 				content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/admin-client-exchange.js?v=2"></script><script src="/static/admin-accounting-company.js?v=1"></script><script src="/static/admin-help.js?v=1"></script></body>`, 1))
@@ -371,12 +402,12 @@ func registerUser(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	if err := createSession(w, userID); err != nil {
+	if err := createSessionForCredentials(w, userID, string(hash), emailAddress); err != nil {
 		log.Printf("Ошибка создания сессии: %v", err)
 		writeJSON(w, http.StatusInternalServerError, "Аккаунт создан, но не удалось выполнить вход")
 		return
 	}
-	if err := sendWelcomeEmail(fullName, emailAddress); err != nil {
+	if err := enqueueNotification(r.Context(), db, "welcome", fullName, emailAddress, "", nil, "welcome:"+emailAddress); err != nil {
 		log.Printf("Не удалось отправить приветственное письмо пользователю %d: %v", userID, err)
 	}
 	writeJSON(w, http.StatusCreated, "Аккаунт успешно создан")
@@ -402,7 +433,11 @@ func loginUser(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, "Ваш аккаунт заблокирован")
 		return
 	}
-	if err := createSession(w, userID); err != nil {
+	if err := createSessionForCredentials(w, userID, passwordHash, emailAddress); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeJSON(w, http.StatusUnauthorized, "Данные входа изменились. Войдите снова")
+			return
+		}
 		log.Printf("Ошибка входа: %v", err)
 		writeJSON(w, http.StatusServiceUnavailable, "Не удалось выполнить вход")
 		return
@@ -411,6 +446,10 @@ func loginUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func createSession(w http.ResponseWriter, userID int64) error {
+	return createSessionForCredentials(w, userID, "", "")
+}
+
+func createSessionForCredentials(w http.ResponseWriter, userID int64, passwordHash, email string) error {
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
 		return err
@@ -420,8 +459,23 @@ func createSession(w http.ResponseWriter, userID int64) error {
 	expires := time.Now().Add(30 * 24 * time.Hour)
 	ctx, cancel := contextWithTimeout()
 	defer cancel()
-	_, err := db.ExecContext(ctx, `INSERT INTO sessions(user_id,token_hash,expires_at) VALUES($1,$2,$3)`, userID, hex.EncodeToString(hash[:]), expires)
+	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	// Hold the user lock through insertion so credential changes and blocking
+	// cannot revoke sessions and then have an already verified login recreate one.
+	var id int64
+	err = tx.QueryRowContext(ctx, `SELECT id FROM users WHERE id=$1 AND NOT is_blocked AND NOT is_system AND ($2='' OR password_hash=$2) AND ($3='' OR email=$3) FOR SHARE`, userID, passwordHash, email).Scan(&id)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO sessions(user_id,token_hash,expires_at) VALUES($1,$2,$3)`, userID, hex.EncodeToString(hash[:]), expires)
+	if err != nil {
+		return err
+	}
+	if err = tx.Commit(); err != nil {
 		return err
 	}
 	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: token, Path: "/", HttpOnly: true, Secure: secureCookies(), SameSite: http.SameSiteLaxMode, Expires: expires, MaxAge: 30 * 24 * 60 * 60})

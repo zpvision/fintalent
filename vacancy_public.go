@@ -228,7 +228,7 @@ func loadPublicVacancyTests(r *http.Request, view *publicVacancyView) error {
 		COALESCE((SELECT AVG(tr.rating) FROM test_reviews tr WHERE tr.test_id=t.id),0),
 		COALESCE((SELECT COUNT(*) FROM test_reviews tr WHERE tr.test_id=t.id),0),t.is_free,t.price,u.full_name
 		FROM vacancy_tests vt JOIN tests t ON t.id=vt.test_id JOIN test_versions tv ON tv.id=vt.test_version_id JOIN users u ON u.id=t.author_id
-		WHERE vt.vacancy_external_id=$1 AND (NOT u.is_blocked OR u.is_system) ORDER BY vt.sort_order,vt.id`, view.ID)
+		WHERE vt.vacancy_external_id=$1 AND t.status='published' AND t.deleted_at IS NULL AND t.visibility IN('public','marketplace') AND (NOT u.is_blocked OR u.is_system) ORDER BY vt.sort_order,vt.id`, view.ID)
 	if err != nil {
 		return err
 	}
@@ -246,10 +246,14 @@ func loadPublicVacancyTests(r *http.Request, view *publicVacancyView) error {
 func loadPublicVacancyApplicationStats(r *http.Request, view *publicVacancyView) error {
 	return db.QueryRowContext(r.Context(), `WITH required_tests AS (
 			SELECT DISTINCT test_id FROM vacancy_tests WHERE vacancy_external_id=$1
+		), latest AS (
+			SELECT DISTINCT ON (a.user_id,a.test_id) a.user_id,a.test_id,a.status,a.passed
+			FROM test_attempts a JOIN required_tests rt ON rt.test_id=a.test_id
+			WHERE a.context @> jsonb_build_object('vacancy_id',$1::bigint)
+			ORDER BY a.user_id,a.test_id,a.started_at DESC,a.id DESC
 		), candidates AS (
 			SELECT a.user_id,COUNT(DISTINCT a.test_id) FILTER(WHERE a.status='finished' AND a.passed=TRUE) passed_count
-			FROM test_attempts a JOIN required_tests rt ON rt.test_id=a.test_id
-			WHERE a.context @> jsonb_build_object('vacancy_id',$1::bigint) GROUP BY a.user_id
+			FROM latest a GROUP BY a.user_id
 		), totals AS (
 			SELECT COUNT(*)::int total,
 				COUNT(*) FILTER(WHERE passed_count=(SELECT COUNT(*) FROM required_tests))::int passed
@@ -266,7 +270,7 @@ func loadPublicVacancyCandidates(r *http.Request, view *publicVacancyView) error
 			SELECT DISTINCT ON (a.user_id,a.test_id) a.user_id,a.test_id,a.percent,a.passed,a.status,a.finished_at
 			FROM test_attempts a JOIN required_tests rt ON rt.test_id=a.test_id
 			WHERE a.context @> jsonb_build_object('vacancy_id',$1::bigint)
-			ORDER BY a.user_id,a.test_id,a.started_at DESC
+			ORDER BY a.user_id,a.test_id,a.started_at DESC,a.id DESC
 		)
 		SELECT l.user_id,u.full_name,
 			COUNT(*) FILTER(WHERE l.status='finished')::int,

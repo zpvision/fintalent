@@ -7,7 +7,7 @@ function loadDutyPicker() {
   if (!dutyPickerPromise) {
     dutyPickerPromise = new Promise((resolve, reject) => {
       const script = document.createElement('script')
-      script.src = '/static/duty-picker.js?v=4'
+      script.src = '/static/duty-picker.js?v=5'
       script.dataset.reactDutyPicker = 'true'
       script.onload = () => resolve(window.DutyPicker)
       script.onerror = () => reject(new Error('Не удалось загрузить выбор обязанностей'))

@@ -433,11 +433,17 @@ func helpRequests(w http.ResponseWriter, r *http.Request) {
 		}
 		var expertID int64
 		var expertName, expertEmail, topicName string
-		err = db.QueryRowContext(r.Context(), `SELECT r.user_id,u.full_name,u.email,t.name
+		tx, err := db.BeginTx(r.Context(), nil)
+		if err != nil {
+			writeJSON(w, 500, "Не удалось отправить запрос помощи")
+			return
+		}
+		defer tx.Rollback()
+		err = tx.QueryRowContext(r.Context(), `SELECT r.user_id,u.full_name,u.email,t.name
 			FROM resumes r JOIN resume_help_topics rht ON rht.resume_id=r.id
 			JOIN help_topics t ON t.id=rht.topic_id
 			JOIN users u ON u.id=r.user_id
-			WHERE r.id=$1 AND rht.topic_id=$2 AND r.status='published' AND r.deleted_at IS NULL AND (NOT u.is_blocked OR u.is_system) AND t.is_active=TRUE AND t.deleted_at IS NULL`, payload.ResumeID, payload.TopicID).Scan(&expertID, &expertName, &expertEmail, &topicName)
+			WHERE r.id=$1 AND rht.topic_id=$2 AND r.status='published' AND r.deleted_at IS NULL AND (NOT u.is_blocked OR u.is_system) AND t.is_active=TRUE AND t.deleted_at IS NULL FOR SHARE OF r,rht,t,u`, payload.ResumeID, payload.TopicID).Scan(&expertID, &expertName, &expertEmail, &topicName)
 		if err == sql.ErrNoRows {
 			writeJSON(w, http.StatusBadRequest, "Это направление недоступно у выбранного специалиста")
 			return
@@ -451,18 +457,30 @@ func helpRequests(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var id int64
-		err = db.QueryRowContext(r.Context(), `INSERT INTO help_requests(requester_id,expert_id,topic_id,request_text) VALUES($1,$2,$3,$4) RETURNING id`, u.ID, expertID, payload.TopicID, payload.Text).Scan(&id)
+		if err = tx.QueryRowContext(r.Context(), `SELECT id FROM users WHERE id=$1 AND NOT is_blocked AND NOT is_system FOR SHARE`, u.ID).Scan(&id); err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				writeJSON(w, 401, "Требуется авторизация")
+			} else {
+				writeHelpInteractionError(w, err)
+			}
+			return
+		}
+		err = tx.QueryRowContext(r.Context(), `INSERT INTO help_requests(requester_id,expert_id,topic_id,request_text) VALUES($1,$2,$3,$4) RETURNING id`, u.ID, expertID, payload.TopicID, payload.Text).Scan(&id)
 		if err != nil {
 			writeJSON(w, http.StatusInternalServerError, "Не удалось отправить запрос помощи")
 			return
 		}
-		sendEventNotificationAsync("new help request", expertName, expertEmail, "Новый запрос помощи — FinTalent", eventNotificationEmailData{
+		err = enqueueNotification(r.Context(), tx, "event", expertName, expertEmail, "Новый запрос помощи — FinTalent", eventNotificationEmailData{
 			Badge: "Помощь коллегам · Новый запрос", Title: "К вам обратились за помощью",
 			Intro:     "Коллега выбрал одно из направлений вашего блока «Могу помочь». Примите запрос или вежливо отклоните его с коротким пояснением.",
 			CardLabel: "Направление", CardTitle: topicName, Details: u.FullName + ":\n" + payload.Text,
 			ButtonText: "Открыть запрос", ButtonURL: applicationBaseURL() + "/profile?section=help",
 			Accent: "#0b986c", Footer: "Новые запросы ожидают решения в разделе «Мне написали».",
-		})
+		}, "")
+		if err != nil || tx.Commit() != nil {
+			writeJSON(w, 500, "Не удалось отправить запрос помощи")
+			return
+		}
 		writeAdminJSON(w, http.StatusCreated, map[string]any{"id": id, "status": "new"})
 	default:
 		writeJSON(w, http.StatusMethodNotAllowed, "Метод не поддерживается")
@@ -595,6 +613,10 @@ func acceptHelpRequest(w http.ResponseWriter, r *http.Request, id, expertID int6
 		return
 	}
 	defer tx.Rollback()
+	if _, err = lockHelpInteraction(r.Context(), tx, id, expertID); err != nil {
+		writeHelpInteractionError(w, err)
+		return
+	}
 	result, err := tx.ExecContext(r.Context(), `UPDATE help_requests SET status='accepted',acceptance_message=$3,accepted_at=NOW(),updated_at=NOW() WHERE id=$1 AND expert_id=$2 AND status='new'`, id, expertID, payload.Message)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, "Не удалось принять обращение")
@@ -608,11 +630,14 @@ func acceptHelpRequest(w http.ResponseWriter, r *http.Request, id, expertID int6
 		writeJSON(w, http.StatusInternalServerError, "Не удалось сохранить ответ")
 		return
 	}
+	if err = enqueueHelpRequestDecision(r.Context(), tx, id, true, payload.Message); err != nil {
+		writeJSON(w, 500, "Не удалось принять обращение")
+		return
+	}
 	if err = tx.Commit(); err != nil {
 		writeJSON(w, http.StatusInternalServerError, "Не удалось принять обращение")
 		return
 	}
-	notifyHelpRequestDecision(r.Context(), id, true, payload.Message)
 	writeAdminJSON(w, http.StatusOK, map[string]string{"status": "accepted"})
 }
 
@@ -630,7 +655,13 @@ func declineHelpRequest(w http.ResponseWriter, r *http.Request, id, expertID int
 		writeJSON(w, http.StatusBadRequest, "Причина отказа должна содержать от 3 до 500 символов")
 		return
 	}
-	result, err := db.ExecContext(r.Context(), `UPDATE help_requests SET status='declined',decline_reason=$3,updated_at=NOW() WHERE id=$1 AND expert_id=$2 AND status='new'`, id, expertID, payload.Reason)
+	tx, err := db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeJSON(w, 500, "Не удалось отклонить обращение")
+		return
+	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(r.Context(), `UPDATE help_requests SET status='declined',decline_reason=$3,updated_at=NOW() WHERE id=$1 AND expert_id=$2 AND status='new'`, id, expertID, payload.Reason)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, "Не удалось отклонить обращение")
 		return
@@ -639,31 +670,38 @@ func declineHelpRequest(w http.ResponseWriter, r *http.Request, id, expertID int
 		writeJSON(w, http.StatusBadRequest, "Обращение не найдено или действие недоступно")
 		return
 	}
-	notifyHelpRequestDecision(r.Context(), id, false, payload.Reason)
+	if err = enqueueHelpRequestDecision(r.Context(), tx, id, false, payload.Reason); err != nil {
+		writeJSON(w, 500, "Не удалось отклонить обращение")
+		return
+	}
+	if err = tx.Commit(); err != nil {
+		writeJSON(w, 500, "Не удалось отклонить обращение")
+		return
+	}
 	writeAdminJSON(w, http.StatusOK, map[string]string{"status": "declined"})
 }
 
-func notifyHelpRequestDecision(ctx context.Context, requestID int64, accepted bool, responseText string) {
+func enqueueHelpRequestDecision(ctx context.Context, tx *sql.Tx, requestID int64, accepted bool, responseText string) error {
 	var requesterName, requesterEmail, expertName, topicName string
-	if err := db.QueryRowContext(ctx, `SELECT requester.full_name,requester.email,expert.full_name,t.name
+	if err := tx.QueryRowContext(ctx, `SELECT requester.full_name,requester.email,expert.full_name,t.name
 		FROM help_requests req
 		JOIN users requester ON requester.id=req.requester_id
 		JOIN users expert ON expert.id=req.expert_id
 		JOIN help_topics t ON t.id=req.topic_id
 		WHERE req.id=$1`, requestID).Scan(&requesterName, &requesterEmail, &expertName, &topicName); err != nil {
 		log.Printf("load help request %d for email: %v", requestID, err)
-		return
+		return err
 	}
 	title, intro, label, accent := "Запрос помощи принят", "Специалист принял ваш запрос и оставил ответ. Теперь вы можете продолжить общение в личном кабинете.", "Ответ специалиста", template.CSS("#0b986c")
 	if !accepted {
 		title, intro, label, accent = "Ответ по вашему запросу помощи", "Специалист сейчас не сможет принять запрос, но оставил пояснение. Вы можете выбрать другого специалиста по этому направлению.", "Причина отказа", template.CSS("#c7394d")
 	}
-	sendEventNotificationAsync("help request decision", requesterName, requesterEmail, title+" — FinTalent", eventNotificationEmailData{
+	return enqueueNotification(ctx, tx, "event", requesterName, requesterEmail, title+" — FinTalent", eventNotificationEmailData{
 		Badge: "Помощь коллегам", Title: title, Intro: intro,
 		CardLabel: label, CardTitle: topicName, Details: expertName + ":\n" + responseText,
 		ButtonText: "Открыть мои запросы", ButtonURL: applicationBaseURL() + "/profile?section=help",
 		Accent: accent, Footer: "Все обращения и переписка сохраняются в вашем личном кабинете.",
-	})
+	}, "")
 }
 
 func updateHelpRequestStatus(w http.ResponseWriter, r *http.Request, id, expertID int64, next string) {
@@ -698,6 +736,23 @@ func cancelHelpRequest(w http.ResponseWriter, r *http.Request, id, requesterID i
 		return
 	}
 	writeAdminJSON(w, http.StatusOK, map[string]string{"status": "cancelled"})
+}
+
+func writeHelpInteractionError(w http.ResponseWriter, err error) {
+	if errors.Is(err, sql.ErrNoRows) {
+		writeJSON(w, 404, "Обращение недоступно")
+		return
+	}
+	log.Printf("help interaction: %v", err)
+	writeJSON(w, 500, "Не удалось выполнить действие")
+}
+
+// Personal history remains readable; new interactions require active participants.
+// The request lock serializes messages/reviews with completion and cancellation.
+func lockHelpInteraction(ctx context.Context, tx *sql.Tx, requestID, userID int64) (string, error) {
+	var status string
+	err := tx.QueryRowContext(ctx, `SELECT req.status FROM help_requests req JOIN users requester ON requester.id=req.requester_id JOIN users expert ON expert.id=req.expert_id WHERE req.id=$1 AND (req.requester_id=$2 OR req.expert_id=$2) AND NOT requester.is_blocked AND (NOT expert.is_blocked OR expert.is_system) FOR UPDATE OF req FOR SHARE OF requester,expert`, requestID, userID).Scan(&status)
+	return status, err
 }
 
 func helpRequestMessages(w http.ResponseWriter, r *http.Request, userID, requestID int64) {
@@ -738,6 +793,10 @@ func helpRequestMessages(w http.ResponseWriter, r *http.Request, userID, request
 			}
 			items = append(items, item)
 		}
+		if err = rows.Err(); err != nil {
+			writeJSON(w, 500, "Не удалось загрузить переписку")
+			return
+		}
 		writeAdminJSON(w, http.StatusOK, items)
 	case http.MethodPost:
 		if status != "accepted" {
@@ -757,8 +816,27 @@ func helpRequestMessages(w http.ResponseWriter, r *http.Request, userID, request
 			return
 		}
 		var id int64
-		if err = db.QueryRowContext(r.Context(), `INSERT INTO help_request_messages(help_request_id,author_id,text) VALUES($1,$2,$3) RETURNING id`, requestID, userID, payload.Text).Scan(&id); err != nil {
+		tx, err := db.BeginTx(r.Context(), nil)
+		if err != nil {
+			writeJSON(w, 500, "Не удалось отправить сообщение")
+			return
+		}
+		defer tx.Rollback()
+		status, err = lockHelpInteraction(r.Context(), tx, requestID, userID)
+		if err != nil {
+			writeHelpInteractionError(w, err)
+			return
+		}
+		if status != "accepted" {
+			writeJSON(w, 400, "Нельзя отправлять сообщения в завершенном обращении")
+			return
+		}
+		if err = tx.QueryRowContext(r.Context(), `INSERT INTO help_request_messages(help_request_id,author_id,text) VALUES($1,$2,$3) RETURNING id`, requestID, userID, payload.Text).Scan(&id); err != nil {
 			writeJSON(w, http.StatusInternalServerError, "Не удалось отправить сообщение")
+			return
+		}
+		if err = tx.Commit(); err != nil {
+			writeJSON(w, 500, "Не удалось отправить сообщение")
 			return
 		}
 		writeAdminJSON(w, http.StatusCreated, map[string]int64{"id": id})
@@ -782,7 +860,17 @@ func createHelpReview(w http.ResponseWriter, r *http.Request, requestID, authorI
 		return
 	}
 	var id int64
-	err := db.QueryRowContext(r.Context(), `INSERT INTO help_reviews(author_id,recipient_id,help_request_id,rating,text)
+	tx, err := db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeJSON(w, 500, "Не удалось сохранить отзыв")
+		return
+	}
+	defer tx.Rollback()
+	if _, err = lockHelpInteraction(r.Context(), tx, requestID, authorID); err != nil {
+		writeHelpInteractionError(w, err)
+		return
+	}
+	err = tx.QueryRowContext(r.Context(), `INSERT INTO help_reviews(author_id,recipient_id,help_request_id,rating,text)
 		SELECT requester_id,expert_id,id,$3,$4
 		FROM help_requests
 		WHERE id=$1 AND requester_id=$2 AND status='completed'
@@ -792,7 +880,15 @@ func createHelpReview(w http.ResponseWriter, r *http.Request, requestID, authorI
 			writeJSON(w, http.StatusConflict, "Отзыв по этому обращению уже оставлен")
 			return
 		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			writeHelpInteractionError(w, err)
+			return
+		}
 		writeJSON(w, http.StatusBadRequest, "Отзыв можно оставить только по завершенному обращению")
+		return
+	}
+	if err = tx.Commit(); err != nil {
+		writeJSON(w, 500, "Не удалось сохранить отзыв")
 		return
 	}
 	writeAdminJSON(w, http.StatusCreated, map[string]int64{"id": id})

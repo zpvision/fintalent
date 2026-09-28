@@ -1,0 +1,15 @@
+const {chromium}=require('playwright-core'),fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+(async()=>{const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});try{
+ const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('**/*',async route=>{const u=new URL(route.request().url()),p=u.pathname;if(u.hostname!=='audit.invalid')return route.abort();
+ if(p.startsWith('/api/')){let data={items:[]},status=200;if(p==='/api/me'){status=401;data={}}if(p==='/api/public/help-topics')data=[];
+ if(p==='/api/public/cities'){if(u.searchParams.get('q')==='slow')await new Promise(r=>setTimeout(r,800));data=[{id:1,name:'Москва',region:'Москва'},{id:2,name:'Советск',region:'Кировская область'},{id:3,name:'Советск',region:'Тульская область'}]}
+ return route.fulfill({status,contentType:'application/json',body:JSON.stringify(data)}).catch(()=>{});}
+ const f=p.startsWith('/static/')?path.resolve('.'+p):path.resolve('static/react/index.html');if(!f.startsWith(path.resolve('static')+path.sep)||!fs.existsSync(f))return route.fulfill({status:404,body:''});return route.fulfill({contentType:({'.js':'text/javascript','.css':'text/css','.html':'text/html','.svg':'image/svg+xml','.png':'image/png'})[path.extname(f)]||'application/octet-stream',body:fs.readFileSync(f)});
+ });
+ for(const width of [360,900,1440]){await page.setViewportSize({width,height:900});await page.goto('http://audit.invalid/profiles');const input=page.getByRole('combobox',{name:'Город'});await input.click();await page.locator('.city-suggestions').getByRole('option').first().waitFor();await input.press('ArrowDown');await input.press('ArrowDown');await input.press('ArrowDown');assert.match(await page.locator('.city-suggestions').getByRole('option',{selected:true}).innerText(),/Тульская/);await input.press('Enter');assert.equal(await input.inputValue(),'Советск');assert.equal(await input.getAttribute('aria-expanded'),'false');
+ await input.fill('slow');await page.waitForTimeout(300);await input.press('Escape');await page.waitForTimeout(900);assert.equal(await input.getAttribute('aria-expanded'),'false');
+ await input.fill('М');await page.locator('.city-suggestions').getByRole('option').first().waitFor();await input.fill('Мос');await page.locator('.city-suggestions').getByRole('option').first().click();await page.waitForTimeout(400);assert.equal(await input.inputValue(),'Москва');assert.equal(await input.getAttribute('aria-expanded'),'false');
+ await input.fill('');await page.waitForTimeout(350);await input.press('Tab');assert.equal(await input.getAttribute('aria-expanded'),'false');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
+ }assert.deepEqual(errors,[]);console.log('PASS: city keyboard/regions, Escape abort, selection before debounce, clear/Tab × 3 widths');
+}finally{await browser.close()}})().catch(e=>{console.error(e);process.exit(1)});

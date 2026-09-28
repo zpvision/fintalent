@@ -3,7 +3,7 @@
   document.head.insertAdjacentHTML('beforeend','<link rel="stylesheet" href="/static/profile-profimarket.css?v=2"><link rel="stylesheet" href="/static/profile-profimarket-cover.css?v=1">');
   document.querySelectorAll('.profile-menu a').forEach(a=>a.classList.toggle('active',a.classList.contains('profile-market-link')));
   const main=document.querySelector('.dashboard-main');
-  const esc=value=>{const n=document.createElement('span');n.textContent=value??'';return n.innerHTML};
+  const esc=value=>{const n=document.createElement('span');n.textContent=value??'';return n.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;')};
   const money=value=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).format(Number(value)||0)+' ₽';
   main.innerHTML=`<section class="profile-market"><header><div><small>ПРОФИМАРКЕТ</small><h1>Мои решения</h1><p>Создавайте профессиональные решения и управляйте публикациями.</p></div><a href="/profimarket/create">＋ Создать решение</a></header><div class="profile-market-stats" id="pm-profile-stats"></div><section class="profile-market-list" id="pm-profile-list"><div class="profile-market-loading">Загружаем решения…</div></section></section>`;
   async function request(url,options={}){const response=await fetch(url,{cache:'no-store',...options});const data=await response.json().catch(()=>({}));if(!response.ok)throw Error(data.error||'Ошибка запроса');return data}

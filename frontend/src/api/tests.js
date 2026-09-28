@@ -17,6 +17,7 @@ export const importEmployeesFromFinKoper = (email, password, options) =>
   apiClient.post('/api/employee-testing/import/finkoper', { email, password }, { redirectOnUnauthorized: false, ...options })
 export const createInvitations = (testId, employeeIds, options) =>
   apiClient.post('/api/employee-testing/invitations', { test_id: testId, employee_ids: employeeIds }, options)
+export const revokeEmployeeInvitation=(id,options)=>apiClient.post(`/api/employee-testing/invitations/${encodeURIComponent(id)}/revoke`,{},options)
 export const createEmployeeRetake = (invitationId, options) =>
   apiClient.post(`/api/employee-testing/invitations/${encodeURIComponent(invitationId)}/retake`, {}, options)
 export const getTest = (id, options) => apiClient.get(`/api/tests/${encodeURIComponent(id)}`, options)

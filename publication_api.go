@@ -237,12 +237,19 @@ func savePublicationLinks(ctx context.Context, tx *sql.Tx, id int64, in publicat
 		}
 	}
 	if in.TestID > 0 {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO publication_test_links SELECT $1,id,0 FROM tests WHERE id=$2 AND status='published' ON CONFLICT DO NOTHING`, id, in.TestID); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO publication_test_links SELECT $1,id,0 FROM tests WHERE id=$2 AND status='published' AND deleted_at IS NULL AND visibility IN('public','marketplace') AND EXISTS(SELECT 1 FROM users u WHERE u.id=tests.author_id AND (NOT u.is_blocked OR u.is_system)) ON CONFLICT DO NOTHING`, id, in.TestID); err != nil {
 			return err
 		}
 	}
 	if in.SeriesID > 0 {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO publication_series_items(series_id,publication_id,sort_order) SELECT id,$2,$3 FROM publication_series WHERE id=$1 ON CONFLICT(publication_id) DO UPDATE SET series_id=EXCLUDED.series_id,sort_order=EXCLUDED.sort_order`, in.SeriesID, id, in.SeriesOrder); err != nil {
+		var allowed bool
+		if err := tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM publication_series s JOIN publications p ON p.author_id=s.author_id WHERE s.id=$1 AND p.id=$2)", in.SeriesID, id).Scan(&allowed); err != nil {
+			return err
+		}
+		if !allowed {
+			return fmt.Errorf("серия недоступна")
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO publication_series_items(series_id,publication_id,sort_order) SELECT id,$2,$3 FROM publication_series WHERE id=$1 AND author_id=(SELECT author_id FROM publications WHERE id=$2) ON CONFLICT(publication_id) DO UPDATE SET series_id=EXCLUDED.series_id,sort_order=EXCLUDED.sort_order`, in.SeriesID, id, in.SeriesOrder); err != nil {
 			return err
 		}
 	}
@@ -259,7 +266,7 @@ func publicationMetaAPI(w http.ResponseWriter, r *http.Request) {
 	topics := publicationDictionaryPairs(r.Context(), "publication_topics", true)
 	tags := publicationDictionaryPairs(r.Context(), "publication_tags", false)
 	skills := queryPairs(r, `SELECT i.id,i.value,d.alias FROM dictionary_items i JOIN dictionaries d ON d.id=i.dictionary_id WHERE d.alias IN('accounting_areas','software','crm','position') AND i.active AND i.deleted_at IS NULL ORDER BY i.value LIMIT 100`)
-	tests := queryPairs(r, `SELECT t.id,v.title,t.slug FROM tests t JOIN test_versions v ON v.test_id=t.id AND v.version=t.current_version WHERE t.status='published' ORDER BY v.title LIMIT 100`)
+	tests := queryPairs(r, `SELECT t.id,v.title,t.slug FROM tests t JOIN test_versions v ON v.test_id=t.id AND v.version=t.current_version JOIN users u ON u.id=t.author_id WHERE t.status='published' AND t.deleted_at IS NULL AND t.visibility IN('public','marketplace') AND (NOT u.is_blocked OR u.is_system) ORDER BY v.title,t.id LIMIT 100`)
 	series := []map[string]any{}
 	if uid > 0 {
 		rows, _ := db.QueryContext(r.Context(), `SELECT id,title,slug FROM publication_series WHERE author_id=$1 AND status<>'archived' ORDER BY title`, uid)

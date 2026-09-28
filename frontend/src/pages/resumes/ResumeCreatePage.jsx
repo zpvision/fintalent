@@ -31,10 +31,10 @@ export default function ResumeCreatePage() {
         }
         const success = await loadScript('/static/resume-publish-success.js?v=2', () => window.showResumePublishedModal)
         if (success) loaded.push(success)
-        const picker = await loadScript('/static/duty-picker.js?v=4', () => window.DutyPicker)
+        const picker = await loadScript('/static/duty-picker.js?v=5', () => window.DutyPicker)
         if (picker) loaded.push(picker)
         if (cancelled) return
-        const controller = await loadScript('/static/resume-create.js?v=27')
+        const controller = await loadScript('/static/resume-create.js?v=28')
         if (controller) loaded.push(controller)
       } catch (loadError) { if (!cancelled) setError(loadError.message) }
     }

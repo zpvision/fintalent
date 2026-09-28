@@ -10,7 +10,7 @@ import ProfiMarketReviews from '../../components/ProfiMarketReviews'
 
 let uiPromise
 function loadPresentation() {
-  if (window.ProfiMarketUI?.version >= 39) return Promise.resolve(window.ProfiMarketUI)
+  if (window.ProfiMarketUI?.version >= 42) return Promise.resolve(window.ProfiMarketUI)
   if (!uiPromise) uiPromise = new Promise((resolve, reject) => {
     const load = (src, done) => {
       const script = document.createElement('script')
@@ -18,11 +18,11 @@ function loadPresentation() {
       script.onerror = () => reject(new Error('Не удалось загрузить компоненты страницы'))
       document.head.append(script)
     }
-    const loadComponents = () => load('/static/profimarket-components.js?v=40', () => resolve(window.ProfiMarketUI))
+    const loadComponents = () => load('/static/profimarket-components.js?v=42', () => resolve(window.ProfiMarketUI))
     if (window.ProfiMarketStylePresets) loadComponents()
     else load('/static/profimarket-style-presets.js?v=3', loadComponents)
   })
-  return uiPromise
+  return uiPromise.catch(error=>{uiPromise=undefined;throw error})
 }
 
 function Notice({ value }) {
@@ -52,17 +52,18 @@ function PurchaseModal({ solution, close, done, fail }) {
     const form = new FormData(event.currentTarget)
     try {
       const data = await purchaseProfiMarketSolution(solution.id, { crm_id: Number(form.get('crm_id')), custom_crm_name: form.get('custom_crm_name'), crm_email: form.get('crm_email'), comment: form.get('comment') })
-      close(); done(data.message || 'Покупка оформлена')
+      close(); done(data.message || 'Заявка отправлена')
     } catch (error) { fail(error.message) } finally { setSubmitting(false) }
   }
   const selected = crms.find((item) => String(item.id) === crmID)
-  return <div className="pm-modal"><section role="dialog" aria-modal="true"><header><div><small>ПОКУПКА И ВНЕДРЕНИЕ</small><h2>{solution.title}</h2></div><button className="pm-modal-close" onClick={close}>×</button></header><p>Укажите учетную запись, в которую автор поможет внедрить регламенты. Пароль от CRM никогда не требуется.</p><form onSubmit={submit}><div className="pm-form-grid"><label className="pm-field wide">CRM<select name="crm_id" required value={crmID} onChange={(event) => setCrmID(event.target.value)}>{crms.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>{selected?.code === 'other' && <label className="pm-field wide">Название CRM<input name="custom_crm_name" required /></label>}<label className="pm-field wide">E-mail учетной записи в CRM<input name="crm_email" type="email" required placeholder="name@company.ru" /></label><label className="pm-field wide">Комментарий для внедрения<textarea name="comment" rows="3" placeholder="Необязательно" /></label></div><footer><button type="button" className="secondary" onClick={close}>Отмена</button><button className="primary" disabled={submitting}>Купить за {new Intl.NumberFormat('ru-RU').format(solution.price || 0)} ₽</button></footer></form></section></div>
+  return <div className="pm-modal"><section role="dialog" aria-modal="true"><header><div><small>ЗАЯВКА НА ВНЕДРЕНИЕ</small><h2>{solution.title}</h2></div><button className="pm-modal-close" onClick={close}>×</button></header><p>Укажите учетную запись, в которую автор поможет внедрить регламенты. Пароль от CRM никогда не требуется. Оплата на сайте не производится; условия согласуйте с автором.</p><form onSubmit={submit}><div className="pm-form-grid"><label className="pm-field wide">CRM<select name="crm_id" required value={crmID} onChange={(event) => setCrmID(event.target.value)}>{crms.map((item) => <option value={item.id} key={item.id}>{item.name}</option>)}</select></label>{selected?.code === 'other' && <label className="pm-field wide">Название CRM<input name="custom_crm_name" required /></label>}<label className="pm-field wide">E-mail учетной записи в CRM<input name="crm_email" type="email" required placeholder="name@company.ru" /></label><label className="pm-field wide">Комментарий для внедрения<textarea name="comment" rows="3" placeholder="Необязательно" /></label></div><footer><button type="button" className="secondary" onClick={close}>Отмена</button><button className="primary" disabled={submitting}>Отправить заявку</button></footer></form></section></div>
 }
 
 export default function ProfiMarketDetailPage() {
   usePageStyles(['/static/profimarket.css?v=3','/static/profimarket-product.css?v=3','/static/vacancy-publish-success.css?v=1'])
   const { key } = useParams(), location = useLocation(), root = useRef(null)
   const [solution, setSolution] = useState(null), [html, setHTML] = useState(''), [error, setError] = useState(''), [modal, setModal] = useState(false), [notice, setNotice] = useState(null), [purchaseSuccess, setPurchaseSuccess] = useState(null), [expandedImage, setExpandedImage] = useState(null)
+  const purchasePending=useRef(false)
   const modern=solution&&['AUTOMATION','INSTRUCTION','ONEC_INTEGRATION','TEMPLATE','CHECKLIST'].includes(solution.type)
   useDocumentPage({ title: solution ? `${solution.title} — ПрофиМаркет` : 'Решение — ПрофиМаркет' })
   const preview = new URLSearchParams(location.search).get('preview') === '1'
@@ -94,7 +95,7 @@ export default function ProfiMarketDetailPage() {
     if (!purchase || purchase.querySelector('.pmp-question-link')) return
     const link = document.createElement('a')
     link.className = 'pmp-question-link'; link.href = '#questions'
-    link.innerHTML = '<i>?</i><span><b>Есть вопрос о решении?</b><small>Задайте его автору до покупки</small></span><strong>→</strong>'
+    link.innerHTML = '<i>?</i><span><b>Есть вопрос о решении?</b><small>Уточните детали у автора</small></span><strong>→</strong>'
     purchase.append(link)
   }, [html, solution, modern])
   async function favorite(button) {
@@ -105,7 +106,9 @@ export default function ProfiMarketDetailPage() {
   }
   async function buy() {
     if (solution.type === 'REGULATION') { setModal(true); return }
-    try { const data = await purchaseProfiMarketSolution(solution.id); setPurchaseSuccess(data) } catch (requestError) { notify(requestError.message, true) }
+    if(purchasePending.current)return
+    purchasePending.current=true
+    try { const data = await purchaseProfiMarketSolution(solution.id); setPurchaseSuccess(data) } catch (requestError) { notify(requestError.message, true) } finally {purchasePending.current=false}
   }
   function interact(event) {
     const questionLink = event.target.closest('.pmp-question-link'), demoImage = event.target.closest('[data-demo-image]'), legacyImage = event.target.closest('.pm-ai-visual>img,.pm-video-stage>img,.pmr-product-art.has-cover>img,.pmr-section-image img'), favoriteButton = event.target.closest('[data-favorite]'), buyButton = event.target.closest('[data-buy]'), tabButton = event.target.closest('[data-section-tab]')
@@ -131,5 +134,5 @@ export default function ProfiMarketDetailPage() {
     setSolution(next)
     if (!['AUTOMATION','INSTRUCTION','ONEC_INTEGRATION','TEMPLATE','CHECKLIST'].includes(next.type) && window.ProfiMarketUI) setHTML(window.ProfiMarketUI.solutionView(next, preview))
   }
-  return <PublicLayout><main ref={root} id="pm-detail" className="pm-detail-page" onClick={interact}>{error ? <div className="pm-detail-loading"><h1>Решение не найдено</h1><p>{error}</p><a href="/profimarket">Вернуться в ПрофиМаркет</a></div> : !solution ? <div className="pm-detail-loading"><i /><b>Загружаем решение…</b></div> : modern?<ProfiMarketProductDetail solution={solution}/>:<div dangerouslySetInnerHTML={{ __html: html }} />}{solution && <ProfiMarketReviews solution={solution} onChanged={reviewsChanged} />}</main>{modal && <PurchaseModal solution={solution} close={() => setModal(false)} done={(text) => { setModal(false); setPurchaseSuccess({ message: text }) }} fail={(text) => notify(text, true)} />}{purchaseSuccess && <PublishSuccessModal eyebrow={solution?.trial_days ? 'БЕСПЛАТНЫЙ ПЕРИОД' : 'ЗАЯВКА ОФОРМЛЕНА'} title="Поздравляем, всё получилось!" description={purchaseSuccess.message || 'Автор получил ваши контакты и свяжется с вами.'} wishTitle="Автор уже получил уведомление" wishText="Ваши контакты сохранены в его кабинете, также ему отправлено письмо." primaryHref="/profile?section=profimarket-purchases" primaryText="Перейти в мои покупки" onClose={() => setPurchaseSuccess(null)} />}{expandedImage && <DetailImageLightbox image={expandedImage} close={() => setExpandedImage(null)} />}<Notice value={notice} /></PublicLayout>
+  return <PublicLayout><main ref={root} id="pm-detail" className="pm-detail-page" onClick={interact}>{error ? <div className="pm-detail-loading"><h1>Решение не найдено</h1><p>{error}</p><a href="/profimarket">Вернуться в ПрофиМаркет</a></div> : !solution ? <div className="pm-detail-loading"><i /><b>Загружаем решение…</b></div> : modern?<ProfiMarketProductDetail solution={solution}/>:<div dangerouslySetInnerHTML={{ __html: html }} />}{solution && <ProfiMarketReviews solution={solution} onChanged={reviewsChanged} />}</main>{modal && <PurchaseModal solution={solution} close={() => setModal(false)} done={(text) => { setModal(false); setPurchaseSuccess({ message: text }) }} fail={(text) => notify(text, true)} />}{purchaseSuccess && <PublishSuccessModal eyebrow={solution?.trial_days ? 'БЕСПЛАТНЫЙ ПЕРИОД' : 'ЗАЯВКА ОФОРМЛЕНА'} title="Поздравляем, всё получилось!" description={purchaseSuccess.message || 'Автор получил ваши контакты и свяжется с вами.'} wishTitle="Автор уже получил уведомление" wishText="Ваши контакты сохранены в кабинете автора. Уведомление по email поставлено в очередь." primaryHref="/profile?section=profimarket-purchases" primaryText="Перейти к моим заявкам" onClose={() => setPurchaseSuccess(null)} />}{expandedImage && <DetailImageLightbox image={expandedImage} close={() => setExpandedImage(null)} />}<Notice value={notice} /></PublicLayout>
 }

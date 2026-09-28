@@ -1,6 +1,6 @@
 (()=>{
   document.head.insertAdjacentHTML('beforeend','<link rel="stylesheet" href="/static/admin-help.css?v=1">')
-  const escapeHTML=value=>{const node=document.createElement('span');node.textContent=value??'';return node.innerHTML}
+  const escapeHTML=value=>{const node=document.createElement('span');node.textContent=value??'';return node.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
   const section=document.createElement('section')
   section.id='help-topics-admin'
   section.className='help-admin-page hidden'

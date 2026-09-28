@@ -3,11 +3,19 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 const formatTimer = seconds => `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
 const wait = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds))
 
-export default function QuestionChat({ title, questions, initialIndex = 0, startedAt, remainingSeconds = 0, timeLimitSeconds = 0, employee = false, saveAnswer, finish, onDone, onError }) {
+export default function QuestionChat({ title, questions, initialIndex = 0, initialAnswers = [], startedAt, remainingSeconds = 0, timeLimitSeconds = 0, employee = false, saveAnswer, finish, onDone, onError }) {
   const [index, setIndex] = useState(initialIndex)
   const [selected, setSelected] = useState([])
   const [text, setText] = useState('')
-  const [log, setLog] = useState([])
+  const [log, setLog] = useState(() => questions.slice(0, initialIndex).flatMap(q => {
+    const saved = initialAnswers.filter(answer => answer.question_id === q.id)
+    if (!saved.length) return []
+    const selectedIds = new Set(saved.map(answer => answer.selected_answer_id))
+    const answer = q.question_type === 'text'
+      ? saved[0].text_answer || ''
+      : (q.answers || []).filter(option => selectedIds.has(option.id)).map(option => option.answer).join(', ')
+    return [{ q, answer }]
+  }))
   const [busy, setBusy] = useState(false)
   const [typing, setTyping] = useState(false)
   const [error, setError] = useState('')
@@ -24,8 +32,8 @@ export default function QuestionChat({ title, questions, initialIndex = 0, start
     const timer = setInterval(() => setSeconds(value => {
       if (!timeLimitSeconds) return value + 1
       if (value > 1) return value - 1
-      clearInterval(timer)
       if (!locked.current) {
+        clearInterval(timer)
         locked.current = true
         finish().then(onDone).catch(handleError)
       }
@@ -101,7 +109,7 @@ export default function QuestionChat({ title, questions, initialIndex = 0, start
     }
   }
 
-  if (!q) return null
+  if (!q) return <div className="chat-shell"><div className="chat-messages"><p>Все ответы сохранены.</p><button disabled={busy} onClick={async () => { if (locked.current) return; locked.current = true; setBusy(true); try { onDone(await finish()) } catch (failure) { handleError(failure) } }}>Завершить тест</button>{error && <p role="alert">{error}</p>}</div></div>
   return <div className={`chat-shell${employee ? ' employee-chat-shell' : ''}`}>
     <div className="chat-top"><a href={employee ? undefined : '/tests'} aria-hidden={employee || undefined}>←</a><div className="chat-avatar">FT</div><div><h1>{title}</h1><p><i /> Тестирование идёт</p></div><div className="chat-progress"><b>{index + 1} / {questions.length}</b><span>{formatTimer(seconds)}</span></div></div>
     <div className="chat-bar"><i style={{ width: `${index / questions.length * 100}%` }} /></div>

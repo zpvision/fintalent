@@ -1,6 +1,6 @@
 (()=>{
   const type=document.body.dataset.catalog,form=document.querySelector('#catalog-search'),list=document.querySelector('#catalog-list'),meta=document.querySelector('#catalog-meta');
-  const esc=value=>{const n=document.createElement('span');n.textContent=value??'';return n.innerHTML};
+  const esc=value=>{const n=document.createElement('span');n.textContent=value??'';return n.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;')};
   const money=value=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).format(value||0);
   const avatar=item=>{
     const initials=esc((item.name||'').split(' ').filter(Boolean).map(x=>x[0]).slice(0,2).join('').toUpperCase());
