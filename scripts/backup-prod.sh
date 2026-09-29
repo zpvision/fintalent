@@ -24,11 +24,14 @@ backup_label="$(date -u +%Y%m%dT%H%M%SZ)-$$"
 partial_dir="$backup_root/.${backup_label}-incomplete"
 final_dir="$backup_root/$backup_label"
 mkdir -m 0700 "$partial_dir"
-trap 'echo "Backup не завершён; файлы остались в $partial_dir" >&2' ERR
+service_file="$partial_dir/.pg_service.conf"
+trap 'rm -f -- "$service_file"; echo "Backup не завершён; файлы остались в $partial_dir" >&2' ERR
 
-database_url="$(python3 - "$app_dir/.env" <<'PY'
+python3 - "$app_dir/.env" "$service_file" <<'PY'
+import os
 import pathlib
 import sys
+from urllib.parse import parse_qsl, unquote, urlsplit
 
 for line in pathlib.Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
     if not line.strip() or line.lstrip().startswith("#") or "=" not in line:
@@ -40,18 +43,41 @@ for line in pathlib.Path(sys.argv[1]).read_text(encoding="utf-8").splitlines():
             value = value[1:-1]
         if not value:
             raise SystemExit("DATABASE_URL пуст")
-        sys.stdout.write(value)
         break
 else:
     raise SystemExit("DATABASE_URL не найден в .env")
-PY
-)"
 
-export PGDATABASE="$database_url"
-unset database_url
+url = urlsplit(value)
+if url.scheme not in ("postgres", "postgresql"):
+    raise SystemExit("DATABASE_URL должен быть PostgreSQL URI")
+params = {
+    "host": url.hostname or "",
+    "port": str(url.port or 5432),
+    "dbname": unquote(url.path.lstrip("/")),
+    "user": unquote(url.username or ""),
+    "password": unquote(url.password or ""),
+}
+for key, item in parse_qsl(url.query, keep_blank_values=True):
+    if not key.replace("_", "").isalnum() or key in ("service", "servicefile"):
+        raise SystemExit("Недопустимый параметр в DATABASE_URL")
+    params[key] = item
+if not params["host"] or not params["dbname"] or not params["user"]:
+    raise SystemExit("В DATABASE_URL отсутствуют host, база или пользователь")
+if any("\n" in item or "\r" in item or "\0" in item for item in params.values()):
+    raise SystemExit("Недопустимый символ в DATABASE_URL")
+
+service_path = pathlib.Path(sys.argv[2])
+service_path.write_text(
+    "[fintalent_backup]\n" + "".join(f"{key}={item}\n" for key, item in params.items()),
+    encoding="utf-8",
+)
+os.chmod(service_path, 0o600)
+PY
+
+PGSERVICEFILE="$service_file" PGSERVICE=fintalent_backup \
 pg_dump --format=custom --no-owner --no-acl \
   --file="$partial_dir/database.dump"
-unset PGDATABASE
+rm -f -- "$service_file"
 
 tar -C "$app_dir" -czf "$partial_dir/uploads.tar.gz" \
   static/uploads uploads
