@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { getEmployeeResultReview } from '../../api/tests'
+import { getEmployeeResultReview, getEmployeeResultReviewLink } from '../../api/tests'
 import usePageStyles from '../../hooks/usePageStyles'
 import { useDocumentPage } from '../../hooks/useDocumentPage'
 import PublicLayout from '../../layouts/PublicLayout'
@@ -13,13 +13,19 @@ export default function EmployeeResultPage() {
   useDocumentPage({ title: 'Разбор результатов — FinTalent' })
   const [params] = useSearchParams()
   const invitation = params.get('invitation') || ''
+  const token = new URLSearchParams(window.location.hash.slice(1)).get('token') || ''
   const [state, setState] = useState({ loading: true })
   useEffect(() => {
+    if (token) {
+      if (!/^[a-f0-9]{64}$/.test(token)) { setState({ error: 'Ссылка недоступна или срок её действия истёк' }); return }
+      getEmployeeResultReviewLink(token).then(result => setState({ result })).catch(() => setState({ error: 'Ссылка недоступна или срок её действия истёк' }))
+      return
+    }
     if (!/^\d+$/.test(invitation)) { setState({ error: 'Ссылка недоступна' }); return }
     getEmployeeResultReview(invitation).then(result => setState({ result })).catch(error => setState({ error: error.status === 401 ? 'auth' : 'Ссылка недоступна для этого аккаунта' }))
-  }, [invitation])
+  }, [invitation, token])
   const next = `/employee-result?invitation=${encodeURIComponent(invitation)}`
   return <PublicLayout><main className="et-public-result" style={{ maxWidth: 920, margin: '48px auto', padding: '32px' }}>
-    {state.loading ? <p>Загружаем разбор…</p> : state.error === 'auth' ? <section><h1>Войдите, чтобы посмотреть результат</h1><p>Разбор доступен только в аккаунте с адресом электронной почты, на который отправлено письмо.</p><p><Link to={`/login?next=${encodeURIComponent(next)}`}>Войти</Link> · <Link to={`/register?next=${encodeURIComponent(next)}`}>Зарегистрироваться</Link></p></section> : state.error ? <section><h1>Результат недоступен</h1><p>{state.error}</p><p>Войдите под адресом, на который пришло письмо, или обратитесь к организатору тестирования.</p><Link to={`/login?next=${encodeURIComponent(next)}`}>Сменить аккаунт</Link></section> : <><h1>{state.result.test_title}</h1><p>Ваш результат: {Math.round(state.result.percent)}%</p><Review result={state.result} /></>}
+    {state.loading ? <p>Загружаем разбор…</p> : state.error === 'auth' ? <section><h1>Войдите, чтобы посмотреть результат</h1><p>Разбор доступен только в аккаунте с адресом электронной почты, на который отправлено письмо.</p><p><Link to={`/login?next=${encodeURIComponent(next)}`}>Войти</Link> · <Link to={`/register?next=${encodeURIComponent(next)}`}>Зарегистрироваться</Link></p></section> : state.error ? <section><h1>Результат недоступен</h1><p>{state.error}</p><p>{token ? 'Попросите организатора отправить новую ссылку.' : 'Войдите под адресом, на который пришло письмо, или обратитесь к организатору тестирования.'}</p>{!token&&<Link to={`/login?next=${encodeURIComponent(next)}`}>Сменить аккаунт</Link>}</section> : <><h1>{state.result.test_title}</h1><p>Ваш результат: {Math.round(state.result.percent)}%</p><Review result={state.result} /></>}
   </main></PublicLayout>
 }

@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
+	_ "embed"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -38,6 +40,9 @@ CREATE TABLE IF NOT EXISTS company_test_invitations (
 );
 CREATE INDEX IF NOT EXISTS company_test_invitation_owner_idx ON company_test_invitations(owner_user_id,sent_at DESC);
 `
+
+//go:embed migrations/069_employee_result_links.sql
+var employeeResultLinksMigration string
 
 type employeeInput struct {
 	FullName string `json:"full_name"`
@@ -94,11 +99,16 @@ func registerEmployeeTestingRoutes() {
 	http.HandleFunc("/api/employee-testing/invitations/", employeeTestingInvitationAction)
 	http.HandleFunc("/api/employee-testing/results", employeeTestingResults)
 	http.HandleFunc("/api/employee-testing/result-review/", employeeTestingResultReview)
+	http.HandleFunc("/api/employee-testing/result-review-link", employeeTestingResultReviewLink)
 	http.HandleFunc("/api/employee-test/", publicEmployeeTest)
 }
 
 func prepareEmployeeTestingDatabase(ctx context.Context) error {
 	_, err := db.ExecContext(ctx, employeeTestingMigration)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, employeeResultLinksMigration)
 	return err
 }
 
@@ -611,14 +621,77 @@ func employeeTestingSendResults(w http.ResponseWriter, r *http.Request, owner *u
 		jsonError(w, http.StatusInternalServerError, "Не удалось загрузить результат")
 		return
 	}
+	if _, err := loadSMTPConfig(); err != nil {
+		jsonError(w, http.StatusServiceUnavailable, "Отправка почты не настроена")
+		return
+	}
+	tokenBytes := make([]byte, 32)
+	if _, err := rand.Read(tokenBytes); err != nil {
+		jsonError(w, http.StatusInternalServerError, "Не удалось создать ссылку")
+		return
+	}
+	token := hex.EncodeToString(tokenBytes)
+	hash := sha256.Sum256([]byte(token))
+	result, err := db.ExecContext(r.Context(), `UPDATE company_test_invitations SET result_token_hash=$1,result_token_expires_at=NOW()+INTERVAL '7 days'
+		WHERE id=$2 AND owner_user_id=$3 AND status='finished'`, hex.EncodeToString(hash[:]), invitationID, owner.ID)
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, "Не удалось создать ссылку")
+		return
+	}
+	if affected, _ := result.RowsAffected(); affected != 1 {
+		jsonError(w, http.StatusNotFound, "Завершённый результат не найден")
+		return
+	}
 	if err := sendEmployeeTestResultEmail(email, employeeTestResultEmailData{
 		EmployeeName: name, OrganizerName: owner.FullName, TestTitle: title,
-		ResultURL: applicationBaseURL() + "/employee-result?invitation=" + strconv.FormatInt(invitationID, 10),
+		ResultURL: applicationBaseURL() + "/employee-result#token=" + token,
 	}); err != nil {
 		jsonError(w, http.StatusServiceUnavailable, "Не удалось отправить письмо. Попробуйте позже")
 		return
 	}
 	jsonResponse(w, http.StatusOK, map[string]string{"message": "Письмо с разбором результата отправлено сотруднику"})
+}
+
+func employeeTestingResultReviewLink(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "private, no-store")
+	if r.Method != http.MethodPost {
+		jsonError(w, http.StatusMethodNotAllowed, "Метод не поддерживается")
+		return
+	}
+	var input struct {
+		Token string `json:"token"`
+	}
+	if !decodeJSONBody(w, r, &input) {
+		return
+	}
+	if len(input.Token) != 64 {
+		jsonError(w, http.StatusNotFound, "Ссылка недоступна или срок её действия истёк")
+		return
+	}
+	if _, err := hex.DecodeString(input.Token); err != nil {
+		jsonError(w, http.StatusNotFound, "Ссылка недоступна или срок её действия истёк")
+		return
+	}
+	hash := sha256.Sum256([]byte(input.Token))
+	var attemptID int64
+	err := db.QueryRowContext(r.Context(), `SELECT i.attempt_id FROM company_test_invitations i
+		JOIN test_attempts a ON a.id=i.attempt_id
+		WHERE i.result_token_hash=$1 AND i.result_token_expires_at>NOW()
+		AND i.status='finished' AND a.status='finished'`, hex.EncodeToString(hash[:])).Scan(&attemptID)
+	if errors.Is(err, sql.ErrNoRows) {
+		jsonError(w, http.StatusNotFound, "Ссылка недоступна или срок её действия истёк")
+		return
+	}
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, "Не удалось загрузить результат")
+		return
+	}
+	result, err := repository.New(db).GetAttempt(r.Context(), attemptID)
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, "Не удалось загрузить результат")
+		return
+	}
+	jsonResponse(w, http.StatusOK, result)
 }
 
 func employeeTestingResultReview(w http.ResponseWriter, r *http.Request) {

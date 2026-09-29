@@ -1,6 +1,7 @@
 (() => {
   const root = document.querySelector('#result');
   const id = new URLSearchParams(location.search).get('invitation') || '';
+  const token = new URLSearchParams(location.hash.slice(1)).get('token') || '';
   const next = encodeURIComponent(location.pathname + location.search);
   function message(title, body, links = false) {
     root.replaceChildren();
@@ -12,10 +13,11 @@
       const register = document.createElement('a'); register.href = '/register?next=' + next; register.textContent = 'Зарегистрироваться'; root.append(register);
     }
   }
-  if (!/^\d+$/.test(id)) { message('Ссылка недоступна', 'Проверьте адрес ссылки.'); return; }
-  fetch('/api/employee-testing/result-review/' + encodeURIComponent(id), { credentials: 'include', cache: 'no-store' }).then(async response => {
+  if (token ? !/^[a-f0-9]{64}$/.test(token) : !/^\d+$/.test(id)) { message('Ссылка недоступна', 'Проверьте адрес ссылки или попросите организатора отправить новую.'); return; }
+  const request = token ? fetch('/api/employee-testing/result-review-link', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }), cache: 'no-store' }) : fetch('/api/employee-testing/result-review/' + encodeURIComponent(id), { credentials: 'include', cache: 'no-store' });
+  request.then(async response => {
     if (response.status === 401) { message('Войдите, чтобы посмотреть результат', 'Разбор доступен только в аккаунте с адресом, на который отправлено письмо.', true); return; }
-    if (!response.ok) { message('Результат недоступен', 'Войдите под адресом, на который пришло письмо, или обратитесь к организатору.', true); return; }
+    if (!response.ok) { message('Результат недоступен', token ? 'Срок действия ссылки истёк. Попросите организатора отправить новую.' : 'Войдите под адресом, на который пришло письмо, или обратитесь к организатору.', !token); return; }
     const result = await response.json(); root.replaceChildren();
     const heading = document.createElement('h1'); heading.textContent = result.test_title || 'Разбор результатов'; root.append(heading);
     const sub = document.createElement('p'); sub.textContent = 'Ваш результат: ' + Math.round(result.percent || 0) + '%'; root.append(sub);

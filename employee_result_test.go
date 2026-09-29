@@ -21,6 +21,18 @@ func TestEmployeeResultReviewRequiresLogin(t *testing.T) {
 	}
 }
 
+func TestEmployeeResultLinkRejectsInvalidTokenWithoutLogin(t *testing.T) {
+	r := httptest.NewRequest(http.MethodPost, "/api/employee-testing/result-review-link", strings.NewReader(`{"token":"invalid"}`))
+	w := httptest.NewRecorder()
+	employeeTestingResultReviewLink(w, r)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("unexpected status: %d", w.Code)
+	}
+	if got := w.Header().Get("Cache-Control"); got != "private, no-store" {
+		t.Fatalf("private result cache policy: %q", got)
+	}
+}
+
 func TestEmployeeResultEmailEscapesContent(t *testing.T) {
 	tmpl, err := template.New("result").Parse(employeeTestResultEmailTemplate)
 	if err != nil {
