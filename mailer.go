@@ -37,6 +37,9 @@ var eventNotificationEmailTemplate string
 //go:embed mail/templates/employee_test_invitation.html
 var employeeTestInvitationEmailTemplate string
 
+//go:embed mail/templates/employee_test_result.html
+var employeeTestResultEmailTemplate string
+
 //go:embed mail/logo.png
 var emailLogo []byte
 
@@ -91,6 +94,33 @@ type employeeTestInvitationEmailData struct {
 	DurationMinutes int
 	TestURL         string
 	IsRetake        bool
+}
+
+type employeeTestResultEmailData struct {
+	EmployeeName  string
+	OrganizerName string
+	TestTitle     string
+	ResultURL     string
+}
+
+func sendEmployeeTestResultEmail(recipientEmail string, data employeeTestResultEmailData) error {
+	config, err := loadSMTPConfig()
+	if err != nil {
+		return err
+	}
+	tmpl, err := template.New("employee-test-result").Parse(employeeTestResultEmailTemplate)
+	if err != nil {
+		return err
+	}
+	var body bytes.Buffer
+	if err := tmpl.Execute(&body, data); err != nil {
+		return err
+	}
+	message, err := buildHTMLMessage(config.From, mail.Address{Name: data.EmployeeName, Address: recipientEmail}, "Разбор результатов теста «"+data.TestTitle+"» — FinTalent", body.Bytes())
+	if err != nil {
+		return err
+	}
+	return sendSMTPMessage(config, recipientEmail, message)
 }
 
 func applicationBaseURL() string {

@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"FinTalent/internal/testmodule/domain"
+	"FinTalent/internal/testmodule/repository"
 )
 
 const employeeTestingMigration = `
@@ -84,6 +85,7 @@ type employeeAnswerInput struct {
 
 func registerEmployeeTestingRoutes() {
 	http.HandleFunc("/employee-test", serveFrontendPage("static/employee-test.html"))
+	http.HandleFunc("/employee-result", serveFrontendPage("static/employee-result.html"))
 	http.HandleFunc("/api/employee-testing/employees", employeeTestingEmployees)
 	http.HandleFunc("/api/employee-testing/employees/", employeeTestingEmployee)
 	http.HandleFunc("/api/employee-testing/import/finkoper", employeeTestingImportFinKoper)
@@ -91,6 +93,7 @@ func registerEmployeeTestingRoutes() {
 	http.HandleFunc("/api/employee-testing/invitations", employeeTestingInvitations)
 	http.HandleFunc("/api/employee-testing/invitations/", employeeTestingInvitationAction)
 	http.HandleFunc("/api/employee-testing/results", employeeTestingResults)
+	http.HandleFunc("/api/employee-testing/result-review/", employeeTestingResultReview)
 	http.HandleFunc("/api/employee-test/", publicEmployeeTest)
 }
 
@@ -508,13 +511,17 @@ func employeeTestingInvitationAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	parts := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/employee-testing/invitations/"), "/"), "/")
-	if r.Method != http.MethodPost || len(parts) != 2 || parts[1] != "retake" {
+	if r.Method != http.MethodPost || len(parts) != 2 || (parts[1] != "retake" && parts[1] != "send-results") {
 		jsonError(w, http.StatusMethodNotAllowed, "Метод не поддерживается")
 		return
 	}
 	invitationID, err := strconv.ParseInt(parts[0], 10, 64)
 	if err != nil || invitationID < 1 {
 		jsonError(w, http.StatusBadRequest, "Некорректное назначение")
+		return
+	}
+	if parts[1] == "send-results" {
+		employeeTestingSendResults(w, r, u, invitationID)
 		return
 	}
 
@@ -587,6 +594,68 @@ func employeeTestingResults(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	jsonResponse(w, 200, map[string]any{"items": items})
+}
+
+func employeeTestingSendResults(w http.ResponseWriter, r *http.Request, owner *user, invitationID int64) {
+	var name, email, title string
+	err := db.QueryRowContext(r.Context(), `SELECT e.full_name,e.email,v.title FROM company_test_invitations i
+		JOIN company_test_employees e ON e.id=i.employee_id
+		JOIN test_versions v ON v.id=i.test_version_id
+		JOIN test_attempts a ON a.id=i.attempt_id
+		WHERE i.id=$1 AND i.owner_user_id=$2 AND i.status='finished' AND a.status='finished'`, invitationID, owner.ID).Scan(&name, &email, &title)
+	if errors.Is(err, sql.ErrNoRows) {
+		jsonError(w, http.StatusNotFound, "Завершённый результат не найден")
+		return
+	}
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, "Не удалось загрузить результат")
+		return
+	}
+	if err := sendEmployeeTestResultEmail(email, employeeTestResultEmailData{
+		EmployeeName: name, OrganizerName: owner.FullName, TestTitle: title,
+		ResultURL: applicationBaseURL() + "/employee-result?invitation=" + strconv.FormatInt(invitationID, 10),
+	}); err != nil {
+		jsonError(w, http.StatusServiceUnavailable, "Не удалось отправить письмо. Попробуйте позже")
+		return
+	}
+	jsonResponse(w, http.StatusOK, map[string]string{"message": "Письмо с разбором результата отправлено сотруднику"})
+}
+
+func employeeTestingResultReview(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonError(w, http.StatusMethodNotAllowed, "Метод не поддерживается")
+		return
+	}
+	w.Header().Set("Cache-Control", "private, no-store")
+	u, err := userFromRequest(r)
+	if err != nil {
+		jsonError(w, http.StatusUnauthorized, "Войдите в аккаунт, чтобы посмотреть результат")
+		return
+	}
+	id, err := strconv.ParseInt(strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/employee-testing/result-review/"), "/"), 10, 64)
+	if err != nil || id < 1 {
+		jsonError(w, http.StatusNotFound, "Результат недоступен")
+		return
+	}
+	var attemptID int64
+	err = db.QueryRowContext(r.Context(), `SELECT i.attempt_id FROM company_test_invitations i
+		JOIN company_test_employees e ON e.id=i.employee_id
+		JOIN test_attempts a ON a.id=i.attempt_id
+		WHERE i.id=$1 AND i.status='finished' AND a.status='finished' AND lower(e.email)=lower($2)`, id, u.Email).Scan(&attemptID)
+	if errors.Is(err, sql.ErrNoRows) {
+		jsonError(w, http.StatusNotFound, "Результат недоступен для этого аккаунта")
+		return
+	}
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, "Не удалось загрузить результат")
+		return
+	}
+	result, err := repository.New(db).GetAttempt(r.Context(), attemptID)
+	if err != nil {
+		jsonError(w, http.StatusInternalServerError, "Не удалось загрузить результат")
+		return
+	}
+	jsonResponse(w, http.StatusOK, result)
 }
 
 func publicEmployeeTest(w http.ResponseWriter, r *http.Request) {

@@ -11,6 +11,8 @@ export const setTestResultVisibility = (id, visible, options) =>
 export const getEmployees = (options) => apiClient.get('/api/employee-testing/employees', options)
 export const getEmployeeTests = (options) => apiClient.get('/api/employee-testing/tests', options)
 export const getEmployeeResults = (options) => apiClient.get('/api/employee-testing/results', options)
+export const getEmployeeResultReview = (id, options) => apiClient.get(`/api/employee-testing/result-review/${encodeURIComponent(id)}`, { redirectOnUnauthorized: false, ...options })
+export const sendEmployeeResults = (id, options) => apiClient.post(`/api/employee-testing/invitations/${encodeURIComponent(id)}/send-results`, {}, options)
 export const addEmployees = (employees, options) => apiClient.post('/api/employee-testing/employees', { employees }, options)
 export const deleteEmployee = (id, options) => apiClient.delete(`/api/employee-testing/employees/${encodeURIComponent(id)}`, options)
 export const importEmployeesFromFinKoper = (email, password, options) =>

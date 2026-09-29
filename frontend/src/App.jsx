@@ -20,6 +20,7 @@ import AccountingCompanyPassportPage from './pages/companies/AccountingCompanyPa
 import AccountingCompanyCreatePage from './pages/companies/AccountingCompanyCreatePage'
 import TestTakePage from './pages/tests/TestTakePage'
 import EmployeeTestPage from './pages/tests/EmployeeTestPage'
+import EmployeeResultPage from './pages/tests/EmployeeResultPage'
 import TestCreatePage from './pages/tests/TestCreatePage'
 import VacancyCreatePage from './pages/vacancies/VacancyCreatePage'
 import PublicationAnalyticsPage from './pages/publications/PublicationAnalyticsPage'
@@ -42,7 +43,7 @@ const reactPaths = [
   '/accounting-companies', '/accounting-companies/view', '/accounting-companies/passport', '/accounting-companies/create',
   '/profimarket', '/profimarket/my', '/profimarket/solution/:key', '/profimarket/create', '/profimarket/regulation/edit', '/profimarket/product/edit',
   '/publications', '/publications/saved', '/publications/create', '/publications/analytics', '/publications/:id/edit',
-  '/tests', '/tests/take', '/employee-test', '/client-exchange', '/client-exchange/create', '/profile', '/admin/*',
+  '/tests', '/tests/take', '/employee-test', '/employee-result', '/client-exchange', '/client-exchange/create', '/profile', '/admin/*',
 ]
 
 const isolatedPaths = [
@@ -166,6 +167,7 @@ export default function App() {
       <Route path="/accounting-companies/create" element={<AccountingCompanyCreatePage />} />
       <Route path="/tests/take" element={<TestTakePage />} />
       <Route path="/employee-test" element={<EmployeeTestPage />} />
+      <Route path="/employee-result" element={<EmployeeResultPage />} />
       <Route path="/tests/create" element={<TestCreatePage />} />
       <Route path="/vacancies/create" element={<PublicLayout><VacancyCreatePage /></PublicLayout>} />
       <Route path="/publications/analytics" element={<PublicationAnalyticsPage />} />
