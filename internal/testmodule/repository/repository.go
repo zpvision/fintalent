@@ -15,6 +15,7 @@ import (
 
 var ErrNotFound = errors.New("not found")
 var ErrForbidden = errors.New("forbidden")
+var ErrConflict = errors.New("attempt changed; retry finish")
 
 type Repository interface {
 	List(context.Context, dto.ListFilter, int64, bool) ([]domain.Test, error)
@@ -35,7 +36,7 @@ type Repository interface {
 	StartAttempt(context.Context, int64, int64, int64) (*domain.Attempt, error)
 	GetAttempt(context.Context, int64) (*domain.Attempt, error)
 	SaveAttemptAnswer(context.Context, int64, dto.SubmitAnswer) error
-	FinishAttempt(context.Context, int64, float64, float64, float64, bool, []domain.AttemptAnswer) error
+	FinishAttempt(context.Context, int64, int64, float64, float64, float64, bool, []domain.AttemptAnswer) error
 	ListAttempts(context.Context, int64, int64, bool) ([]domain.Attempt, error)
 	SetAttemptResumeVisibility(context.Context, int64, int64, bool) error
 	Statistics(context.Context, int64) (*domain.Statistics, error)
@@ -164,23 +165,17 @@ func (p *Postgres) loadQuestions(ctx context.Context, t *domain.Test, includeCor
 			q.Settings = make(map[string]any)
 		}
 		q.Settings["shuffle_answers"] = t.ShuffleAnswers
-		aRows, err := p.db.QueryContext(ctx, `SELECT id,question_id,answer,is_correct,sort_order FROM test_answers WHERE question_id=$1 ORDER BY sort_order,id`, q.ID)
-		if err != nil {
-			return nil, err
-		}
-		for aRows.Next() {
-			var a domain.Answer
-			if err := aRows.Scan(&a.ID, &a.QuestionID, &a.Answer, &a.IsCorrect, &a.SortOrder); err != nil {
-				aRows.Close()
-				return nil, err
-			}
-			if !includeCorrect {
-				a.IsCorrect = false
-			}
-			q.Answers = append(q.Answers, a)
-		}
-		aRows.Close()
 		t.Questions = append(t.Questions, q)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	if err = p.loadQuestionAnswers(ctx, t.Questions); err != nil {
+		return nil, err
+	}
+	if !includeCorrect {
+		domain.HideQuestionSolutions(t.Questions)
 	}
 	return t, rows.Err()
 }
@@ -303,7 +298,7 @@ func (p *Postgres) UpdateQuestion(ctx context.Context, id, user int64, in dto.Cr
 		return err
 	}
 	defer tx.Rollback()
-	res, err := tx.ExecContext(ctx, `UPDATE test_questions q SET sort_order=$1,question=$2,question_type=$3,explanation=$4,points=$5,settings=$6,updated_at=NOW() FROM test_versions v JOIN tests t ON t.id=v.test_id WHERE q.id=$7 AND q.test_version_id=v.id AND t.author_id=$8 AND t.status='draft'`, in.SortOrder, strings.TrimSpace(in.Question), in.QuestionType, in.Explanation, in.Points, settings, id, user)
+	res, err := tx.ExecContext(ctx, `UPDATE test_questions q SET sort_order=$1,question=$2,question_type=$3,explanation=$4,points=$5,settings=$6,updated_at=NOW() FROM test_versions v JOIN tests t ON t.id=v.test_id WHERE q.id=$7 AND q.test_version_id=v.id AND t.author_id=$8 AND t.status='draft' AND t.deleted_at IS NULL AND v.version=t.current_version AND v.published_at IS NULL AND NOT EXISTS(SELECT 1 FROM test_attempts used WHERE used.test_version_id=v.id)`, in.SortOrder, strings.TrimSpace(in.Question), in.QuestionType, in.Explanation, in.Points, settings, id, user)
 	if err != nil {
 		return err
 	}
@@ -320,7 +315,7 @@ func (p *Postgres) UpdateQuestion(ctx context.Context, id, user int64, in dto.Cr
 	return tx.Commit()
 }
 func (p *Postgres) DeleteQuestion(ctx context.Context, id, user int64) error {
-	res, err := p.db.ExecContext(ctx, `DELETE FROM test_questions q USING test_versions v,tests t WHERE q.id=$1 AND q.test_version_id=v.id AND v.test_id=t.id AND t.author_id=$2 AND t.status='draft'`, id, user)
+	res, err := p.db.ExecContext(ctx, `DELETE FROM test_questions q USING test_versions v,tests t WHERE q.id=$1 AND q.test_version_id=v.id AND v.test_id=t.id AND t.author_id=$2 AND t.status='draft' AND t.deleted_at IS NULL AND v.version=t.current_version AND v.published_at IS NULL AND NOT EXISTS(SELECT 1 FROM test_attempts used WHERE used.test_version_id=v.id)`, id, user)
 	if err != nil {
 		return err
 	}
@@ -332,14 +327,14 @@ func (p *Postgres) DeleteQuestion(ctx context.Context, id, user int64) error {
 }
 func (p *Postgres) AddAnswer(ctx context.Context, qID, user int64, in dto.AnswerInput) (int64, error) {
 	var id int64
-	err := p.db.QueryRowContext(ctx, `INSERT INTO test_answers(question_id,answer,is_correct,sort_order) SELECT q.id,$1,$2,$3 FROM test_questions q JOIN test_versions v ON v.id=q.test_version_id JOIN tests t ON t.id=v.test_id WHERE q.id=$4 AND t.author_id=$5 AND t.status='draft' RETURNING id`, in.Answer, in.IsCorrect, in.SortOrder, qID, user).Scan(&id)
+	err := p.db.QueryRowContext(ctx, `INSERT INTO test_answers(question_id,answer,is_correct,sort_order) SELECT q.id,$1,$2,$3 FROM test_questions q JOIN test_versions v ON v.id=q.test_version_id JOIN tests t ON t.id=v.test_id WHERE q.id=$4 AND t.author_id=$5 AND t.status='draft' AND t.deleted_at IS NULL AND v.version=t.current_version AND v.published_at IS NULL AND NOT EXISTS(SELECT 1 FROM test_attempts used WHERE used.test_version_id=v.id) RETURNING id`, in.Answer, in.IsCorrect, in.SortOrder, qID, user).Scan(&id)
 	if err == sql.ErrNoRows {
 		return 0, ErrForbidden
 	}
 	return id, err
 }
 func (p *Postgres) UpdateAnswer(ctx context.Context, id, user int64, in dto.AnswerInput) error {
-	res, err := p.db.ExecContext(ctx, `UPDATE test_answers a SET answer=$1,is_correct=$2,sort_order=$3,updated_at=NOW() FROM test_questions q JOIN test_versions v ON v.id=q.test_version_id JOIN tests t ON t.id=v.test_id WHERE a.id=$4 AND a.question_id=q.id AND t.author_id=$5 AND t.status='draft'`, in.Answer, in.IsCorrect, in.SortOrder, id, user)
+	res, err := p.db.ExecContext(ctx, `UPDATE test_answers a SET answer=$1,is_correct=$2,sort_order=$3,updated_at=NOW() FROM test_questions q JOIN test_versions v ON v.id=q.test_version_id JOIN tests t ON t.id=v.test_id WHERE a.id=$4 AND a.question_id=q.id AND t.author_id=$5 AND t.status='draft' AND t.deleted_at IS NULL AND v.version=t.current_version AND v.published_at IS NULL AND NOT EXISTS(SELECT 1 FROM test_attempts used WHERE used.test_version_id=v.id)`, in.Answer, in.IsCorrect, in.SortOrder, id, user)
 	if err != nil {
 		return err
 	}
@@ -350,7 +345,7 @@ func (p *Postgres) UpdateAnswer(ctx context.Context, id, user int64, in dto.Answ
 	return nil
 }
 func (p *Postgres) DeleteAnswer(ctx context.Context, id, user int64) error {
-	res, err := p.db.ExecContext(ctx, `DELETE FROM test_answers a USING test_questions q,test_versions v,tests t WHERE a.id=$1 AND a.question_id=q.id AND q.test_version_id=v.id AND v.test_id=t.id AND t.author_id=$2 AND t.status='draft'`, id, user)
+	res, err := p.db.ExecContext(ctx, `DELETE FROM test_answers a USING test_questions q,test_versions v,tests t WHERE a.id=$1 AND a.question_id=q.id AND q.test_version_id=v.id AND v.test_id=t.id AND t.author_id=$2 AND t.status='draft' AND t.deleted_at IS NULL AND v.version=t.current_version AND v.published_at IS NULL AND NOT EXISTS(SELECT 1 FROM test_attempts used WHERE used.test_version_id=v.id)`, id, user)
 	if err != nil {
 		return err
 	}
@@ -397,7 +392,13 @@ func (p *Postgres) ForkDraft(ctx context.Context, id, user int64) error {
 		return err
 	}
 	if status == domain.StatusDraft {
-		return tx.Commit()
+		var used bool
+		if err = tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM test_attempts WHERE test_version_id=$1)", oldVersionID).Scan(&used); err != nil {
+			return err
+		}
+		if !used {
+			return tx.Commit()
+		}
 	}
 	if status == domain.StatusDeleted || status == domain.StatusBlocked {
 		return ErrForbidden
@@ -448,11 +449,11 @@ func (p *Postgres) StartAttempt(ctx context.Context, testID, user, vacancyID int
 	var a domain.Attempt
 	err := p.db.QueryRowContext(ctx, `INSERT INTO test_attempts(test_id,test_version_id,user_id,max_score,context)
 		SELECT t.id,v.id,$2,COALESCE((SELECT SUM(points) FROM test_questions WHERE test_version_id=v.id),0),
-			CASE WHEN $3>0 THEN jsonb_build_object('vacancy_id',$3) ELSE '{}'::jsonb END
-		FROM tests t JOIN test_versions v ON v.test_id=t.id AND v.version=t.current_version JOIN users author ON author.id=t.author_id
-		WHERE t.id=$1 AND t.status='published' AND (t.visibility IN ('public','marketplace') OR t.author_id=$2)
+			(CASE WHEN $3>0 THEN jsonb_build_object('vacancy_id',$3) ELSE '{}'::jsonb END) || jsonb_build_object('time_limit_seconds',COALESCE(t.time_limit_seconds,0),'passing_percent',t.passing_percent)
+		FROM tests t JOIN test_versions v ON v.test_id=t.id AND v.id=CASE WHEN $3>0 THEN (SELECT vt.test_version_id FROM vacancy_tests vt WHERE vt.vacancy_external_id=$3 AND vt.test_id=t.id) ELSE (SELECT cv.id FROM test_versions cv WHERE cv.test_id=t.id AND cv.version=t.current_version) END JOIN users author ON author.id=t.author_id
+		WHERE t.id=$1 AND t.status='published' AND t.deleted_at IS NULL AND (t.visibility IN ('public','marketplace') OR t.author_id=$2)
 		AND (NOT author.is_blocked OR author.is_system)
-		AND ($3=0 OR EXISTS(SELECT 1 FROM vacancy_tests vt JOIN vacancies vacancy ON vacancy.id=vt.vacancy_external_id WHERE vt.vacancy_external_id=$3 AND vt.test_id=t.id AND vacancy.status='published' AND vacancy.deleted_at IS NULL))
+		AND ($3=0 OR EXISTS(SELECT 1 FROM vacancy_tests vt JOIN vacancies vacancy ON vacancy.id=vt.vacancy_external_id WHERE vt.vacancy_external_id=$3 AND vt.test_id=t.id AND vacancy.status='published' AND vacancy.deleted_at IS NULL AND EXISTS(SELECT 1 FROM users vu WHERE vu.id=vacancy.user_id AND (NOT vu.is_blocked OR vu.is_system))))
 		RETURNING id,test_id,test_version_id,user_id,max_score,started_at,status`, testID, user, vacancyID).Scan(&a.ID, &a.TestID, &a.TestVersionID, &a.UserID, &a.MaxScore, &a.StartedAt, &a.Status)
 	if err == sql.ErrNoRows {
 		return nil, ErrForbidden
@@ -463,13 +464,14 @@ func (p *Postgres) GetAttempt(ctx context.Context, id int64) (*domain.Attempt, e
 	var a domain.Attempt
 	var finished sql.NullTime
 	var passed sql.NullBool
-	err := p.db.QueryRowContext(ctx, `SELECT a.id,a.test_id,a.test_version_id,a.user_id,u.full_name,v.title,a.score,a.max_score,a.percent,a.passed,a.started_at,a.finished_at,a.duration_seconds,a.status,v.shuffle_answers FROM test_attempts a JOIN users u ON u.id=a.user_id JOIN test_versions v ON v.id=a.test_version_id WHERE a.id=$1`, id).Scan(&a.ID, &a.TestID, &a.TestVersionID, &a.UserID, &a.UserName, &a.TestTitle, &a.Score, &a.MaxScore, &a.Percent, &passed, &a.StartedAt, &finished, &a.DurationSeconds, &a.Status, &a.ShuffleAnswers)
+	err := p.db.QueryRowContext(ctx, `SELECT a.id,a.test_id,a.test_version_id,a.user_id,u.full_name,v.title,a.score,a.max_score,a.percent,a.passed,a.started_at,a.finished_at,a.duration_seconds,a.status,v.shuffle_answers,a.answer_revision,COALESCE((a.context->>'time_limit_seconds')::int,t.time_limit_seconds,0),a.context ? 'employee_invitation_id',COALESCE((a.context->>'passing_percent')::numeric,t.passing_percent) FROM test_attempts a JOIN users u ON u.id=a.user_id JOIN test_versions v ON v.id=a.test_version_id JOIN tests t ON t.id=a.test_id WHERE a.id=$1`, id).Scan(&a.ID, &a.TestID, &a.TestVersionID, &a.UserID, &a.UserName, &a.TestTitle, &a.Score, &a.MaxScore, &a.Percent, &passed, &a.StartedAt, &finished, &a.DurationSeconds, &a.Status, &a.ShuffleAnswers, &a.AnswerRevision, &a.TimeLimitSeconds, &a.EmployeeAttempt, &a.PassingPercent)
 	if err == sql.ErrNoRows {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
+	a.RemainingSeconds = max(0, a.TimeLimitSeconds-int(time.Since(a.StartedAt).Seconds()))
 	if finished.Valid {
 		a.FinishedAt = &finished.Time
 	}
@@ -519,20 +521,14 @@ func (p *Postgres) GetAttempt(ctx context.Context, id int64) (*domain.Attempt, e
 			q.Settings = make(map[string]any)
 		}
 		q.Settings["shuffle_answers"] = a.ShuffleAnswers
-		aRows, queryErr := p.db.QueryContext(ctx, `SELECT id,question_id,answer,is_correct,sort_order FROM test_answers WHERE question_id=$1 ORDER BY sort_order,id`, q.ID)
-		if queryErr != nil {
-			return nil, queryErr
-		}
-		for aRows.Next() {
-			var answer domain.Answer
-			if err = aRows.Scan(&answer.ID, &answer.QuestionID, &answer.Answer, &answer.IsCorrect, &answer.SortOrder); err != nil {
-				aRows.Close()
-				return nil, err
-			}
-			q.Answers = append(q.Answers, answer)
-		}
-		aRows.Close()
 		a.Questions = append(a.Questions, q)
+	}
+	if err = qRows.Err(); err != nil {
+		return nil, err
+	}
+	qRows.Close()
+	if err = p.loadQuestionAnswers(ctx, a.Questions); err != nil {
+		return nil, err
 	}
 	domain.PrepareAnswerOrder(a.Questions, a.ID, a.ShuffleAnswers)
 	return &a, qRows.Err()
@@ -543,6 +539,38 @@ func (p *Postgres) SaveAttemptAnswer(ctx context.Context, attempt int64, in dto.
 		return err
 	}
 	defer tx.Rollback()
+	if err = SaveAttemptAnswerTx(ctx, tx, attempt, in); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func SaveAttemptAnswerTx(ctx context.Context, tx *sql.Tx, attempt int64, in dto.SubmitAnswer) error {
+	var err error
+	var kind string
+	if err = tx.QueryRowContext(ctx, `SELECT q.question_type FROM test_attempts a JOIN tests t ON t.id=a.test_id JOIN test_questions q ON q.test_version_id=a.test_version_id WHERE a.id=$1 AND q.id=$2 AND a.status='started' AND (COALESCE((a.context->>'time_limit_seconds')::int,t.time_limit_seconds,0)<=0 OR a.started_at+COALESCE((a.context->>'time_limit_seconds')::int,t.time_limit_seconds)*INTERVAL '1 second'>clock_timestamp()) FOR UPDATE OF a`, attempt, in.QuestionID).Scan(&kind); err != nil {
+		if err == sql.ErrNoRows {
+			return ErrForbidden
+		}
+		return err
+	}
+	if len(in.TextAnswer) > 20000 || (kind == domain.QuestionText && len(in.SelectedAnswerIDs) != 0) || (kind != domain.QuestionText && (len(in.SelectedAnswerIDs) == 0 || len(in.SelectedAnswerIDs) > 100)) || ((kind == domain.QuestionSingle || kind == domain.QuestionBoolean) && len(in.SelectedAnswerIDs) != 1) {
+		return ErrForbidden
+	}
+	seen := map[int64]bool{}
+	for _, id := range in.SelectedAnswerIDs {
+		if seen[id] {
+			return ErrForbidden
+		}
+		seen[id] = true
+		var valid bool
+		if err = tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM test_answers WHERE id=$1 AND question_id=$2)", id, in.QuestionID).Scan(&valid); err != nil {
+			return err
+		}
+		if !valid {
+			return ErrForbidden
+		}
+	}
 	var responseSeconds int
 	if err = tx.QueryRowContext(ctx, `SELECT GREATEST(0,EXTRACT(EPOCH FROM NOW()-COALESCE((SELECT MAX(answered_at) FROM test_attempt_answers WHERE attempt_id=$1),(SELECT started_at FROM test_attempts WHERE id=$1)))::int)`, attempt).Scan(&responseSeconds); err != nil {
 		return err
@@ -562,14 +590,28 @@ func (p *Postgres) SaveAttemptAnswer(ctx context.Context, attempt int64, in dto.
 	if err != nil {
 		return err
 	}
-	return tx.Commit()
+	if _, err = tx.ExecContext(ctx, "UPDATE test_attempts SET answer_revision=answer_revision+1 WHERE id=$1", attempt); err != nil {
+		return err
+	}
+	return nil
 }
-func (p *Postgres) FinishAttempt(ctx context.Context, id int64, score, max, percent float64, passed bool, answers []domain.AttemptAnswer) error {
+func (p *Postgres) FinishAttempt(ctx context.Context, id, revision int64, score, max, percent float64, passed bool, answers []domain.AttemptAnswer) error {
 	tx, err := p.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
+	var actualRevision int64
+	if err = tx.QueryRowContext(ctx, "SELECT answer_revision FROM test_attempts WHERE id=$1 AND status='started' FOR UPDATE", id).Scan(&actualRevision); err != nil {
+		if err == sql.ErrNoRows {
+			return ErrForbidden
+		}
+		return err
+	}
+	if actualRevision != revision {
+		return ErrConflict
+	}
+	// The row lock prevents writes after this revision check until commit.
 	for _, a := range answers {
 		_, err = tx.ExecContext(ctx, `UPDATE test_attempt_answers SET is_correct=$1,earned_points=$2 WHERE attempt_id=$3 AND question_id=$4`, a.IsCorrect, a.EarnedPoints, id, a.QuestionID)
 		if err != nil {
@@ -599,7 +641,7 @@ func (p *Postgres) ListAttempts(ctx context.Context, testID, user int64, admin b
 	}
 	if !admin {
 		args = append(args, user)
-		q += fmt.Sprintf(" AND a.user_id=$%d", len(args))
+		q += fmt.Sprintf(" AND a.user_id=$%d AND NOT (a.context ? 'employee_invitation_id')", len(args))
 	}
 	q += " ORDER BY a.started_at DESC LIMIT 200"
 	rows, err := p.db.QueryContext(ctx, q, args...)
@@ -627,7 +669,7 @@ func (p *Postgres) ListAttempts(ctx context.Context, testID, user int64, admin b
 }
 
 func (p *Postgres) SetAttemptResumeVisibility(ctx context.Context, attemptID, userID int64, visible bool) error {
-	result, err := p.db.ExecContext(ctx, `UPDATE test_attempts SET show_in_resume=$1 WHERE id=$2 AND user_id=$3 AND status='finished'`, visible, attemptID, userID)
+	result, err := p.db.ExecContext(ctx, `UPDATE test_attempts SET show_in_resume=$1 WHERE id=$2 AND user_id=$3 AND status='finished' AND NOT (context ? 'employee_invitation_id')`, visible, attemptID, userID)
 	if err != nil {
 		return err
 	}
@@ -646,3 +688,33 @@ func (p *Postgres) Statistics(ctx context.Context, id int64) (*domain.Statistics
 }
 
 var _ = time.Now
+
+// Read answers only after the question cursor releases its connection. One query
+// avoids both N+1 latency and pool starvation under concurrent test loading.
+func (p *Postgres) loadQuestionAnswers(ctx context.Context, questions []domain.Question) error {
+	if len(questions) == 0 {
+		return nil
+	}
+	ids := make([]int64, len(questions))
+	indexes := make(map[int64]int, len(questions))
+	for i, q := range questions {
+		ids[i] = q.ID
+		indexes[q.ID] = i
+	}
+	rows, err := p.db.QueryContext(ctx, `SELECT id,question_id,answer,is_correct,sort_order FROM test_answers WHERE question_id=ANY($1) ORDER BY question_id,sort_order,id`, ids)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var a domain.Answer
+		if err = rows.Scan(&a.ID, &a.QuestionID, &a.Answer, &a.IsCorrect, &a.SortOrder); err != nil {
+			return err
+		}
+		i, ok := indexes[a.QuestionID]
+		if ok {
+			questions[i].Answers = append(questions[i].Answers, a)
+		}
+	}
+	return rows.Err()
+}

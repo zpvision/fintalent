@@ -21,8 +21,6 @@ import (
 
 const adminCookie = "fintalent_admin"
 
-var adminSessionToken = newAdminToken()
-
 type dictionary struct {
 	ID                     int64            `json:"id"`
 	Name                   string           `json:"name"`
@@ -83,12 +81,6 @@ var publicationDictionaries = []struct {
 		"Заработная плата", "Кадровое делопроизводство", "Отпуска и больничные", "Командировки", "Увольнение сотрудников", "Самозанятые и договоры ГПХ", "Электронный документооборот", "Электронная подпись", "Онлайн-кассы", "Маркировка товаров",
 		"Работа в 1С:Бухгалтерии", "Работа в 1С:ЗУП", "Автоматизация учёта", "Excel для бухгалтера", "Внутренний контроль", "Бухгалтерский аудит", "МСФО", "Внешнеэкономическая деятельность", "Импорт и экспорт", "Финансовый анализ бизнеса",
 	}},
-}
-
-func newAdminToken() string {
-	b := make([]byte, 32)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
 }
 
 func prepareAdminDatabase(ctx context.Context) error {
@@ -326,19 +318,6 @@ func adminPositionIconUpload(w http.ResponseWriter, r *http.Request) {
 	writeAdminJSON(w, http.StatusCreated, map[string]string{"url": "/static/uploads/position-icons/" + name})
 }
 
-func safeSVG(data []byte) bool {
-	value := strings.ToLower(string(data))
-	if !strings.Contains(value, "<svg") || !strings.Contains(value, "</svg>") {
-		return false
-	}
-	for _, forbidden := range []string{"<script", "<foreignobject", "javascript:", "data:text/html", "onload=", "onerror="} {
-		if strings.Contains(value, forbidden) {
-			return false
-		}
-	}
-	return true
-}
-
 func adminLogin(w http.ResponseWriter, r *http.Request) {
 	if !requirePost(w, r) || !parseForm(w, r) {
 		return
@@ -357,13 +336,22 @@ func adminLogin(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, "Неверный логин или пароль")
 		return
 	}
-	http.SetCookie(w, &http.Cookie{Name: adminCookie, Value: adminSessionToken, Path: "/", HttpOnly: true, Secure: secureCookies(), SameSite: http.SameSiteStrictMode, MaxAge: 12 * 60 * 60})
+	if err := createAdminSession(w, r); err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, "Не удалось создать сессию")
+		return
+	}
 	writeJSON(w, http.StatusOK, "Вход выполнен")
 }
 
 func adminLogout(w http.ResponseWriter, r *http.Request) {
 	if !requirePost(w, r) {
 		return
+	}
+	if cookie, err := r.Cookie(adminCookie); err == nil {
+		if _, err = db.ExecContext(r.Context(), `DELETE FROM admin_sessions WHERE token_hash=$1`, hashSessionToken(cookie.Value)); err != nil {
+			writeJSON(w, http.StatusServiceUnavailable, "Не удалось завершить сессию")
+			return
+		}
 	}
 	http.SetCookie(w, &http.Cookie{Name: adminCookie, Value: "", Path: "/", HttpOnly: true, Secure: secureCookies(), MaxAge: -1})
 	writeJSON(w, http.StatusOK, "Выход выполнен")
@@ -375,11 +363,6 @@ func adminSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, "Авторизован")
-}
-
-func isAdmin(r *http.Request) bool {
-	cookie, err := r.Cookie(adminCookie)
-	return err == nil && subtle.ConstantTimeCompare([]byte(cookie.Value), []byte(adminSessionToken)) == 1
 }
 
 func requireAdmin(w http.ResponseWriter, r *http.Request) bool {

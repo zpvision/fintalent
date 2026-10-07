@@ -20,8 +20,17 @@ var resumeTestConfirmationsMigrationSQL string
 //go:embed migrations/047_test_shuffle_answers.sql
 var testShuffleAnswersMigrationSQL string
 
+//go:embed migrations/066_attempt_revision.sql
+var attemptRevisionMigrationSQL string
+
+//go:embed migrations/044_test_result_resume_visibility.sql
+var attemptResumeVisibilityMigrationSQL string
+
 func prepareTestingDatabase(ctx context.Context) error {
 	if _, err := db.ExecContext(ctx, testingMigrationSQL); err != nil {
+		return err
+	}
+	if _, err := db.ExecContext(ctx, attemptResumeVisibilityMigrationSQL); err != nil {
 		return err
 	}
 	_, err := db.ExecContext(ctx, attemptTimingMigrationSQL)
@@ -33,5 +42,9 @@ func prepareTestingDatabase(ctx context.Context) error {
 		return err
 	}
 	_, err = db.ExecContext(ctx, testShuffleAnswersMigrationSQL)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, attemptRevisionMigrationSQL)
 	return err
 }

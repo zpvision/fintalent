@@ -1,5 +1,5 @@
 (()=>{
-const esc=value=>{const node=document.createElement('span');node.textContent=value??'';return node.innerHTML};
+const esc=value=>{const node=document.createElement('span');node.textContent=value??'';return node.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;')};
 const rid=()=>Number(location.pathname.match(/\/resume\/view\/(\d+)/)?.[1]||0);
 const date=value=>new Date(value).toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric'});
 const level=percent=>percent>=90?'Экспертный':percent>=80?'Продвинутый':percent>=65?'Хороший':'Базовый';

@@ -1,0 +1,1 @@
+ALTER TABLE test_attempts ADD COLUMN IF NOT EXISTS answer_revision BIGINT NOT NULL DEFAULT 0;

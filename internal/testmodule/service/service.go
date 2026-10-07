@@ -29,10 +29,14 @@ func (s *Service) Get(ctx context.Context, id, user int64, admin bool) (*domain.
 		return nil, repository.ErrNotFound
 	}
 	showCorrect := admin || base.AuthorID == user
-	if base.Status != domain.StatusPublished && !showCorrect {
+	if !showCorrect && (base.Status != domain.StatusPublished || base.Visibility == domain.VisibilityPrivate) {
 		return nil, repository.ErrForbidden
 	}
-	return s.repo.Get(ctx, id, showCorrect)
+	test, err := s.repo.Get(ctx, id, showCorrect)
+	if err == nil && !showCorrect {
+		domain.HideQuestionSolutions(test.Questions)
+	}
+	return test, err
 }
 func (s *Service) Create(ctx context.Context, user int64, in dto.CreateTest) (*domain.Test, error) {
 	defaults(&in)
@@ -103,7 +107,7 @@ func (s *Service) SaveAnswer(ctx context.Context, attempt, user int64, in dto.Su
 	if err != nil {
 		return err
 	}
-	if a.UserID != user || a.Status != "started" {
+	if a.UserID != user || a.Status != "started" || a.EmployeeAttempt || (a.TimeLimitSeconds > 0 && a.RemainingSeconds <= 0) {
 		return repository.ErrForbidden
 	}
 	return s.repo.SaveAttemptAnswer(ctx, attempt, in)
@@ -117,6 +121,7 @@ func (s *Service) Attempt(ctx context.Context, id, user int64, admin bool) (*dom
 		return nil, repository.ErrForbidden
 	}
 	if !admin && a.Status != "finished" {
+		domain.HideQuestionSolutions(a.Questions)
 		for i := range a.Answers {
 			a.Answers[i].CorrectAnswer = ""
 			a.Answers[i].IsCorrect = nil
@@ -135,7 +140,7 @@ func (s *Service) Finish(ctx context.Context, id, user int64) (*domain.Attempt, 
 	if err != nil {
 		return nil, err
 	}
-	if attempt.UserID != user || attempt.Status != "started" {
+	if attempt.UserID != user || attempt.Status != "started" || attempt.EmployeeAttempt {
 		return nil, repository.ErrForbidden
 	}
 	test, err := s.repo.GetVersion(ctx, attempt.TestID, attempt.TestVersionID, true)
@@ -198,8 +203,12 @@ func (s *Service) Finish(ctx context.Context, id, user int64) (*domain.Attempt, 
 	if max > 0 {
 		percent = math.Round(score/max*10000) / 100
 	}
-	passed := percent >= test.PassingPercent
-	if err = s.repo.FinishAttempt(ctx, id, score, max, percent, passed, grades); err != nil {
+	passing := test.PassingPercent
+	if attempt.PassingPercent != nil {
+		passing = *attempt.PassingPercent
+	}
+	passed := percent >= passing
+	if err = s.repo.FinishAttempt(ctx, id, attempt.AnswerRevision, score, max, percent, passed, grades); err != nil {
 		return nil, err
 	}
 	return s.repo.GetAttempt(ctx, id)

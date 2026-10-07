@@ -5,7 +5,7 @@ const catalog = document.querySelector('#catalog')
 const search = document.querySelector('#search')
 const sort = document.querySelector('#sort')
 
-function esc(value) { const span = document.createElement('span'); span.textContent = value == null ? '' : String(value); return span.innerHTML }
+function esc(value) { const span = document.createElement('span'); span.textContent = value == null ? '' : String(value); return span.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;') }
 function pluralTests(count) { if (count % 100 >= 11 && count % 100 <= 14) return 'тестов'; if (count % 10 === 1) return 'тест'; if (count % 10 >= 2 && count % 10 <= 4) return 'теста'; return 'тестов' }
 function difficultyLabel(value) { return ({ easy: 'Начальный', medium: 'Средний', hard: 'Продвинутый', expert: 'Эксперт' })[value] || value || 'Средний' }
 function cardIcon(index) { return ['%', '1C', '▥', '◕', '♟', '▤', '✓', '₽', 'X'][index % 9] }

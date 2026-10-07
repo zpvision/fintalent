@@ -1,7 +1,7 @@
 (()=>{
   if(location.pathname!=='/tests')return;
   document.head.insertAdjacentHTML('beforeend','<link rel="stylesheet" href="/static/employee-testing-results.css?v=2">');
-  const esc=value=>{const node=document.createElement('span');node.textContent=value??'';return node.innerHTML};
+  const esc=value=>{const node=document.createElement('span');node.textContent=value??'';return node.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;')};
   const api=async(url,options={})=>{const response=await fetch(url,{cache:'no-store',...options});const data=await response.json().catch(()=>({}));if(!response.ok)throw Error(data.error||'Ошибка запроса');return data};
   const post=value=>({method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(value)});
   let employees=[],tests=[],mode='employees';

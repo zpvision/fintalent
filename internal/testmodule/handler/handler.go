@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"github.com/jackc/pgx/v5/pgconn"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -78,11 +81,19 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 	respond(w, status, map[string]string{"error": msg})
 }
 func handleErr(w http.ResponseWriter, err error) {
+	var databaseError *pgconn.PgError
+	if errors.As(err, &databaseError) || errors.Is(err, context.DeadlineExceeded) {
+		log.Printf("test request failed: %T", err)
+		writeError(w, 500, "Не удалось выполнить запрос")
+		return
+	}
 	switch {
 	case errors.Is(err, repository.ErrNotFound):
 		writeError(w, 404, "объект не найден")
 	case errors.Is(err, repository.ErrForbidden):
 		writeError(w, 403, "недостаточно прав")
+	case errors.Is(err, repository.ErrConflict):
+		writeError(w, 409, "Ответы изменились. Повторите завершение теста")
 	default:
 		writeError(w, 400, err.Error())
 	}
@@ -193,6 +204,10 @@ func (h *Handler) testRoutes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if action == "statistics" && r.Method == http.MethodGet {
+		if _, e := h.service.Get(r.Context(), id, uid, false); e != nil {
+			handleErr(w, e)
+			return
+		}
 		v, e := h.service.Statistics(r.Context(), id)
 		if e != nil {
 			handleErr(w, e)

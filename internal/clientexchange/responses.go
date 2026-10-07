@@ -20,11 +20,17 @@ func (h *Handler) createResponse(w http.ResponseWriter, r *http.Request, u UserI
 		fail(w, 400, "Комментарий слишком длинный")
 		return
 	}
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		fail(w, 500, "Не удалось отправить предложение")
+		return
+	}
+	defer tx.Rollback()
 	var seller int64
 	var title, status, sellerName, sellerEmail string
 	var original sql.NullFloat64
 	var bargain bool
-	if err := h.db.QueryRowContext(r.Context(), `SELECT l.seller_user_id,COALESCE(NULLIF(l.title,''),'Клиент'),l.status,l.transfer_price,l.bargain_allowed,u.full_name,u.email FROM client_exchange_listings l JOIN users u ON u.id=l.seller_user_id WHERE l.id=$1 AND l.deleted_at IS NULL`, listingID).Scan(&seller, &title, &status, &original, &bargain, &sellerName, &sellerEmail); err != nil {
+	if err := tx.QueryRowContext(r.Context(), `SELECT l.seller_user_id,COALESCE(NULLIF(l.title,''),'Клиент'),l.status,l.transfer_price,l.bargain_allowed,u.full_name,u.email FROM client_exchange_listings l JOIN users u ON u.id=l.seller_user_id WHERE l.id=$1 AND l.deleted_at IS NULL AND (NOT u.is_blocked OR u.is_system) FOR UPDATE OF l`, listingID).Scan(&seller, &title, &status, &original, &bargain, &sellerName, &sellerEmail); err != nil {
 		fail(w, 404, "Объявление не найдено")
 		return
 	}
@@ -44,12 +50,6 @@ func (h *Handler) createResponse(w http.ResponseWriter, r *http.Request, u UserI
 		fail(w, 400, "Укажите вариант предложения")
 		return
 	}
-	tx, err := h.db.BeginTx(r.Context(), nil)
-	if err != nil {
-		fail(w, 500, "Не удалось отправить предложение")
-		return
-	}
-	defer tx.Rollback()
 	var id int64
 	err = tx.QueryRowContext(r.Context(), `INSERT INTO client_exchange_responses(listing_id,buyer_user_id,proposed_price,accept_original_price,ready_to_discuss,comment) VALUES($1,$2,$3,$4,$5,$6) RETURNING id`, listingID, u.ID, in.ProposedPrice, in.AcceptOriginalPrice, in.ReadyToDiscuss, clean(in.Comment, 3000)).Scan(&id)
 	if err != nil {
@@ -121,7 +121,8 @@ func (h *Handler) acceptResponse(w http.ResponseWriter, r *http.Request, u UserI
 	defer tx.Rollback()
 	var listingID, buyerID int64
 	var title, status string
-	err = tx.QueryRowContext(r.Context(), `SELECT l.id,cr.buyer_user_id,COALESCE(NULLIF(l.title,''),'Клиент'),l.status FROM client_exchange_responses cr JOIN client_exchange_listings l ON l.id=cr.listing_id WHERE cr.id=$1 AND l.seller_user_id=$2 AND cr.status='pending' FOR UPDATE`, responseID, u.ID).Scan(&listingID, &buyerID, &title, &status)
+	// Lock the parent first, consistently with creation and listing transitions.
+	err = tx.QueryRowContext(r.Context(), `SELECT l.id,COALESCE(NULLIF(l.title,''),'Клиент'),l.status FROM client_exchange_listings l WHERE l.id=(SELECT listing_id FROM client_exchange_responses WHERE id=$1) AND l.seller_user_id=$2 AND l.deleted_at IS NULL FOR UPDATE`, responseID, u.ID).Scan(&listingID, &title, &status)
 	if err == sql.ErrNoRows {
 		fail(w, 403, "Предложение недоступно или уже обработано")
 		return
@@ -132,6 +133,14 @@ func (h *Handler) acceptResponse(w http.ResponseWriter, r *http.Request, u UserI
 	}
 	if status != "has_responses" && status != "active" {
 		fail(w, 409, "В текущем статусе выбрать покупателя нельзя")
+		return
+	}
+	if err = tx.QueryRowContext(r.Context(), `SELECT buyer_user_id FROM client_exchange_responses WHERE id=$1 AND listing_id=$2 AND status='pending' FOR UPDATE`, responseID, listingID).Scan(&buyerID); err != nil {
+		if err == sql.ErrNoRows {
+			fail(w, 409, "Предложение уже обработано")
+		} else {
+			fail(w, 500, "Не удалось выбрать покупателя")
+		}
 		return
 	}
 	if _, err = tx.ExecContext(r.Context(), `UPDATE client_exchange_responses SET status=CASE WHEN id=$1 THEN 'accepted' ELSE 'rejected' END,updated_at=NOW() WHERE listing_id=$2 AND status='pending'`, responseID, listingID); err != nil {

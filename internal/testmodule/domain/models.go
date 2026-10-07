@@ -75,26 +75,31 @@ type Statistics struct {
 }
 
 type Attempt struct {
-	ID              int64           `json:"id"`
-	TestID          int64           `json:"test_id"`
-	TestVersionID   int64           `json:"test_version_id"`
-	UserID          int64           `json:"user_id"`
-	UserName        string          `json:"user_name,omitempty"`
-	TestTitle       string          `json:"test_title,omitempty"`
-	ShuffleAnswers  bool            `json:"shuffle_answers"`
-	Score           float64         `json:"score"`
-	MaxScore        float64         `json:"max_score"`
-	Percent         float64         `json:"percent"`
-	Passed          *bool           `json:"passed,omitempty"`
-	StartedAt       time.Time       `json:"started_at"`
-	FinishedAt      *time.Time      `json:"finished_at,omitempty"`
-	DurationSeconds int             `json:"duration_seconds"`
-	Status          string          `json:"status"`
-	CorrectAnswers  int             `json:"correct_answers"`
-	TotalQuestions  int             `json:"total_questions"`
-	ShowInResume    bool            `json:"show_in_resume"`
-	Answers         []AttemptAnswer `json:"answers,omitempty"`
-	Questions       []Question      `json:"questions,omitempty"`
+	AnswerRevision   int64           `json:"-"`
+	TimeLimitSeconds int             `json:"time_limit_seconds"`
+	RemainingSeconds int             `json:"remaining_seconds"`
+	EmployeeAttempt  bool            `json:"-"`
+	PassingPercent   *float64        `json:"-"`
+	ID               int64           `json:"id"`
+	TestID           int64           `json:"test_id"`
+	TestVersionID    int64           `json:"test_version_id"`
+	UserID           int64           `json:"user_id"`
+	UserName         string          `json:"user_name,omitempty"`
+	TestTitle        string          `json:"test_title,omitempty"`
+	ShuffleAnswers   bool            `json:"shuffle_answers"`
+	Score            float64         `json:"score"`
+	MaxScore         float64         `json:"max_score"`
+	Percent          float64         `json:"percent"`
+	Passed           *bool           `json:"passed,omitempty"`
+	StartedAt        time.Time       `json:"started_at"`
+	FinishedAt       *time.Time      `json:"finished_at,omitempty"`
+	DurationSeconds  int             `json:"duration_seconds"`
+	Status           string          `json:"status"`
+	CorrectAnswers   int             `json:"correct_answers"`
+	TotalQuestions   int             `json:"total_questions"`
+	ShowInResume     bool            `json:"show_in_resume"`
+	Answers          []AttemptAnswer `json:"answers,omitempty"`
+	Questions        []Question      `json:"questions,omitempty"`
 }
 
 type AttemptAnswer struct {

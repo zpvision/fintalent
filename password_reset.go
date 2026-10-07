@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"log"
 	"math/big"
-	"net"
 	"net/http"
 	"os"
 	"regexp"
@@ -96,14 +95,7 @@ func decodeResetJSON(w http.ResponseWriter, r *http.Request, target any) bool {
 }
 
 func resetClientIP(r *http.Request) string {
-	if forwarded := strings.TrimSpace(strings.Split(r.Header.Get("X-Forwarded-For"), ",")[0]); net.ParseIP(forwarded) != nil {
-		return forwarded
-	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err == nil {
-		return host
-	}
-	return r.RemoteAddr
+	return requestClientIP(r)
 }
 
 func requestPasswordReset(w http.ResponseWriter, r *http.Request) {
@@ -128,11 +120,24 @@ func requestPasswordReset(w http.ResponseWriter, r *http.Request) {
 	ip := resetClientIP(r)
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		writeJSON(w, 503, "Сервис временно недоступен")
+		return
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended($1,0))", "reset-ip:"+ip); err == nil {
+		_, err = tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended($1,0))", "reset-email:"+emailHash)
+	}
+	if err != nil {
+		writeJSON(w, 503, "Сервис временно недоступен")
+		return
+	}
 	var recentEmail, recentIP int
 	var lastRequest sql.NullTime
-	err = db.QueryRowContext(ctx, `SELECT COUNT(*), MAX(created_at) FROM password_reset_requests WHERE email_hash=$1 AND created_at > NOW()-INTERVAL '1 hour'`, emailHash).Scan(&recentEmail, &lastRequest)
+	err = tx.QueryRowContext(ctx, `SELECT COUNT(*), MAX(created_at) FROM password_reset_requests WHERE email_hash=$1 AND created_at > NOW()-INTERVAL '1 hour'`, emailHash).Scan(&recentEmail, &lastRequest)
 	if err == nil {
-		err = db.QueryRowContext(ctx, `SELECT COUNT(*) FROM password_reset_requests WHERE request_ip=$1 AND created_at > NOW()-INTERVAL '1 hour'`, ip).Scan(&recentIP)
+		err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM password_reset_requests WHERE request_ip=$1 AND created_at > NOW()-INTERVAL '1 hour'`, ip).Scan(&recentIP)
 	}
 	if err != nil {
 		log.Printf("password reset rate query: %v", err)
@@ -150,18 +155,23 @@ func requestPasswordReset(w http.ResponseWriter, r *http.Request) {
 	}
 	var userID sql.NullInt64
 	var fullName string
-	err = db.QueryRowContext(ctx, `SELECT id,full_name FROM users WHERE email=$1 AND NOT is_blocked AND NOT is_system`, email).Scan(&userID, &fullName)
+	err = tx.QueryRowContext(ctx, `SELECT id,full_name FROM users WHERE email=$1 AND NOT is_blocked AND NOT is_system`, email).Scan(&userID, &fullName)
 	if err != nil && err != sql.ErrNoRows {
 		log.Printf("password reset user query: %v", err)
 		writeJSON(w, http.StatusInternalServerError, "Сервис временно недоступен")
 		return
 	}
-	tx, err := db.BeginTx(ctx, nil)
+	if err == sql.ErrNoRows {
+		err = nil // Unknown addresses still consume the same reset rate budget.
+	}
 	if err == nil {
 		_, err = tx.ExecContext(ctx, `UPDATE password_reset_requests SET used_at=NOW() WHERE email_hash=$1 AND used_at IS NULL`, emailHash)
 	}
 	if err == nil {
 		_, err = tx.ExecContext(ctx, `INSERT INTO password_reset_requests(user_id,email_hash,code_hash,request_ip,expires_at) VALUES($1,$2,$3,$4,NOW()+INTERVAL '10 minutes')`, userID, emailHash, resetHMAC(secret, "code", email+":"+code), ip)
+	}
+	if err == nil && userID.Valid {
+		err = enqueueNotification(ctx, tx, "reset", fullName, email, "", code, "")
 	}
 	if err == nil {
 		err = tx.Commit()
@@ -169,18 +179,12 @@ func requestPasswordReset(w http.ResponseWriter, r *http.Request) {
 		_ = tx.Rollback()
 	}
 	if err != nil {
-		log.Printf("password reset insert: %v", err)
-		writeJSON(w, http.StatusInternalServerError, "Сервис временно недоступен")
+		// Do not reveal account existence through delivery/admission failures.
+		log.Printf("password reset persistence/delivery queue failure: %T", err)
+		writeJSON(w, http.StatusOK, "Если аккаунт существует, письмо с кодом отправлено")
 		return
 	}
 	writeJSON(w, http.StatusOK, "Если аккаунт существует, письмо с кодом отправлено")
-	if userID.Valid {
-		go func() {
-			if err := sendPasswordResetEmail(fullName, email, code, 10); err != nil {
-				log.Printf("password reset email to %s: %v", email, err)
-			}
-		}()
-	}
 }
 
 func verifyPasswordReset(w http.ResponseWriter, r *http.Request) {
@@ -201,16 +205,25 @@ func verifyPasswordReset(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		writeJSON(w, 503, "Сервис временно недоступен")
+		return
+	}
+	defer tx.Rollback()
 	var id int64
 	var storedHash string
-	err = db.QueryRowContext(ctx, `SELECT id,code_hash FROM password_reset_requests WHERE email_hash=$1 AND user_id IS NOT NULL AND used_at IS NULL AND verified_at IS NULL AND expires_at>NOW() AND failed_attempts<$2 ORDER BY created_at DESC LIMIT 1`, resetHMAC(secret, "email", email), passwordResetMaxAttempts).Scan(&id, &storedHash)
+	err = tx.QueryRowContext(ctx, `SELECT id,code_hash FROM password_reset_requests WHERE email_hash=$1 AND user_id IS NOT NULL AND used_at IS NULL AND verified_at IS NULL AND expires_at>NOW() AND failed_attempts<$2 ORDER BY created_at DESC LIMIT 1 FOR UPDATE`, resetHMAC(secret, "email", email), passwordResetMaxAttempts).Scan(&id, &storedHash)
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, "Код недействителен или истёк")
 		return
 	}
 	wanted := resetHMAC(secret, "code", email+":"+code)
 	if !hmac.Equal([]byte(storedHash), []byte(wanted)) {
-		_, _ = db.ExecContext(ctx, `UPDATE password_reset_requests SET failed_attempts=failed_attempts+1 WHERE id=$1`, id)
+		if _, err = tx.ExecContext(ctx, `UPDATE password_reset_requests SET failed_attempts=failed_attempts+1 WHERE id=$1`, id); err != nil || tx.Commit() != nil {
+			writeJSON(w, 503, "Сервис временно недоступен")
+			return
+		}
 		writeJSON(w, http.StatusBadRequest, "Код недействителен или истёк")
 		return
 	}
@@ -220,7 +233,7 @@ func verifyPasswordReset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tokenHash := resetHMAC(secret, "token", token)
-	result, err := db.ExecContext(ctx, `UPDATE password_reset_requests SET verified_at=NOW(),reset_token_hash=$1,reset_expires_at=NOW()+INTERVAL '10 minutes' WHERE id=$2 AND verified_at IS NULL`, tokenHash, id)
+	result, err := tx.ExecContext(ctx, `UPDATE password_reset_requests SET verified_at=NOW(),reset_token_hash=$1,reset_expires_at=NOW()+INTERVAL '10 minutes' WHERE id=$2 AND verified_at IS NULL`, tokenHash, id)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, "Сервис временно недоступен")
 		return
@@ -228,6 +241,10 @@ func verifyPasswordReset(w http.ResponseWriter, r *http.Request) {
 	rows, _ := result.RowsAffected()
 	if rows != 1 {
 		writeJSON(w, http.StatusBadRequest, "Код недействителен или истёк")
+		return
+	}
+	if err = tx.Commit(); err != nil {
+		writeJSON(w, 503, "Сервис временно недоступен")
 		return
 	}
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

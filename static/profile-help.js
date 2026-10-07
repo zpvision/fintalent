@@ -1,6 +1,6 @@
 (()=>{
   document.head.insertAdjacentHTML('beforeend','<link rel="stylesheet" href="/static/profile-help.css?v=2">')
-  const escapeHTML=value=>{const node=document.createElement('span');node.textContent=value??'';return node.innerHTML}
+  const escapeHTML=value=>{const node=document.createElement('span');node.textContent=value??'';return node.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
   const statusText={new:'Новое',accepted:'Принято',declined:'Отклонено',completed:'Завершено',cancelled:'Отменено'}
   let activeScope='incoming',me=null
   async function api(path,options={}){

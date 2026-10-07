@@ -8,7 +8,7 @@ async function api(url,options={}){const response=await fetch(url,{cache:'no-sto
 function showLogin(){loginScreen.classList.remove('hidden');app.classList.add('hidden')}
 function showApp(){loginScreen.classList.add('hidden');app.classList.remove('hidden')}
 function notify(text,bad=false){const box=document.querySelector('#notice');box.textContent=text;box.className='notice show'+(bad?' bad':'');setTimeout(()=>box.className='notice',2600)}
-function esc(value){const el=document.createElement('span');el.textContent=value;return el.innerHTML}
+function esc(value){const el=document.createElement('span');el.textContent=value;return el.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 
 document.querySelector('#admin-login').addEventListener('submit',async event=>{event.preventDefault();const error=document.querySelector('#login-error');error.textContent='';try{await api('/api/admin/login',{method:'POST',body:new FormData(event.currentTarget)});showApp();await load()}catch(e){error.textContent=e.message}});
 document.querySelector('#logout').addEventListener('click',async()=>{await fetch('/api/admin/logout',{method:'POST'});showLogin()});

@@ -1,5 +1,5 @@
 const root=document.querySelector('#vacancy-view'),params=new URLSearchParams(location.search),vacancyID=Number(params.get('id'))
-const esc=value=>{const node=document.createElement('span');node.textContent=value??'';return node.innerHTML}
+const esc=value=>{const node=document.createElement('span');node.textContent=value??'';return node.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
 const colorThemes={blue:['#1559f6','#edf3ff'],green:['#08a874','#e9faf4'],violet:['#7857d7','#f2edff'],orange:['#e47c17','#fff3e6'],rose:['#d94c7d','#ffedf4'],teal:['#078f91','#e8f8f8']}
 const money=value=>Number(value).toLocaleString('ru-RU')
 const minutes=seconds=>seconds?`${Math.ceil(Number(seconds)/60)} мин`:'Без ограничения'

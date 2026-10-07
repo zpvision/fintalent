@@ -342,7 +342,7 @@ func (p *Postgres) Save(ctx context.Context, v *domain.Vacancy, requirements []d
 			}
 			continue
 		}
-		result, testErr := tx.ExecContext(ctx, `INSERT INTO vacancy_tests(vacancy_external_id,test_id,test_version_id,sort_order,is_required) SELECT $1,t.id,tv.id,$3,TRUE FROM tests t JOIN test_versions tv ON tv.test_id=t.id AND tv.version=t.current_version WHERE t.id=$2 AND t.status='published' AND t.visibility='marketplace'`, v.ID, testID, order)
+		result, testErr := tx.ExecContext(ctx, `INSERT INTO vacancy_tests(vacancy_external_id,test_id,test_version_id,sort_order,is_required) SELECT $1,t.id,tv.id,$3,TRUE FROM tests t JOIN test_versions tv ON tv.test_id=t.id AND tv.version=t.current_version JOIN users u ON u.id=t.author_id WHERE t.id=$2 AND t.status='published' AND t.deleted_at IS NULL AND t.visibility='marketplace' AND (NOT u.is_blocked OR u.is_system)`, v.ID, testID, order)
 		if testErr != nil {
 			return testErr
 		}

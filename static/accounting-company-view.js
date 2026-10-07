@@ -9,7 +9,7 @@
   const esc = (value) => {
     const element = document.createElement("span");
     element.textContent = value ?? "";
-    return element.innerHTML;
+    return element.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   };
   const money = (value) => value == null ? "По запросу" : new Intl.NumberFormat("ru-RU").format(value) + " ₽";
   const priceType = {
@@ -78,7 +78,12 @@
   }
 
   function heroImage() {
-    const image = company.header_image || "/static/accounting-company-headers/header-01.jpg";
+    let image = "/static/accounting-company-headers/header-01.jpg";
+    try {
+      const candidate = String(company.header_image || image);
+      const url = new URL(candidate, location.origin);
+      if (/^https?:$/.test(url.protocol) && !url.username && !url.password && !/[\x00-\x20\x7f<>"'\\()]/.test(candidate)) image = candidate;
+    } catch {}
     return `<div class="ac-profile-visual" style="background-image:url('${esc(image)}')">
       <div>
         <h3>Порядок в учёте —<br>уверенность в бизнесе</h3>

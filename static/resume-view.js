@@ -1,5 +1,5 @@
 const root=document.querySelector('#resume-view-content');
-const esc=value=>{const node=document.createElement('span');node.textContent=value??'';return node.innerHTML};
+const esc=value=>{const node=document.createElement('span');node.textContent=value??'';return node.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;')};
 const money=value=>new Intl.NumberFormat('ru-RU',{maximumFractionDigits:0}).format(Number(value)||0);
 const monthNames=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
 const educationTypes={higher:'Высшее образование',incomplete_higher:'Неоконченное высшее',secondary_vocational:'Среднее профессиональное',secondary:'Среднее образование',professional_retraining:'Профессиональная переподготовка',course:'Курсы',certificate:'Сертификат',other:'Другое'};

@@ -10,7 +10,7 @@
   function esc(value) {
     const node = document.createElement('span');
     node.textContent = value ?? '';
-    return node.innerHTML;
+    return node.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   }
 
   function plural(count) {

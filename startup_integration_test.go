@@ -19,6 +19,7 @@ func TestProductionStartupIsEmptySafeIdempotentAndConcurrent(t *testing.T) {
 	if os.Getenv("RUN_STARTUP_DB_TESTS") != "1" {
 		t.Skip("set RUN_STARTUP_DB_TESTS=1 and DATABASE_URL to run the isolated startup test")
 	}
+	loadLocalEnv(".env")
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
 		t.Fatal("DATABASE_URL is required")
@@ -41,6 +42,10 @@ func TestProductionStartupIsEmptySafeIdempotentAndConcurrent(t *testing.T) {
 	config.RuntimeParams["search_path"] = schema
 	isolatedDB := stdlib.OpenDB(*config)
 	defer isolatedDB.Close()
+	var currentSchema string
+	if err = isolatedDB.QueryRow(`SELECT current_schema()`).Scan(&currentSchema); err != nil || currentSchema != schema {
+		t.Fatal("startup test schema isolation could not be verified")
+	}
 	originalDB := db
 	db = isolatedDB
 	t.Cleanup(func() { db = originalDB })
@@ -64,6 +69,7 @@ func TestProductionStartupIsEmptySafeIdempotentAndConcurrent(t *testing.T) {
 	if err = db.QueryRow(`SELECT COUNT(*) FROM tests WHERE slug LIKE 'position-skill-%' OR slug LIKE 'accounting-topic-%'`).Scan(&systemTests); err != nil || systemTests == 0 {
 		t.Fatalf("system tests: count=%d err=%v", systemTests, err)
 	}
+	assertCount(t, `SELECT COUNT(*) FROM tests WHERE slug LIKE 'position-skill-%'`, 0)
 	if err = db.QueryRow(`SELECT COUNT(*) FROM test_questions`).Scan(&questions); err != nil || questions == 0 {
 		t.Fatalf("system questions: count=%d err=%v", questions, err)
 	}
@@ -81,7 +87,10 @@ func TestProductionStartupIsEmptySafeIdempotentAndConcurrent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = db.Exec(`INSERT INTO test_questions(test_version_id,question,question_type) VALUES($1,'Keep me','text'); INSERT INTO test_statistics(test_id,attempts_count) VALUES($2,17)`, versionID, testID); err != nil {
+	if _, err = db.Exec(`INSERT INTO test_questions(test_version_id,question,question_type) VALUES($1,'Keep me','text')`, versionID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = db.Exec(`INSERT INTO test_statistics(test_id,attempts_count) VALUES($1,17)`, testID); err != nil {
 		t.Fatal(err)
 	}
 

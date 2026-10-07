@@ -130,16 +130,22 @@ func loadPublicResume(r *http.Request, id int64) (*publicResumeView, error) {
 	var salary sql.NullFloat64
 	var published sql.NullTime
 	var birthDay, birthMonth, birthYear sql.NullInt64
+	var visibility string
+	viewerID := int64(0)
+	if viewer, err := userFromRequest(r); err == nil {
+		viewerID = viewer.ID
+	}
 	err := db.QueryRowContext(r.Context(), `
 		SELECT r.id,u.id,u.full_name,COALESCE(u.avatar_url,''),COALESCE(u.profile_mode,'job_search'),r.desired_salary,
 			r.available_immediately,COALESCE(s.name,''),COALESCE(r.work_preferences,''),r.published_at,
-			r.birth_day,r.birth_month,r.birth_year
+			r.birth_day,r.birth_month,r.birth_year,r.visibility
 		FROM resumes r
 		JOIN users u ON u.id=r.user_id
 		LEFT JOIN resume_search_statuses s ON s.code=r.search_status_code
-		WHERE r.id=$1 AND r.status='published' AND r.deleted_at IS NULL AND (NOT u.is_blocked OR u.is_system)`,
-		id,
-	).Scan(&view.ID, &view.OwnerID, &view.Name, &view.Avatar, &view.ProfileMode, &salary, &view.AvailableImmediately, &view.SearchStatus, &view.WorkPreferences, &published, &birthDay, &birthMonth, &birthYear)
+		WHERE r.id=$1 AND r.status='published' AND r.deleted_at IS NULL AND (NOT u.is_blocked OR u.is_system)
+		AND (r.visibility='public' OR r.user_id=$2 OR EXISTS(SELECT 1 FROM resume_help_topics h JOIN help_topics ht ON ht.id=h.topic_id WHERE h.resume_id=r.id AND ht.is_active AND ht.deleted_at IS NULL))`,
+		id, viewerID,
+	).Scan(&view.ID, &view.OwnerID, &view.Name, &view.Avatar, &view.ProfileMode, &salary, &view.AvailableImmediately, &view.SearchStatus, &view.WorkPreferences, &published, &birthDay, &birthMonth, &birthYear, &visibility)
 	if err != nil {
 		return nil, err
 	}
@@ -190,6 +196,9 @@ func loadPublicResume(r *http.Request, id int64) (*publicResumeView, error) {
 	}
 	if err = loadPublicResumeHelp(r.Context(), view); err != nil {
 		return nil, err
+	}
+	if visibility != "public" && viewerID != view.OwnerID {
+		view.ProfileMode = profileModeProfessional
 	}
 	applyProfessionalResumePresentation(view)
 	return view, nil

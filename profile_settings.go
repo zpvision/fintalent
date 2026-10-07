@@ -99,9 +99,34 @@ func updateProfilePassword(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, "Не удалось обработать новый пароль")
 		return
 	}
-	if _, err = db.ExecContext(r.Context(), `UPDATE users SET password_hash=$1 WHERE id=$2`, string(newHash), u.ID); err != nil {
+	tx, err := db.BeginTx(r.Context(), nil)
+	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, "Не удалось сохранить новый пароль")
 		return
 	}
+	defer tx.Rollback()
+	result, err := tx.ExecContext(r.Context(), `UPDATE users SET password_hash=$1 WHERE id=$2 AND password_hash=$3 AND NOT is_blocked AND NOT is_system`, string(newHash), u.ID, currentHash)
+	if err == nil {
+		var affected int64
+		affected, err = result.RowsAffected()
+		if err == nil && affected != 1 {
+			writeJSON(w, http.StatusConflict, "Пароль уже изменился. Войдите снова")
+			return
+		}
+	}
+	if err == nil {
+		_, err = tx.ExecContext(r.Context(), `DELETE FROM sessions WHERE user_id=$1`, u.ID)
+	}
+	if err == nil {
+		_, err = tx.ExecContext(r.Context(), `UPDATE password_reset_requests SET used_at=NOW() WHERE user_id=$1 AND used_at IS NULL`, u.ID)
+	}
+	if err == nil {
+		err = tx.Commit()
+	}
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, "Не удалось сохранить новый пароль")
+		return
+	}
+	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", HttpOnly: true, Secure: secureCookies(), SameSite: http.SameSiteLaxMode, MaxAge: -1})
 	writeJSON(w, http.StatusOK, "Пароль успешно изменён")
 }

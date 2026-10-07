@@ -1,7 +1,7 @@
 (function(){
   document.head.insertAdjacentHTML('beforeend','<link rel="stylesheet" href="/static/publication-editor-enhancements.css?v=1"><link rel="stylesheet" href="/static/publication-preview-accurate.css?v=1">');
   const $=selector=>document.querySelector(selector);
-  const escapeHTML=value=>{const node=document.createElement('span');node.textContent=value??'';return node.innerHTML};
+  const escapeHTML=value=>{const node=document.createElement('span');node.textContent=value??'';return node.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;')};
 
   async function init(){
     buildArticleHero();

@@ -19,6 +19,8 @@ Legacy frontend остаётся набором HTML/CSS/vanilla JS-файлов
 
 ## Основные модули и связи
 
+Общие release-механизмы: `request_security.go` оборачивает mux (Origin/Fetch Metadata, доверенные proxy CIDRs, bounded process-local rate limit, API body/deadline/no-store). `admin_sessions.go` хранит отдельные хешированные admin tokens с серверным сроком и отзывом, независимо от user sessions. `notification_outbox.go` хранит письма в PostgreSQL и доставляет двумя workers с leases/retries; критичные заявки записывают outbox в общей transaction. Не возвращать синхронный SMTP в HTTP handlers. Runtime pool/shutdown/readiness находятся в `runtime_lifecycle.go`. SQL 065–068 подключены через prepare; миграция 044 применяется после создания таблиц test module. Production требует готовую React-сборку либо явный REACT_FRONTEND=false.
+
 - Users/sessions — основа ownership во всех кабинетах. Admin использует отдельную сессию и `ADMIN_LOGIN`/`ADMIN_PASSWORD`.
 - Dictionaries/surveys — метаданные анкет вакансий и профилей специалистов. Универсальные `dictionaries`/`dictionary_items`, block settings, importance и icons используются обоими конструкторами; duties, ОКВЭД, geography и test categories — специализированные справочники.
 - Стандартные иконки ответов задаёт `046_dictionary_icon_defaults.sql` через `prepareVacancyModuleDatabase()`: сопоставление по alias справочника и значению ответа, без зависимости от ID или сортировки. Файлы находятся в `static/icons/`; загруженные иконки в `static/uploads/` нужно сохранять при деплое.
@@ -29,6 +31,8 @@ Legacy frontend остаётся набором HTML/CSS/vanilla JS-файлов
 - Employee testing — сотрудники компании, приглашения и результаты. Результаты также питают паспорт компетенций бухгалтерской компании.
 - Publications — статьи/серии, реакции, сохранения, аналитика, модерация и SEO routes. Контент хранится блоками; Editor.js bundle преобразует legacy block format, backend очищает HTML.
 - ProfiMarket — каталог решений/регламентов с большим конструктором карточки, заказами/покупками и собственными справочниками.
+- Текущая коммерческая модель Решений: «покупка» отправляет заявку и контакты автору, без оплаты на сайте. Исторические API/таблица purchases и статус COMPLETED сохраняются для совместимости; они не доказывают платёж, amount — цена автора, не выручка. Эквайринг — отдельная будущая задача. Превью карточки не является защищённой платной выдачей.
+- Паспорт опубликованной компании намеренно показывает имена сотрудников и индивидуальные результаты. До прохождения теста сотруднику и при публикации компании владельцу показывается предупреждение об этой публичности. Это продуктовая настройка, не заключение о юридическом соответствии.
 - Client exchange — продажа/передача клиентской базы: объявления, module-specific dictionaries, отклики, избранное, статусы и уведомления.
 - Accounting companies — профиль/каталог компании, направления, услуги, тарифы, отзывы и competency passport; связан с владельцем-user и результатами employee testing.
 - Help — взаимопомощь специалистов вокруг resume: admin topics, публичные направления, заявки requester↔expert, сообщения, завершение, отзывы и уведомления.

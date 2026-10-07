@@ -70,6 +70,10 @@
 html.react-page-styles-loading #root > :not(.ft-site-header) {
   visibility: hidden !important;
 }
+.city-suggestions [role="option"][aria-selected="true"] {
+  background: #f0f5ff;
+  color: #1559f6;
+}
 .pmp-cover > span {
   display: block;
 }

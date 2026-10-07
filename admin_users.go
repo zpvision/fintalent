@@ -89,8 +89,19 @@ func adminUserAction(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, "Укажите корректный email")
 			return
 		}
+		tx, err := db.BeginTx(r.Context(), nil)
+		if err != nil {
+			writeJSON(w, 500, "Не удалось изменить пользователя")
+			return
+		}
+		defer tx.Rollback()
+		var oldEmail string
+		if err = tx.QueryRowContext(r.Context(), "SELECT email FROM users WHERE id=$1 AND NOT is_system FOR UPDATE", userID).Scan(&oldEmail); err != nil {
+			writeJSON(w, 404, "Пользователь не найден")
+			return
+		}
 		var updated adminUser
-		err = db.QueryRowContext(r.Context(), `UPDATE users SET full_name=$1,email=$2 WHERE id=$3 AND NOT is_system RETURNING id,email,full_name,is_blocked,created_at`, payload.FullName, payload.Email, userID).Scan(&updated.ID, &updated.Email, &updated.FullName, &updated.IsBlocked, &updated.CreatedAt)
+		err = tx.QueryRowContext(r.Context(), `UPDATE users SET full_name=$1,email=$2 WHERE id=$3 AND NOT is_system RETURNING id,email,full_name,is_blocked,created_at`, payload.FullName, payload.Email, userID).Scan(&updated.ID, &updated.Email, &updated.FullName, &updated.IsBlocked, &updated.CreatedAt)
 		if err != nil {
 			if strings.Contains(err.Error(), "23505") {
 				writeJSON(w, http.StatusConflict, "Пользователь с таким email уже зарегистрирован")
@@ -99,6 +110,15 @@ func adminUserAction(w http.ResponseWriter, r *http.Request) {
 			} else {
 				writeJSON(w, http.StatusInternalServerError, "Не удалось изменить пользователя")
 			}
+			return
+		}
+		if oldEmail != payload.Email {
+			if _, err = tx.ExecContext(r.Context(), "DELETE FROM sessions WHERE user_id=$1", userID); err == nil {
+				_, err = tx.ExecContext(r.Context(), "UPDATE password_reset_requests SET used_at=NOW() WHERE user_id=$1 AND used_at IS NULL", userID)
+			}
+		}
+		if err != nil || tx.Commit() != nil {
+			writeJSON(w, 500, "Не удалось изменить пользователя")
 			return
 		}
 		writeAdminJSON(w, http.StatusOK, updated)
@@ -131,6 +151,10 @@ func adminUserAction(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, http.StatusInternalServerError, "Не удалось заблокировать пользователя")
 				return
 			}
+		}
+		if _, execErr = tx.ExecContext(r.Context(), "UPDATE password_reset_requests SET used_at=NOW() WHERE user_id=$1 AND used_at IS NULL", userID); execErr != nil {
+			writeJSON(w, 500, "Не удалось изменить пользователя")
+			return
 		}
 		if tx.Commit() != nil {
 			writeJSON(w, http.StatusInternalServerError, "Не удалось изменить пользователя")
@@ -172,6 +196,10 @@ func adminUserAction(w http.ResponseWriter, r *http.Request) {
 		}
 		if _, execErr = tx.ExecContext(r.Context(), `DELETE FROM sessions WHERE user_id=$1`, userID); execErr != nil {
 			writeJSON(w, http.StatusInternalServerError, "Не удалось изменить пароль")
+			return
+		}
+		if _, execErr = tx.ExecContext(r.Context(), "UPDATE password_reset_requests SET used_at=NOW() WHERE user_id=$1 AND used_at IS NULL", userID); execErr != nil {
+			writeJSON(w, 500, "Не удалось изменить пользователя")
 			return
 		}
 		if tx.Commit() != nil {

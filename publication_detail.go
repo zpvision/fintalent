@@ -22,7 +22,7 @@ type publicationDetail struct {
 	Language              string             `json:"language"`
 	AllowComments         bool               `json:"allow_comments"`
 	CategorySlug          string             `json:"category_slug"`
-	AuthorEmail           string             `json:"author_email"`
+	AuthorEmail           string             `json:"-"`
 	AuthorTitle           string             `json:"author_title"`
 	AuthorCompany         string             `json:"author_company"`
 	AuthorCity            string             `json:"author_city"`
@@ -50,7 +50,7 @@ func loadPublicationDetail(r *http.Request, id int64, recordView bool) (publicat
 	(SELECT COUNT(*) FROM author_subscriptions s WHERE s.author_id=u.id),(SELECT COUNT(*) FROM publications ap WHERE ap.author_id=u.id AND ap.status='published' AND ap.deleted_at IS NULL),p.last_relevance_check_at,p.next_relevance_check_at,p.relevance_comment,
 	(SELECT COUNT(*) FROM publication_views v WHERE v.publication_id=p.id),(SELECT COUNT(DISTINCT viewer_hash) FROM publication_views v WHERE v.publication_id=p.id),(SELECT COUNT(*) FROM publication_bookmarks b WHERE b.publication_id=p.id),(SELECT COUNT(*) FROM publication_reactions x WHERE x.publication_id=p.id AND x.reaction_type='useful'),(SELECT COUNT(*) FROM publication_comments m WHERE m.publication_id=p.id AND m.deleted_at IS NULL),
 	EXISTS(SELECT 1 FROM publication_bookmarks b WHERE b.publication_id=p.id AND b.user_id=$2),EXISTS(SELECT 1 FROM author_subscriptions s WHERE s.author_id=p.author_id AND s.subscriber_id=$2),
-	COALESCE((SELECT jsonb_agg(t.name ORDER BY t.name) FROM publication_tag_links l JOIN publication_tags t ON t.id=l.tag_id WHERE l.publication_id=p.id),'[]'),COALESCE((SELECT jsonb_agg(i.value ORDER BY i.value) FROM publication_skill_links l JOIN dictionary_items i ON i.id=l.skill_id WHERE l.publication_id=p.id),'[]'),COALESCE((SELECT jsonb_agg(t.name ORDER BY t.name) FROM publication_topic_links l JOIN publication_topics t ON t.id=l.topic_id WHERE l.publication_id=p.id),'[]'),
+	COALESCE((SELECT jsonb_agg(t.name ORDER BY t.name) FROM publication_tag_links l JOIN publication_tags t ON t.id=l.tag_id WHERE l.publication_id=p.id AND t.status='published' AND t.visibility IN('public','marketplace') AND t.deleted_at IS NULL AND EXISTS(SELECT 1 FROM users tu WHERE tu.id=t.author_id AND (NOT tu.is_blocked OR tu.is_system))),'[]'),COALESCE((SELECT jsonb_agg(i.value ORDER BY i.value) FROM publication_skill_links l JOIN dictionary_items i ON i.id=l.skill_id WHERE l.publication_id=p.id),'[]'),COALESCE((SELECT jsonb_agg(t.name ORDER BY t.name) FROM publication_topic_links l JOIN publication_topics t ON t.id=l.topic_id WHERE l.publication_id=p.id),'[]'),
 	COALESCE((SELECT jsonb_object_agg(reaction_type,cnt) FROM(SELECT reaction_type,COUNT(*) cnt FROM publication_reactions WHERE publication_id=p.id GROUP BY reaction_type)x),'{}'),COALESCE((SELECT jsonb_agg(reaction_type) FROM publication_reactions WHERE publication_id=p.id AND user_id=$2),'[]'),
 	COALESCE((SELECT jsonb_agg(jsonb_build_object('id',t.id,'title',v.title,'difficulty',t.difficulty,'questions',COALESCE((SELECT COUNT(*) FROM test_questions q WHERE q.test_version_id=v.id),0),'duration',COALESCE(t.time_limit_seconds,0),'average',COALESCE(s.average_percent,0),'attempts',COALESCE(s.attempts_count,0)) ORDER BY l.sort_order) FROM publication_test_links l JOIN tests t ON t.id=l.test_id JOIN test_versions v ON v.test_id=t.id AND v.version=t.current_version LEFT JOIN test_statistics s ON s.test_id=t.id WHERE l.publication_id=p.id),'[]')
 	FROM publications p JOIN users u ON u.id=p.author_id LEFT JOIN publication_categories c ON c.id=p.category_id WHERE p.id=$1 AND p.deleted_at IS NULL AND (NOT u.is_blocked OR u.is_system) AND (p.author_id=$2 OR (p.status='published' AND p.visibility IN('public','unlisted')))`, id, uid).Scan(&d.ID, &d.AuthorID, &d.Title, &d.Subtitle, &d.Excerpt, &d.CoverImage, &d.Slug, &d.Status, &d.Visibility, &d.RelevanceStatus, &d.Difficulty, &d.ReadingTime, &d.AuthorName, &d.AuthorAvatar, &d.Category, &d.CategorySlug, &d.PublishedAt, &d.UpdatedAt, &content, &d.ContentHTML, &summary, &d.SEOTitle, &d.SEODescription, &d.Language, &d.AllowComments, &d.AuthorEmail, &d.AuthorTitle, &d.AuthorCompany, &d.AuthorCity, &d.AuthorExperience, &d.Followers, &d.AuthorPublications, &d.LastRelevanceCheck, &d.NextRelevanceCheck, &d.RelevanceComment, &d.Views, &d.UniqueViews, &d.Saves, &d.Useful, &d.Discussions, &d.IsSaved, &d.IsFollowing, &tags, &skills, &topics, &reactions, &myReactions, &tests)
@@ -82,11 +82,13 @@ func loadPublicationDetail(r *http.Request, id int64, recordView bool) (publicat
 	}
 	if recordView && d.Status == "published" {
 		hash := publicationViewerHash(r, uid)
-		res, _ := db.ExecContext(r.Context(), `INSERT INTO publication_views(publication_id,user_id,viewer_hash) SELECT $1,NULLIF($2,0),$3 WHERE NOT EXISTS(SELECT 1 FROM publication_views WHERE publication_id=$1 AND viewer_hash=$3 AND viewed_at>NOW()-INTERVAL '6 hours')`, id, uid, hash)
-		if n, _ := res.RowsAffected(); n > 0 {
-			d.Views++
-			d.UniqueViews++
-			_, _ = db.ExecContext(r.Context(), `INSERT INTO publication_analytics_daily(publication_id,day,views,unique_views) VALUES($1,CURRENT_DATE,1,1) ON CONFLICT(publication_id,day) DO UPDATE SET views=publication_analytics_daily.views+1,unique_views=publication_analytics_daily.unique_views+1`, id)
+		res, viewErr := db.ExecContext(r.Context(), `INSERT INTO publication_views(publication_id,user_id,viewer_hash) SELECT $1,NULLIF($2,0),$3 WHERE NOT EXISTS(SELECT 1 FROM publication_views WHERE publication_id=$1 AND viewer_hash=$3 AND viewed_at>NOW()-INTERVAL '6 hours')`, id, uid, hash)
+		if viewErr == nil {
+			if n, _ := res.RowsAffected(); n > 0 {
+				d.Views++
+				d.UniqueViews++
+				_, _ = db.ExecContext(r.Context(), `INSERT INTO publication_analytics_daily(publication_id,day,views,unique_views) VALUES($1,CURRENT_DATE,1,1) ON CONFLICT(publication_id,day) DO UPDATE SET views=publication_analytics_daily.views+1,unique_views=publication_analytics_daily.unique_views+1`, id)
+			}
 		}
 	}
 	return d, nil
@@ -119,8 +121,15 @@ func publicationComments(w http.ResponseWriter, r *http.Request, id int64) {
 			var helpful int
 			var edited sql.NullTime
 			var created time.Time
-			_ = rows.Scan(&cid, &aid, &name, &avatar, &parent, &typ, &body, &best, &confirmed, &pinned, &expert, &helpful, &edited, &created, &isAuthor)
+			if err := rows.Scan(&cid, &aid, &name, &avatar, &parent, &typ, &body, &best, &confirmed, &pinned, &expert, &helpful, &edited, &created, &isAuthor); err != nil {
+				writeJSON(w, 500, "Не удалось загрузить обсуждение")
+				return
+			}
 			items = append(items, map[string]any{"id": cid, "author_id": aid, "author_name": name, "author_avatar": avatar, "parent_id": parent.Int64, "message_type": typ, "body": body, "is_best": best, "is_confirmed": confirmed, "is_pinned": pinned, "is_expert": expert, "helpful_count": helpful, "edited_at": edited.Time, "created_at": created, "is_author": isAuthor})
+		}
+		if err := rows.Err(); err != nil {
+			writeJSON(w, 500, "Не удалось загрузить обсуждение")
+			return
 		}
 		writeAdminJSON(w, 200, map[string]any{"items": items})
 		return
@@ -148,13 +157,29 @@ func publicationComments(w http.ResponseWriter, r *http.Request, id int64) {
 		if !map[string]bool{"question": true, "answer": true, "opinion": true, "clarification": true}[in.Type] {
 			in.Type = "opinion"
 		}
-		var cid int64
-		err = db.QueryRowContext(r.Context(), `INSERT INTO publication_comments(publication_id,author_id,parent_id,message_type,body) SELECT $1,$2,NULLIF($3,0),$4,$5 WHERE EXISTS(SELECT 1 FROM publications WHERE id=$1 AND status='published' AND allow_comments) AND NOT EXISTS(SELECT 1 FROM publication_comments WHERE author_id=$2 AND created_at>NOW()-INTERVAL '8 seconds') RETURNING id`, id, u.ID, in.ParentID, in.Type, in.Body).Scan(&cid)
-		if err != nil {
-			writeJSON(w, 400, "Обсуждение закрыто или публикация недоступна")
+		tx, ok := beginPublicationInteraction(w, r, id)
+		if !ok {
 			return
 		}
-		_, _ = db.ExecContext(r.Context(), `INSERT INTO notifications(user_id,type,title,body,entity_type,entity_id) SELECT author_id,'publication_comment','Новое обсуждение',$2,'publication',$1 FROM publications WHERE id=$1 AND author_id<>$3`, id, u.FullName+" оставил сообщение к публикации", u.ID)
+		defer tx.Rollback()
+		var cid int64
+		err = tx.QueryRowContext(r.Context(), `INSERT INTO publication_comments(publication_id,author_id,parent_id,message_type,body) SELECT $1,$2,NULLIF($3,0),$4,$5 WHERE EXISTS(SELECT 1 FROM publications WHERE id=$1 AND status='published' AND allow_comments AND deleted_at IS NULL AND visibility IN('public','unlisted')) AND ($3=0 OR EXISTS(SELECT 1 FROM publication_comments parent WHERE parent.id=$3 AND parent.publication_id=$1 AND parent.deleted_at IS NULL)) AND NOT EXISTS(SELECT 1 FROM publication_comments WHERE author_id=$2 AND created_at>NOW()-INTERVAL '8 seconds') RETURNING id`, id, u.ID, in.ParentID, in.Type, in.Body).Scan(&cid)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				writeJSON(w, 400, "Обсуждение закрыто или публикация недоступна")
+			} else {
+				writeJSON(w, 500, "Не удалось сохранить сообщение")
+			}
+			return
+		}
+		_, err = tx.ExecContext(r.Context(), `INSERT INTO notifications(user_id,type,title,body,entity_type,entity_id) SELECT author_id,'publication_comment','Новое обсуждение',$2,'publication',$1 FROM publications WHERE id=$1 AND author_id<>$3`, id, u.FullName+" оставил сообщение к публикации", u.ID)
+		if err != nil {
+			writeJSON(w, 500, "Не удалось сохранить уведомление")
+			return
+		}
+		if !commitPublicationInteraction(w, tx) {
+			return
+		}
 		writeAdminJSON(w, 201, map[string]any{"id": cid})
 		return
 	}
@@ -230,9 +255,17 @@ func publicationReport(w http.ResponseWriter, r *http.Request, id int64) {
 		writeJSON(w, 400, "Выберите причину жалобы")
 		return
 	}
-	_, err = db.ExecContext(r.Context(), `INSERT INTO publication_reports(publication_id,reporter_id,report_type,details) VALUES($1,$2,$3,$4)`, id, u.ID, in.Type, strings.TrimSpace(in.Details))
+	tx, ok := beginPublicationInteraction(w, r, id)
+	if !ok {
+		return
+	}
+	defer tx.Rollback()
+	_, err = tx.ExecContext(r.Context(), `INSERT INTO publication_reports(publication_id,reporter_id,report_type,details) VALUES($1,$2,$3,$4)`, id, u.ID, in.Type, strings.TrimSpace(in.Details))
 	if err != nil {
 		writeJSON(w, 500, "Не удалось отправить сообщение")
+		return
+	}
+	if !commitPublicationInteraction(w, tx) {
 		return
 	}
 	writeJSON(w, 201, "Сообщение отправлено автору и модератору")
@@ -254,7 +287,19 @@ func publicationProgress(w http.ResponseWriter, r *http.Request, id int64) {
 	if in.Progress > 100 {
 		in.Progress = 100
 	}
-	_, _ = db.ExecContext(r.Context(), `INSERT INTO publication_read_progress(publication_id,user_id,progress) VALUES($1,$2,$3) ON CONFLICT(publication_id,user_id) DO UPDATE SET progress=EXCLUDED.progress,last_read_at=NOW()`, id, u.ID, in.Progress)
+	tx, ok := beginPublicationInteraction(w, r, id)
+	if !ok {
+		return
+	}
+	defer tx.Rollback()
+	_, err = tx.ExecContext(r.Context(), `INSERT INTO publication_read_progress(publication_id,user_id,progress) VALUES($1,$2,$3) ON CONFLICT(publication_id,user_id) DO UPDATE SET progress=EXCLUDED.progress,last_read_at=NOW()`, id, u.ID, in.Progress)
+	if err != nil {
+		writeJSON(w, 500, "Не удалось сохранить прогресс")
+		return
+	}
+	if !commitPublicationInteraction(w, tx) {
+		return
+	}
 	writeJSON(w, 200, "Прогресс сохранён")
 }
 
@@ -324,7 +369,7 @@ func renderPublicationSEOPage(w http.ResponseWriter, r *http.Request, d publicat
 	}
 	page = string(injectYandexMetrika([]byte(page)))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Header().Set("Cache-Control", "public, max-age=60")
+	w.Header().Set("Cache-Control", "private, no-store")
 	_, _ = w.Write([]byte(page))
 }
 

@@ -50,7 +50,7 @@
   const esc = (value) => {
     const element = document.createElement("span");
     element.textContent = value ?? "";
-    return element.innerHTML;
+    return element.innerHTML.replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   };
   const money = (value) => value == null ? "—" : new Intl.NumberFormat("ru-RU").format(value) + " ₽";
 

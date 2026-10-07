@@ -43,7 +43,7 @@ function Sidebar({ selectType }) {
       </nav>
       <div className="pmh-side-links">
         <a href="/profimarket/my?tab=favorites"><Icon name="heart" /> Избранное</a>
-        <a href="/profile?section=profimarket-purchases"><Icon name="bag" /> Мои покупки</a>
+        <a href="/profile?section=profimarket-purchases"><Icon name="bag" /> Мои заявки</a>
         <a href="/profile?section=profimarket"><Icon name="folder" /> Мои решения</a>
         <a href="/profimarket/create" target="_self"><Icon name="users" /> Стать автором</a>
       </div>
@@ -141,7 +141,7 @@ export default function ProfiMarketPage() {
             <Hero query={query} setQuery={setQuery} submitQuery={submitQuery} />
             <CategoryRow counts={counts} selectType={selectType} />
             <section id="popular" ref={popularRef} className="pmh-popular"><header><h2>Популярное сейчас <span>●</span></h2><a href="#popular">Смотреть все ›</a></header><div id="pmh-cards" className="pmh-cards">{solutions === null && !error ? <div className="pm-loading">Загружаем решения…</div> : null}{error ? <div className="pm-loading">{error}</div> : null}{solutions && !solutions.length ? <div className="pm-loading">По вашему запросу решений пока нет</div> : null}{(solutions || []).map((solution) => <SolutionCard solution={solution} key={solution.id} />)}</div></section>
-            <section className="pmh-trust"><article><Icon name="users" /><span><b>Проверенные авторы</b><small>Все авторы проходят проверку командой FinTalent</small></span></article><article><Icon name="bag" /><span><b>Безопасная покупка</b><small>Защищённое оформление профессиональных решений</small></span></article><article><Icon name="clock" /><span><b>Обновления</b><small>Получайте обновления купленных решений от авторов</small></span></article><article><Icon name="message" /><span><b>Поддержка</b><small>Команда FinTalent всегда на связи</small></span></article></section>
+            <section className="pmh-trust"><article><Icon name="users" /><span><b>Авторы решений</b><small>Уточняйте опыт и условия работы у автора</small></span></article><article><Icon name="bag" /><span><b>Заявка автору</b><small>Без оплаты на сайте — условия согласуются с автором</small></span></article><article><Icon name="clock" /><span><b>Обновления</b><small>Условия обновления решения уточняйте у автора</small></span></article><article><Icon name="message" /><span><b>Поддержка</b><small>Команда FinTalent всегда на связи</small></span></article></section>
           </main>
         </div>
       </main>

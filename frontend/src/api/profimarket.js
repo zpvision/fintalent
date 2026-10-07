@@ -24,7 +24,15 @@ export const markMyProfiMarketOrderRead = (orderID, options) => apiClient.post('
 export const getProfiMarketSolution = (slug, options) => apiClient.get(`/api/profimarket/solution/${encodeURIComponent(slug)}`, options)
 export const addProfiMarketFavorite = (id, options) => apiClient.post(`/api/profimarket/solution/${encodeURIComponent(id)}/favorite`, null, options)
 export const removeProfiMarketFavorite = (id, options) => apiClient.delete(`/api/profimarket/solution/${encodeURIComponent(id)}/favorite`, options)
-export const purchaseProfiMarketSolution = (id, payload = {}, options) => apiClient.post(`/api/profimarket/solution/${encodeURIComponent(id)}/purchase`, payload, options)
+const purchaseKeys = new Map()
+export async function purchaseProfiMarketSolution(id, payload = {}, options = {}) {
+ const signature=JSON.stringify([id,payload])
+ const key=purchaseKeys.get(signature)||crypto.randomUUID()
+ purchaseKeys.set(signature,key)
+ const result=await apiClient.post(`/api/profimarket/solution/${encodeURIComponent(id)}/purchase`,payload,{...options,headers:{...options.headers,'Idempotency-Key':key}})
+ purchaseKeys.delete(signature)
+ return result
+}
 export const getProfiMarketReviews = (id, options) => apiClient.get(`/api/profimarket/reviews?solution_id=${encodeURIComponent(id)}`, { redirectOnUnauthorized: false, ...options })
 export const saveProfiMarketReview = (solutionID, rating, comment, options) => apiClient.post('/api/profimarket/reviews', { solution_id: solutionID, rating, comment }, options)
 export const getProfiMarketQuestions = (id, options) => apiClient.get(`/api/profimarket/questions?solution_id=${encodeURIComponent(id)}`, { redirectOnUnauthorized: false, ...options })
