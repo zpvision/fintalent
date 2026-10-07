@@ -98,6 +98,11 @@ func requestSecurity(next http.Handler) http.Handler {
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			w.Header().Set("Cache-Control", "no-store")
 		}
+		if r.Method == http.MethodGet && r.URL.Path == "/api/public/feedback/challenge" && !limiter.allow("feedback-challenge:"+requestClientIP(r), 20, time.Now()) {
+			w.Header().Set("Retry-After", "60")
+			writeJSON(w, http.StatusTooManyRequests, "Слишком много запросов. Повторите позже")
+			return
+		}
 		if unsafe {
 			if err := csrf.Check(r); err != nil {
 				writeJSON(w, 403, "Недопустимый источник запроса")
@@ -120,6 +125,9 @@ func requestSecurity(next http.Handler) http.Handler {
 		}
 		if unsafe && strings.HasPrefix(r.URL.Path, "/api/") {
 			limit, bucket := 120, "write:"
+			if r.URL.Path == "/api/public/feedback" {
+				limit, bucket = 3, "feedback:"
+			}
 			if r.URL.Path == "/api/login" || r.URL.Path == "/api/register" || r.URL.Path == "/api/admin/login" || strings.HasPrefix(r.URL.Path, "/api/password-reset/") {
 				limit, bucket = 10, "auth:"
 				select {

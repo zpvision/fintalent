@@ -145,6 +145,7 @@ func main() {
 	registerAccountingCompanyRoutes()
 	registerHelpRoutes()
 	registerContactMessageRoutes()
+	registerHomeFeedbackRoutes()
 	testRepo := testrepository.New(db)
 	testService := testservice.New(testRepo)
 	testHandler := testhandler.New(testService, func(r *http.Request) (int64, error) {
