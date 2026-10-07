@@ -16,6 +16,7 @@
     'community-nav': '/admin/community/companies',
     'help-topics-nav': '/admin/help-topics',
     'profimarket-admin-nav': '/admin/profimarket/purchases',
+    'courses-admin-nav': '/admin/courses',
   }
 
   let restoring = false
@@ -82,7 +83,7 @@
         'applicant-survey': 'survey-nav', 'vacancy-survey': 'vacancy-survey-nav', testing: 'admin-testing-nav',
         'other-dictionaries': 'other-dictionaries-nav', duties: 'admin-duties-nav',
         'client-exchange': 'client-exchange-nav', 'accounting-companies': 'accounting-company-nav', community: 'community-nav',
-        'help-topics': 'help-topics-nav', profimarket: 'profimarket-admin-nav',
+        'help-topics': 'help-topics-nav', profimarket: 'profimarket-admin-nav', courses: 'courses-admin-nav',
       }
       const navID = navBySection[section] || 'dictionary-nav'
       const navButton = await waitForNavHandler(navID)

@@ -142,6 +142,7 @@ func main() {
 	registerPublicationRoutes()
 	registerEmployeeTestingRoutes()
 	registerClientExchangeRoutes()
+	registerCoursesRoutes()
 	registerAccountingCompanyRoutes()
 	registerHelpRoutes()
 	registerContactMessageRoutes()
@@ -280,6 +281,9 @@ func prepareDatabase() error {
 	}
 	if err := preparePublicationDatabase(ctx); err != nil {
 		return fmt.Errorf("preparePublicationDatabase: %w", err)
+	}
+	if err := prepareCoursesDatabase(ctx); err != nil {
+		return fmt.Errorf("prepareCoursesDatabase: %w", err)
 	}
 	if err := prepareClientExchangeDatabase(ctx); err != nil {
 		return fmt.Errorf("prepareClientExchangeDatabase: %w", err)

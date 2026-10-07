@@ -35,6 +35,7 @@ type dictionary struct {
 }
 
 type dictionaryItem struct {
+	Active  *bool  `json:"active,omitempty"`
 	ID      int64  `json:"id"`
 	Value   string `json:"value"`
 	Comment string `json:"comment"`
@@ -466,7 +467,7 @@ func adminDictionary(w http.ResponseWriter, r *http.Request) {
 }
 
 func loadDictionaries(ctx context.Context) ([]dictionary, error) {
-	rows, err := db.QueryContext(ctx, `SELECT d.id,d.name,COALESCE(d.alias,''),COALESCE(d.icon,''),d.use_importance_in_vacancy,d.single_choice,d.vacancy_title,d.resume_title,d.updated_at,i.id,i.value,i.comment,i.icon,i.sort_order FROM dictionaries d LEFT JOIN dictionary_items i ON i.dictionary_id=d.id AND i.deleted_at IS NULL ORDER BY d.id,i.sort_order,i.id`)
+	rows, err := db.QueryContext(ctx, `SELECT d.id,d.name,COALESCE(d.alias,''),COALESCE(d.icon,''),d.use_importance_in_vacancy,d.single_choice,d.vacancy_title,d.resume_title,d.updated_at,i.id,i.value,i.comment,i.icon,i.sort_order,i.active FROM dictionaries d LEFT JOIN dictionary_items i ON i.dictionary_id=d.id AND i.deleted_at IS NULL ORDER BY d.id,i.sort_order,i.id`)
 	if err != nil {
 		return nil, err
 	}
@@ -488,7 +489,8 @@ func loadDictionaries(ctx context.Context) ([]dictionary, error) {
 		var comment sql.NullString
 		var icon sql.NullString
 		var order sql.NullInt64
-		if err := rows.Scan(&dID, &name, &alias, &dictionaryIcon, &useImportance, &singleChoice, &vacancyTitle, &resumeTitle, &updated, &itemID, &value, &comment, &icon, &order); err != nil {
+		var active sql.NullBool
+		if err := rows.Scan(&dID, &name, &alias, &dictionaryIcon, &useImportance, &singleChoice, &vacancyTitle, &resumeTitle, &updated, &itemID, &value, &comment, &icon, &order, &active); err != nil {
 			return nil, err
 		}
 		idx, ok := indexes[dID]
@@ -498,7 +500,7 @@ func loadDictionaries(ctx context.Context) ([]dictionary, error) {
 			result = append(result, dictionary{ID: dID, Name: name, Alias: alias, Icon: dictionaryIcon, UseImportanceInVacancy: useImportance, SingleChoice: singleChoice, VacancyTitle: vacancyTitle, ResumeTitle: resumeTitle, Items: []dictionaryItem{}, UpdatedAt: updated})
 		}
 		if itemID.Valid {
-			result[idx].Items = append(result[idx].Items, dictionaryItem{ID: itemID.Int64, Value: value.String, Comment: comment.String, Icon: icon.String, Order: int(order.Int64)})
+			result[idx].Items = append(result[idx].Items, dictionaryItem{ID: itemID.Int64, Value: value.String, Comment: comment.String, Icon: icon.String, Order: int(order.Int64), Active: &active.Bool})
 		}
 	}
 	return result, rows.Err()
@@ -523,19 +525,20 @@ func saveDictionary(ctx context.Context, id int64, name, alias, vacancyTitle, re
 		return err
 	}
 	for _, item := range items {
+		active := item.Active == nil || *item.Active
 		value := strings.TrimSpace(item.Value)
 		if value == "" {
 			continue
 		}
 		if item.ID > 0 {
-			result, updateErr := tx.ExecContext(ctx, `UPDATE dictionary_items SET value=$1,comment=$2,icon=$3,sort_order=$4,active=TRUE,deleted_at=NULL WHERE id=$5 AND dictionary_id=$6`, value, strings.TrimSpace(item.Comment), strings.TrimSpace(item.Icon), item.Order, item.ID, id)
+			result, updateErr := tx.ExecContext(ctx, `UPDATE dictionary_items SET value=$1,comment=$2,icon=$3,sort_order=$4,active=$7,deleted_at=NULL WHERE id=$5 AND dictionary_id=$6`, value, strings.TrimSpace(item.Comment), strings.TrimSpace(item.Icon), item.Order, item.ID, id, active)
 			if updateErr != nil {
 				return updateErr
 			}
 			if affected, _ := result.RowsAffected(); affected != 1 {
 				return errors.New("dictionary item not found")
 			}
-		} else if _, err = tx.ExecContext(ctx, `INSERT INTO dictionary_items(dictionary_id,value,comment,icon,sort_order,active,deleted_at) VALUES($1,$2,$3,$4,$5,TRUE,NULL)`, id, value, strings.TrimSpace(item.Comment), strings.TrimSpace(item.Icon), item.Order); err != nil {
+		} else if _, err = tx.ExecContext(ctx, `INSERT INTO dictionary_items(dictionary_id,value,comment,icon,sort_order,active,deleted_at) VALUES($1,$2,$3,$4,$5,$6,NULL)`, id, value, strings.TrimSpace(item.Comment), strings.TrimSpace(item.Icon), item.Order, active); err != nil {
 			return err
 		}
 	}

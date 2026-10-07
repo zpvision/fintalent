@@ -1,0 +1,20 @@
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { courseAPI } from '../../api/courses'
+import UserLayout from '../../layouts/UserLayout'
+import PublicLayout from '../../layouts/PublicLayout'
+import usePageStyles from '../../hooks/usePageStyles'
+import { useDocumentPage } from '../../hooks/useDocumentPage'
+import { date, money, statuses, styles, profileStyles, EmptyArt } from './shared'
+
+export default function CoursesPage({ mine = false }) {
+  usePageStyles(mine ? profileStyles : styles)
+  useDocumentPage({ title: `${mine ? 'Мои курсы' : 'Курсы'} — FinTalent` })
+  const [items, setItems] = useState([]), [error, setError] = useState(''), [loading, setLoading] = useState(true), [busy, setBusy] = useState(0)
+  const [category, setCategory] = useState(() => new URLSearchParams(window.location.search).get('category') || '')
+  function load() { return (mine ? courseAPI.mine() : courseAPI.catalog()).then(setItems).catch(e => setError(e.message)).finally(() => setLoading(false)) }
+  useEffect(() => { setLoading(true); load() }, [mine])
+  async function act(c) { setBusy(c.id); setError(''); try { await courseAPI.action(c.id, ['published', 'moderation'].includes(c.status) ? 'hide' : 'submit'); await load() } catch (e) { setError(e.message) } finally { setBusy(0) } }
+  const Layout = mine ? UserLayout : PublicLayout
+  return <Layout active="courses"><main className={`course-page ${mine ? 'course-dashboard' : ''}`}><header className="course-page-head"><div><small>FINТALENT · ОБУЧЕНИЕ</small><h1>{mine ? 'Мои курсы' : 'Курсы для профессионального роста'}</h1><p>{mine ? 'Превратите свой опыт в знания, которыми хочется делиться.' : 'Учитесь у специалистов и применяйте новые знания в работе.'}</p></div>{!mine && <Link className="course-secondary" to="/profile/courses">Мои курсы</Link>}{mine && items.length > 0 && <Link className="course-primary" to="/profile/courses/create">＋ Создать курс</Link>}</header>{error && <p className="course-error" role="alert">{error}</p>}{loading ? <p role="status">Загружаем курсы…</p> : items.length === 0 ? <section className="course-empty"><EmptyArt /><small>ЗНАНИЯ, КОТОРЫЕ МЕНЯЮТ КАРЬЕРУ</small><h2>{mine ? 'Создайте свой первый курс' : 'Скоро здесь появятся первые курсы'}</h2><p>{mine ? 'Делитесь профессиональными знаниями, обучайте других специалистов и в дальнейшем продавайте свои курсы. Начните с красивой страницы — мы поможем с каждым шагом.' : 'Хотите поделиться опытом? Подготовьте свой курс и станьте одним из первых авторов FinTalent.'}</p><Link className="course-primary" to="/profile/courses/create">Создать мой первый курс <span>→</span></Link><div className="course-empty-steps"><span>01 · Расскажите о курсе</span><span>02 · Добавьте программу</span><span>03 · Поделитесь опытом</span></div></section> : <>{!mine && <label className="course-category-filter">Категория <select value={category} onChange={e => setCategory(e.target.value)}><option value="">Все категории</option>{[...new Set(items.map(c => c.category))].map(c => <option key={c}>{c}</option>)}</select></label>}<div className="course-grid">{items.filter(c => !category || c.category === category).map(c => <article className="course-list-card" key={c.id}><Link to={mine ? `/profile/courses/${c.id}/preview` : `/courses/${c.slug}`} className="course-card-cover">{c.cover_image ? <img src={c.cover_image} alt="" /> : <EmptyArt />}</Link><div><span className={`course-badge ${c.status}`}>{mine ? statuses[c.status] : c.category}</span><h2><Link to={mine ? `/profile/courses/${c.id}/edit` : `/courses/${c.slug}`}>{c.title || 'Новый курс'}</Link></h2><p>{mine ? `Изменён ${date(c.updated_at)}` : c.description}</p>{mine ? <footer><Link to={`/profile/courses/${c.id}/edit`}>Редактировать</Link><Link to={`/profile/courses/${c.id}/preview`}>Предпросмотр</Link><button disabled={busy === c.id} onClick={() => act(c)}>{c.status === 'published' ? 'Снять с публикации' : c.status === 'moderation' ? 'Отозвать с модерации' : 'Отправить на публикацию'}</button></footer> : <footer><span>{c.author_name}</span><strong>{money(c.price)}</strong></footer>}</div></article>)}</div></>}</main></Layout>
+}

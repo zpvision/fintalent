@@ -15,7 +15,7 @@ function drawCover(canvas, image, zoom, positionX, positionY) {
   context.drawImage(image, x, y, width, height)
 }
 
-export default function ProfiMarketCoverCropper({ file, onCancel, onReady }) {
+export default function ProfiMarketCoverCropper({ file, onCancel, onReady, eyebrow = 'ОБЛОЖКА РЕШЕНИЯ' }) {
   const canvasRef = useRef(null)
   const [image, setImage] = useState(null)
   const [positionX, setPositionX] = useState(50)
@@ -60,7 +60,7 @@ export default function ProfiMarketCoverCropper({ file, onCancel, onReady }) {
 
   return <div className="pmp-crop-overlay" onMouseDown={event => event.target === event.currentTarget && !busy && onCancel()}>
     <section className="pmp-crop-dialog" role="dialog" aria-modal="true" aria-labelledby="pmp-crop-title">
-      <header><div><small>ОБЛОЖКА РЕШЕНИЯ</small><h2 id="pmp-crop-title">Настройте кадрирование</h2><p>Выберите область, которая будет видна в каталоге. Итоговый формат — 1200 × 675.</p></div><button type="button" onClick={onCancel} disabled={busy} aria-label="Закрыть">×</button></header>
+      <header><div><small>{eyebrow}</small><h2 id="pmp-crop-title">Настройте кадрирование</h2><p>Выберите область, которая будет видна в каталоге. Итоговый формат — 1200 × 675.</p></div><button type="button" onClick={onCancel} disabled={busy} aria-label="Закрыть">×</button></header>
       <div className="pmp-crop-preview"><canvas ref={canvasRef} width={WIDTH} height={HEIGHT}/>{!image && !error && <span>Подготавливаем изображение…</span>}</div>
       <div className="pmp-crop-controls">
         <label><span>По горизонтали</span><input type="range" min="0" max="100" value={positionX} onChange={event => setPositionX(Number(event.target.value))}/></label>

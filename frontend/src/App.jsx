@@ -36,8 +36,12 @@ import ProfilePurposePage from './pages/profile/ProfilePurposePage'
 import PublicationEditorPage from './pages/publications/PublicationEditorPage'
 import AdminPage from './pages/admin/AdminPage'
 import PublicLayout from './layouts/PublicLayout'
+import CoursesPage from './pages/courses/CoursesPage'
+import CourseEditor from './pages/courses/CourseEditor'
+import CourseView from './pages/courses/CourseView'
 
 const reactPaths = [
+  '/courses', '/courses/:slug', '/profile/courses', '/profile/courses/create', '/profile/courses/:id/edit', '/profile/courses/:id/preview',
   '/', '/login', '/register', '/forgot-password', '/profile-purpose', '/vacancies', '/vacancies/view', '/vacancies/create',
   '/profiles', '/profiles/view/:id', '/profiles/create', '/resumes', '/resume/view/:id', '/resume/create', '/marketplace', '/marketplace/create-test',
   '/accounting-companies', '/accounting-companies/view', '/accounting-companies/passport', '/accounting-companies/create',
@@ -144,6 +148,13 @@ function ProfiMarketMyRoute() {
 export default function App() {
   return (
     <><ReactNavigationBridge /><Routes>
+      <Route path="/courses" element={<CoursesPage />} />
+      <Route path="/courses/:slug" element={<CourseView />} />
+      <Route path="/profile/courses" element={<CoursesPage mine />} />
+      <Route path="/profile/courses/create" element={<CourseEditor />} />
+      <Route path="/profile/courses/:id/edit" element={<CourseEditor />} />
+      <Route path="/profile/courses/:id/preview" element={<CourseView preview />} />
+      <Route path="/admin/courses/:id/preview" element={<CourseView admin />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
