@@ -88,8 +88,8 @@ func Validate(v *Input, publishing bool) error {
 			return fmt.Errorf("Промо-видео: укажите HTTPS-ссылку")
 		}
 	}
-	if len(v.Benefits) > 6 || len(v.Bonuses) > 30 || len(v.FAQ) > 50 {
-		return fmt.Errorf("Допустимо до 6 преимуществ, 30 бонусов и 50 вопросов")
+	if len(v.Benefits) > 4 || len(v.Bonuses) > 30 || len(v.FAQ) > 50 {
+		return fmt.Errorf("Допустимо до 4 преимуществ, 30 бонусов и 50 вопросов")
 	}
 	if publishing && (utf8.RuneCountInString(v.Title) < 5 || utf8.RuneCountInString(v.Description) < 20 || v.CategoryID == nil || v.CoverImage == "" || v.Hours <= 0 || len(v.Benefits) < 3 || len(v.Modules) == 0) {
 		return fmt.Errorf("Для публикации заполните название, описание, категорию, обложку, часы обучения, не менее 3 преимуществ и программу")

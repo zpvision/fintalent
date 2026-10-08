@@ -49,6 +49,20 @@ func TestPublicationValidation(t *testing.T) {
 		t.Fatal("empty draft published")
 	}
 }
+func TestBenefitLimit(t *testing.T) {
+	for _, publishing := range []bool{false, true} {
+		v := validInput()
+		v.Benefits = append(v.Benefits, v.Benefits[0])
+		if err := Validate(&v, publishing); err != nil {
+			t.Fatalf("four benefits rejected (publishing=%v): %v", publishing, err)
+		}
+		v.Benefits = append(v.Benefits, v.Benefits[0])
+		if Validate(&v, publishing) == nil {
+			t.Fatalf("five benefits accepted (publishing=%v)", publishing)
+		}
+	}
+}
+
 func TestCourseSlug(t *testing.T) {
 	for in, want := range map[string]string{"ИИ для бухгалтера": "ii-dlya-buhgaltera", "  Excel / 1С  ": "excel-1s", "!!!": "kurs"} {
 		if got := Slug(in); got != want {
