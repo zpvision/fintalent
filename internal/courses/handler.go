@@ -81,7 +81,13 @@ func (h *Handler) meta(w http.ResponseWriter, r *http.Request) {
 		dbError(w, e)
 		return
 	}
-	respond(w, 200, map[string]any{"categories": raw})
+	var features json.RawMessage
+	e = h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',i.id,'name',i.value,'key',COALESCE(b.feature_key,'')) ORDER BY i.sort_order,i.id),'[]') FROM dictionary_items i JOIN dictionaries d ON d.id=i.dictionary_id LEFT JOIN course_feature_bindings b ON b.dictionary_item_id=i.id WHERE d.alias='course_features' AND i.active AND i.deleted_at IS NULL`).Scan(&features)
+	if e != nil {
+		dbError(w, e)
+		return
+	}
+	respond(w, 200, map[string]any{"categories": raw, "features": features})
 }
 func (h *Handler) list(w http.ResponseWriter, r *http.Request, where string, args ...any) {
 	rows, e := h.db.QueryContext(r.Context(), `SELECT to_jsonb(c)||jsonb_build_object('category',COALESCE(d.value,''),'author_name',u.full_name) FROM courses c JOIN users u ON u.id=c.owner_id LEFT JOIN dictionary_items d ON d.id=c.category_id WHERE `+where+` ORDER BY c.updated_at DESC,c.id DESC LIMIT 200`, args...)
@@ -132,6 +138,9 @@ func (h *Handler) mine(w http.ResponseWriter, r *http.Request) {
 		e = tx.QueryRowContext(r.Context(), `INSERT INTO courses(owner_id,slug) VALUES($1,$2) RETURNING id`, id, slug).Scan(&course)
 		if e == nil {
 			_, e = tx.ExecContext(r.Context(), `INSERT INTO course_instructors(course_id,user_id) VALUES($1,$2)`, course, id)
+		}
+		if e == nil {
+			_, e = tx.ExecContext(r.Context(), `INSERT INTO course_feature_selections(course_id,dictionary_item_id) SELECT $1,b.dictionary_item_id FROM course_feature_bindings b JOIN dictionary_items i ON i.id=b.dictionary_item_id WHERE b.feature_key IN ('updates','any_device') AND i.active AND i.deleted_at IS NULL`, course)
 		}
 		if e == nil {
 			e = tx.Commit()
@@ -195,7 +204,7 @@ func (h *Handler) owned(w http.ResponseWriter, r *http.Request) {
 		if e := h.save(r.Context(), id, uid, &v); e != nil {
 			if errors.Is(e, ErrConflict) {
 				fail(w, 409, e.Error())
-			} else if errors.Is(e, ErrChild) || errors.Is(e, ErrCategory) {
+			} else if errors.Is(e, ErrChild) || errors.Is(e, ErrCategory) || errors.Is(e, ErrFeature) {
 				fail(w, 400, e.Error())
 			} else {
 				dbError(w, e)

@@ -125,6 +125,8 @@ func TestCoursesIsolatedPostgres(t *testing.T) {
 	v.OldPrice = &p
 	v.CoverImage = "/static/uploads/profimarket/" + strings.Repeat("a", 32) + ".webp"
 	v.Certificate = true
+	v.FeatureIDs = nil // Exercise compatibility with the existing flags.
+	v.BonusesColor = "amber"
 	v.Chat = true
 	v.Corporate = true
 	v.Benefits = []courses.Benefit{{Icon: "check", Title: "Практические навыки", Description: "Применяйте ИИ в бухгалтерских задачах."}, {Icon: "clock", Title: "Экономия времени", Description: "Автоматизируйте повторяющиеся процессы."}, {Icon: "folder", Title: "Готовые шаблоны", Description: "Используйте материалы в работе."}, {Icon: "sparkles", Title: "Уверенность в технологиях", Description: "Пошаговое обучение без сложных терминов."}}
@@ -137,10 +139,38 @@ func TestCoursesIsolatedPostgres(t *testing.T) {
 	raw := request("PUT", path, author, false, v, 200)
 	var saved courses.Input
 	_ = json.Unmarshal(raw, &saved)
+	if !saved.Certificate || !saved.Chat || !saved.Corporate || saved.BonusesColor != "amber" || len(saved.FeatureIDs) == 0 {
+		t.Fatal("legacy settings or bonus color lost")
+	}
 	if len(saved.Benefits) != 4 || saved.Benefits[0].Color != "mint" || saved.Benefits[3].Color != "rose" || saved.Benefits[3].Title != "" {
 		t.Fatal("benefit colors or empty slots were not persisted")
 	}
 	request("PUT", path, author, false, v, 409)
+	var customFeature int64
+	if err := db.QueryRow(`INSERT INTO dictionary_items(dictionary_id,value,sort_order) SELECT id,'Еженедельные встречи',100 FROM dictionaries WHERE alias='course_features' RETURNING id`).Scan(&customFeature); err != nil {
+		t.Fatal(err)
+	}
+	badFeatures := saved
+	badFeatures.FeatureIDs = append(append([]int64{}, saved.FeatureIDs...), category)
+	request("PUT", path, author, false, badFeatures, 400)
+	saved.FeatureIDs = append(saved.FeatureIDs, customFeature)
+	_ = json.Unmarshal(request("PUT", path, author, false, saved, 200), &saved)
+	if len(saved.FeatureIDs) < 2 || saved.FeatureIDs[len(saved.FeatureIDs)-1] != customFeature {
+		t.Fatal("custom dictionary feature not persisted")
+	}
+	if _, err := db.Exec(`UPDATE dictionary_items SET active=FALSE WHERE id=$1`, customFeature); err != nil {
+		t.Fatal(err)
+	}
+	_ = json.Unmarshal(request("PUT", path, author, false, saved, 200), &saved)
+	var meta struct {
+		Features []struct{ ID int64 } `json:"features"`
+	}
+	_ = json.Unmarshal(request("GET", "/api/courses/meta", 0, false, nil, 200), &meta)
+	for _, feature := range meta.Features {
+		if feature.ID == customFeature {
+			t.Fatal("inactive feature offered in catalog")
+		}
+	}
 	if saved.Modules[0].Lessons[0].ID == 0 {
 		t.Fatal("missing persistent lesson id")
 	}

@@ -134,6 +134,8 @@ func saveChildren(ctx context.Context, tx *sql.Tx, id int64, v *Input) error {
 // Aggregate only at the API boundary; all editable entities are relational rows.
 const detailSQL = `SELECT to_jsonb(c)||jsonb_build_object(
  'category',COALESCE(d.value,''),
+ 'feature_ids',COALESCE((SELECT jsonb_agg(s.dictionary_item_id ORDER BY i.sort_order,i.id) FROM course_feature_selections s JOIN dictionary_items i ON i.id=s.dictionary_item_id WHERE s.course_id=c.id),'[]'),
+ 'features',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',i.id,'name',i.value,'key',COALESCE(b.feature_key,'')) ORDER BY i.sort_order,i.id) FROM course_feature_selections s JOIN dictionary_items i ON i.id=s.dictionary_item_id LEFT JOIN course_feature_bindings b ON b.dictionary_item_id=i.id WHERE s.course_id=c.id AND i.deleted_at IS NULL),'[]'),
  'benefits',COALESCE((SELECT jsonb_agg(to_jsonb(b) ORDER BY sort_order,id) FROM course_benefits b WHERE course_id=c.id),'[]'),
  'bonuses',COALESCE((SELECT jsonb_agg(to_jsonb(b) ORDER BY sort_order,id) FROM course_bonuses b WHERE course_id=c.id),'[]'),
  'faq',COALESCE((SELECT jsonb_agg(to_jsonb(f) ORDER BY sort_order,id) FROM course_faq f WHERE course_id=c.id),'[]'),
@@ -176,7 +178,10 @@ func (h *Handler) save(ctx context.Context, id, user int64, v *Input) error {
 			return ErrCategory
 		}
 	}
-	_, e = tx.ExecContext(ctx, `UPDATE courses SET title=$1,description=$2,category_id=$3,level=$4,cover_image=$5,promo_url=$6,price=$7,old_price=$8,hours=$9,access_months=$10,certificate=$11,chat=$12,updates=$13,any_device=$14,corporate=$15,revision=revision+1,updated_at=NOW(),status=CASE WHEN status IN ('published','moderation') THEN 'draft' ELSE status END WHERE id=$16`, v.Title, v.Description, v.CategoryID, v.Level, v.CoverImage, v.PromoURL, v.Price, v.OldPrice, v.Hours, v.AccessMonths, v.Certificate, v.Chat, v.Updates, v.AnyDevice, v.Corporate, id)
+	if e = saveFeatures(ctx, tx, id, v); e != nil {
+		return e
+	}
+	_, e = tx.ExecContext(ctx, `UPDATE courses SET title=$1,description=$2,category_id=$3,level=$4,cover_image=$5,promo_url=$6,price=$7,old_price=$8,hours=$9,access_months=$10,certificate=$11,chat=$12,updates=$13,any_device=$14,corporate=$15,bonuses_color=$17,revision=revision+1,updated_at=NOW(),status=CASE WHEN status IN ('published','moderation') THEN 'draft' ELSE status END WHERE id=$16`, v.Title, v.Description, v.CategoryID, v.Level, v.CoverImage, v.PromoURL, v.Price, v.OldPrice, v.Hours, v.AccessMonths, v.Certificate, v.Chat, v.Updates, v.AnyDevice, v.Corporate, id, v.BonusesColor)
 	if e != nil {
 		return e
 	}

@@ -55,6 +55,8 @@ type Input struct {
 	Updates      bool      `json:"updates"`
 	AnyDevice    bool      `json:"any_device"`
 	Corporate    bool      `json:"corporate"`
+	FeatureIDs   []int64   `json:"feature_ids"`
+	BonusesColor string    `json:"bonuses_color"`
 	Benefits     []Benefit `json:"benefits"`
 	Bonuses      []Bonus   `json:"bonuses"`
 	Modules      []Module  `json:"modules"`
@@ -66,6 +68,19 @@ var icons = map[string]bool{"sparkles": true, "clock": true, "folder": true, "ch
 var lessonTypes = map[string]bool{"video": true, "text": true, "practice": true, "test": true, "materials": true}
 
 func Validate(v *Input, publishing bool) error {
+	if !validBenefitColor(v.BonusesColor) {
+		return fmt.Errorf("Выберите цвет бонусов из палитры")
+	}
+	if len(v.FeatureIDs) > 100 {
+		return fmt.Errorf("Допустимо до 100 возможностей курса")
+	}
+	seenFeatures := map[int64]bool{}
+	for _, id := range v.FeatureIDs {
+		if id <= 0 || seenFeatures[id] {
+			return fmt.Errorf("Проверьте выбранные возможности курса")
+		}
+		seenFeatures[id] = true
+	}
 	v.Title = strings.TrimSpace(v.Title)
 	v.Description = strings.TrimSpace(v.Description)
 	if v.Level != "beginner" && v.Level != "intermediate" && v.Level != "advanced" {

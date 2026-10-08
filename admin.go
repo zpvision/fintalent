@@ -446,6 +446,26 @@ func adminDictionary(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, "Некорректные данные")
 			return
 		}
+		var existingAlias string
+		if err := db.QueryRowContext(r.Context(), `SELECT COALESCE(alias,'') FROM dictionaries WHERE id=$1`, id).Scan(&existingAlias); err != nil {
+			writeJSON(w, http.StatusNotFound, "Справочник не найден")
+			return
+		}
+		if existingAlias == "course_categories" || existingAlias == "course_features" {
+			if strings.TrimSpace(payload.Alias) != existingAlias {
+				writeJSON(w, http.StatusConflict, "Alias системного справочника курсов менять нельзя")
+				return
+			}
+			seen := map[string]bool{}
+			for _, item := range payload.Items {
+				name := strings.ToLower(strings.TrimSpace(item.Value))
+				if name != "" && (seen[name] || len([]rune(name)) > 500) {
+					writeJSON(w, http.StatusBadRequest, "Названия вариантов должны быть уникальными и не длиннее 500 символов")
+					return
+				}
+				seen[name] = true
+			}
+		}
 		useImportance := true
 		if payload.UseImportanceInVacancy != nil {
 			useImportance = *payload.UseImportanceInVacancy
@@ -456,6 +476,15 @@ func adminDictionary(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, "Справочник сохранён")
 	case http.MethodDelete:
+		var systemCourseDictionary bool
+		if err := db.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM dictionaries WHERE id=$1 AND alias IN ('course_categories','course_features'))`, id).Scan(&systemCourseDictionary); err != nil {
+			writeJSON(w, http.StatusInternalServerError, "Не удалось проверить справочник")
+			return
+		}
+		if systemCourseDictionary {
+			writeJSON(w, http.StatusConflict, "Системный справочник курсов нельзя удалить. Управляйте его вариантами.")
+			return
+		}
 		if _, err := db.Exec(`DELETE FROM dictionaries WHERE id=$1`, id); err != nil {
 			writeJSON(w, http.StatusInternalServerError, "Не удалось удалить справочник")
 			return
