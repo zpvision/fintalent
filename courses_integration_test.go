@@ -129,12 +129,17 @@ func TestCoursesIsolatedPostgres(t *testing.T) {
 	v.Corporate = true
 	v.Benefits = []courses.Benefit{{Icon: "check", Title: "Практические навыки", Description: "Применяйте ИИ в бухгалтерских задачах."}, {Icon: "clock", Title: "Экономия времени", Description: "Автоматизируйте повторяющиеся процессы."}, {Icon: "folder", Title: "Готовые шаблоны", Description: "Используйте материалы в работе."}, {Icon: "sparkles", Title: "Уверенность в технологиях", Description: "Пошаговое обучение без сложных терминов."}}
 	v.Modules = []courses.Module{{Title: "Введение в ИИ для бухгалтера", Lessons: []courses.Lesson{{Title: "Как работает ИИ и где он помогает бухгалтеру", Type: "video", Duration: 15}, {Title: "Обзор инструментов", Type: "text", Duration: 25}}}, {Title: "Практические задачи", Lessons: []courses.Lesson{{Title: "Создаём рабочие шаблоны", Type: "practice", Duration: 30}}}}
+	v.Benefits[0].Color = "mint"
+	v.Benefits[3] = courses.Benefit{Icon: "sparkles", Color: "rose"}
 	v.Bonuses = []courses.Bonus{{Title: "Библиотека промптов"}, {Title: "Готовые шаблоны документов"}}
 	v.FAQ = []courses.FAQ{{Question: "Подойдёт ли курс новичкам?", Answer: "Да. Начинаем с основ и постепенно переходим к практическим задачам."}}
 	request("PUT", path, other, false, v, 404)
 	raw := request("PUT", path, author, false, v, 200)
 	var saved courses.Input
 	_ = json.Unmarshal(raw, &saved)
+	if len(saved.Benefits) != 4 || saved.Benefits[0].Color != "mint" || saved.Benefits[3].Color != "rose" || saved.Benefits[3].Title != "" {
+		t.Fatal("benefit colors or empty slots were not persisted")
+	}
 	request("PUT", path, author, false, v, 409)
 	if saved.Modules[0].Lessons[0].ID == 0 {
 		t.Fatal("missing persistent lesson id")

@@ -10,8 +10,15 @@ import (
 //go:embed migrations/070_courses.sql
 var coursesSchema string
 
+//go:embed migrations/071_course_benefit_colors.sql
+var courseBenefitColorsSchema string
+
 func prepareCoursesDatabase(ctx context.Context) error {
 	_, err := db.ExecContext(ctx, coursesSchema)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, courseBenefitColorsSchema)
 	return err
 }
 func registerCoursesRoutes() {

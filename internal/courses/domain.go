@@ -12,6 +12,7 @@ import (
 type Benefit struct {
 	ID          int64  `json:"id"`
 	Icon        string `json:"icon"`
+	Color       string `json:"color"`
 	Title       string `json:"title"`
 	Description string `json:"description"`
 }
@@ -91,14 +92,18 @@ func Validate(v *Input, publishing bool) error {
 	if len(v.Benefits) > 4 || len(v.Bonuses) > 30 || len(v.FAQ) > 50 {
 		return fmt.Errorf("Допустимо до 4 преимуществ, 30 бонусов и 50 вопросов")
 	}
-	if publishing && (utf8.RuneCountInString(v.Title) < 5 || utf8.RuneCountInString(v.Description) < 20 || v.CategoryID == nil || v.CoverImage == "" || v.Hours <= 0 || len(v.Benefits) < 3 || len(v.Modules) == 0) {
-		return fmt.Errorf("Для публикации заполните название, описание, категорию, обложку, часы обучения, не менее 3 преимуществ и программу")
+	if publishing && (utf8.RuneCountInString(v.Title) < 5 || utf8.RuneCountInString(v.Description) < 20 || v.CategoryID == nil || v.CoverImage == "" || v.Hours <= 0 || len(v.Modules) == 0) {
+		return fmt.Errorf("Для публикации заполните название, описание, категорию, обложку, часы обучения и программу")
 	}
 	check := func(text string, max int, required bool) bool {
 		return utf8.RuneCountInString(text) <= max && (!required || strings.TrimSpace(text) != "")
 	}
 	for _, b := range v.Benefits {
-		if !icons[b.Icon] || !check(b.Title, 120, publishing) || !check(b.Description, 500, publishing) {
+		if !validBenefitColor(b.Color) {
+			return fmt.Errorf("Выберите цвет преимущества из палитры")
+		}
+		filled := strings.TrimSpace(b.Title) != "" || strings.TrimSpace(b.Description) != ""
+		if !icons[b.Icon] || !check(b.Title, 120, publishing && filled) || !check(b.Description, 500, publishing && filled) {
 			return fmt.Errorf("Заполните заголовок и описание преимуществ и выберите иконку")
 		}
 	}
@@ -128,6 +133,14 @@ func Validate(v *Input, publishing bool) error {
 		return fmt.Errorf("Добавьте уроки")
 	}
 	return nil
+}
+
+func validBenefitColor(color string) bool {
+	switch color {
+	case "", "access-default", "amber", "violet", "ocean", "mint", "rose", "graphite", "sky", "terracotta", "lavender", "aurora", "sand":
+		return true
+	}
+	return false
 }
 
 func Slug(title string) string {

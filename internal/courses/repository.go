@@ -59,7 +59,7 @@ func saveChildren(ctx context.Context, tx *sql.Tx, id int64, v *Input) error {
 	}
 	for i := range v.Benefits {
 		b := &v.Benefits[i]
-		if e := syncRow(ctx, tx, "course_benefits", "course_id", id, &b.ID, []string{"icon", "title", "description", "sort_order"}, []any{b.Icon, b.Title, b.Description, i}); e != nil {
+		if e := syncRow(ctx, tx, "course_benefits", "course_id", id, &b.ID, []string{"icon", "color", "title", "description", "sort_order"}, []any{b.Icon, b.Color, b.Title, b.Description, i}); e != nil {
 			return e
 		}
 		if e := unique(b.ID); e != nil {

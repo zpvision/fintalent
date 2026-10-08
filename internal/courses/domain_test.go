@@ -16,7 +16,8 @@ func TestPublicationValidation(t *testing.T) {
 	}{
 		{"missing category", func(v *Input) { v.CategoryID = nil }},
 		{"missing cover", func(v *Input) { v.CoverImage = "" }},
-		{"too few benefits", func(v *Input) { v.Benefits = v.Benefits[:2] }},
+		{"invalid benefit color", func(v *Input) { v.Benefits[0].Color = "url(javascript:alert(1))" }},
+		{"partial benefit", func(v *Input) { v.Benefits[0].Description = " " }},
 		{"empty module", func(v *Input) { v.Modules[0].Lessons = nil }},
 		{"empty lesson title", func(v *Input) { v.Modules[0].Lessons[0].Title = " " }},
 		{"invalid type", func(v *Input) { v.Modules[0].Lessons[0].Type = "script" }},
@@ -60,6 +61,25 @@ func TestBenefitLimit(t *testing.T) {
 		if Validate(&v, publishing) == nil {
 			t.Fatalf("five benefits accepted (publishing=%v)", publishing)
 		}
+	}
+}
+
+func TestOptionalBenefitSlots(t *testing.T) {
+	for _, count := range []int{0, 1, 4} {
+		v := validInput()
+		v.Benefits = make([]Benefit, count)
+		for i := range v.Benefits {
+			v.Benefits[i] = Benefit{Icon: "sparkles", Color: "mint"}
+		}
+		if err := Validate(&v, true); err != nil {
+			t.Fatalf("empty slots rejected: %v", err)
+		}
+	}
+	v := validInput()
+	v.Benefits = v.Benefits[:1]
+	v.Benefits[0].Color = "ocean"
+	if err := Validate(&v, true); err != nil {
+		t.Fatalf("single filled benefit rejected: %v", err)
 	}
 }
 
