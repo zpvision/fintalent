@@ -1,21 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
 
-const WIDTH = 1200
-const HEIGHT = 675
-
 function drawCover(canvas, image, zoom, positionX, positionY) {
   if (!canvas || !image) return
   const context = canvas.getContext('2d')
-  const scale = Math.max(WIDTH / image.naturalWidth, HEIGHT / image.naturalHeight) * zoom
+  const targetWidth = canvas.width
+  const targetHeight = canvas.height
+  const scale = Math.max(targetWidth / image.naturalWidth, targetHeight / image.naturalHeight) * zoom
   const width = image.naturalWidth * scale
   const height = image.naturalHeight * scale
-  const x = (WIDTH - width) * (positionX / 100)
-  const y = (HEIGHT - height) * (positionY / 100)
-  context.clearRect(0, 0, WIDTH, HEIGHT)
+  const x = (targetWidth - width) * (positionX / 100)
+  const y = (targetHeight - height) * (positionY / 100)
+  context.clearRect(0, 0, targetWidth, targetHeight)
   context.drawImage(image, x, y, width, height)
 }
 
-export default function ProfiMarketCoverCropper({ file, onCancel, onReady, eyebrow = 'ОБЛОЖКА РЕШЕНИЯ' }) {
+export default function ProfiMarketCoverCropper({ file, onCancel, onReady, eyebrow = 'ОБЛОЖКА РЕШЕНИЯ', width = 1200, height = 675 }) {
   const canvasRef = useRef(null)
   const [image, setImage] = useState(null)
   const [positionX, setPositionX] = useState(50)
@@ -34,7 +33,7 @@ export default function ProfiMarketCoverCropper({ file, onCancel, onReady, eyebr
     return () => URL.revokeObjectURL(url)
   }, [file])
 
-  useEffect(() => { drawCover(canvasRef.current, image, zoom, positionX, positionY) }, [image, zoom, positionX, positionY])
+  useEffect(() => { drawCover(canvasRef.current, image, zoom, positionX, positionY) }, [image, zoom, positionX, positionY, width, height])
   useEffect(() => {
     const close = (event) => { if (event.key === 'Escape' && !busy) onCancel() }
     document.addEventListener('keydown', close)
@@ -50,7 +49,7 @@ export default function ProfiMarketCoverCropper({ file, onCancel, onReady, eyebr
       drawCover(canvasRef.current, image, zoom, positionX, positionY)
       const blob = await new Promise((resolve, reject) => canvasRef.current.toBlob(value => value ? resolve(value) : reject(new Error('Не удалось подготовить обложку')), 'image/webp', 0.9))
       const baseName = file.name.replace(/\.[^.]+$/, '') || 'cover'
-      const accepted = await onReady(new File([blob], `${baseName}-1200x675.webp`, { type: 'image/webp' }))
+      const accepted = await onReady(new File([blob], `${baseName}-${width}x${height}.webp`, { type: 'image/webp' }))
       if (accepted === false) setBusy(false)
     } catch (cropError) {
       setError(cropError.message)
@@ -60,8 +59,8 @@ export default function ProfiMarketCoverCropper({ file, onCancel, onReady, eyebr
 
   return <div className="pmp-crop-overlay" onMouseDown={event => event.target === event.currentTarget && !busy && onCancel()}>
     <section className="pmp-crop-dialog" role="dialog" aria-modal="true" aria-labelledby="pmp-crop-title">
-      <header><div><small>{eyebrow}</small><h2 id="pmp-crop-title">Настройте кадрирование</h2><p>Выберите область, которая будет видна в каталоге. Итоговый формат — 1200 × 675.</p></div><button type="button" onClick={onCancel} disabled={busy} aria-label="Закрыть">×</button></header>
-      <div className="pmp-crop-preview"><canvas ref={canvasRef} width={WIDTH} height={HEIGHT}/>{!image && !error && <span>Подготавливаем изображение…</span>}</div>
+      <header><div><small>{eyebrow}</small><h2 id="pmp-crop-title">Настройте кадрирование</h2><p>Выберите область, которая будет видна в каталоге. Итоговый формат — {width} × {height}.</p></div><button type="button" onClick={onCancel} disabled={busy} aria-label="Закрыть">×</button></header>
+      <div className="pmp-crop-preview"><canvas ref={canvasRef} width={width} height={height}/>{!image && !error && <span>Подготавливаем изображение…</span>}</div>
       <div className="pmp-crop-controls">
         <label><span>По горизонтали</span><input type="range" min="0" max="100" value={positionX} onChange={event => setPositionX(Number(event.target.value))}/></label>
         <label><span>По вертикали</span><input type="range" min="0" max="100" value={positionY} onChange={event => setPositionY(Number(event.target.value))}/></label>
