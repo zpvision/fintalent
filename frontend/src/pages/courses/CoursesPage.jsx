@@ -8,7 +8,7 @@ import { useDocumentPage } from '../../hooks/useDocumentPage'
 import { date, statuses, styles, profileStyles, EmptyArt } from './shared'
 
 export default function CoursesPage({ mine = false }) {
-  usePageStyles(mine ? profileStyles : [...styles, '/static/course-catalog.css?v=1'])
+  usePageStyles(mine ? profileStyles : [...styles, '/static/course-catalog.css?v=2'])
   useDocumentPage({ title: `${mine ? 'Мои курсы' : 'Курсы'} — FinTalent` })
   const [items, setItems] = useState([]), [error, setError] = useState(''), [loading, setLoading] = useState(true), [busy, setBusy] = useState(0)
   const [category, setCategory] = useState(() => new URLSearchParams(window.location.search).get('category') || '')

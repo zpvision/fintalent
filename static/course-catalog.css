@@ -150,3 +150,62 @@
   .course-catalog .cc-empty h3 { font-size: 19px; }
 }
 @media (prefers-reduced-motion: reduce) { .cc-card, .cc-cover > img, .cc-primary, .cc-details { transition: none; } }
+
+/* Compact catalog: keep the title, author, price and details action in view. */
+.cc-hero { padding: 28px 36px; gap: 24px; align-items: center; grid-template-columns: minmax(0, 1.5fr) minmax(0, .5fr); }
+.course-catalog .cc-hero h1 { margin: 12px 0; font-size: 38px; letter-spacing: -1.1px; }
+.course-catalog .cc-hero-copy > p { font-size: 13px; line-height: 1.65; }
+.cc-hero-actions { margin-top: 18px; }
+.course-catalog .cc-hero-actions .cc-primary { min-height: 44px; padding: 10px 18px; }
+.cc-hero-tags { margin-top: 18px; gap: 16px; }
+.cc-hero-art { min-height: 0; height: 220px; }
+.cc-art-card { transform: rotate(-7deg) scale(.65); }
+.cc-art-orbit { width: 220px; height: 220px; }
+.cc-art-tag { padding: 8px 10px; font-size: 9px; gap: 7px; }
+.cc-art-tag > svg { width: 18px; height: 18px; }
+.cc-art-finance { top: 0; right: -8px; }
+.cc-art-growth { bottom: 0; left: -8px; }
+.cc-catalog-section { margin-top: 30px; }
+.cc-cover { height: 84px; aspect-ratio: auto; }
+.cc-cover-category { top: 8px; left: 12px; padding: 3px 7px; font-size: 9px; }
+.cc-discount { top: 8px; right: 12px; padding: 3px 6px; font-size: 10px; }
+.cc-cover .cc-card-labels { position: absolute; bottom: 8px; left: 12px; right: 12px; margin: 0; gap: 6px; min-height: 0; }
+.cc-card-labels > span { padding: 2px 6px; background: #fffffff0; }
+.cc-cover-art { padding-top: 0; gap: 10px; }
+.cc-cover-art > svg { width: 36px; height: 36px; padding: 6px; border-radius: 10px; }
+.cc-cover-art > span { font-size: 9px; letter-spacing: 1px; }
+.cc-cover-art > i { font-size: 22px; bottom: 8px; right: 16px; }
+.cc-card-body { padding: 14px; gap: 8px; }
+.course-catalog .cc-card h3 { font-size: 16px; line-height: 1.35; min-height: 43px; }
+.course-catalog .cc-description { -webkit-line-clamp: 1; min-height: 0; margin: 0; font-size: 11px; line-height: 1.5; }
+.cc-card-byline { display: flex; flex-direction: row-reverse; justify-content: space-between; align-items: center; gap: 10px; min-width: 0; }
+.cc-card-meta { flex: 0 1 50%; justify-content: flex-end; gap: 4px 8px; padding: 0; border: 0; }
+.cc-card-meta > span { font-size: 9px; gap: 4px; }
+.cc-card-meta svg { width: 13px; height: 13px; }
+.cc-author { flex: 1; min-width: 0; gap: 6px; margin: 0; }
+.cc-author > i { width: 24px; height: 24px; font-size: 10px; }
+.cc-author small, .cc-card-price > small { display: none; }
+.cc-author b { font-size: 10px; }
+.cc-card-bottom { gap: 7px; padding-top: 4px; }
+.cc-card-price strong { font-size: 21px; line-height: 1.3; }
+.cc-card-price del { font-size: 11px; }
+.course-catalog .cc-details { min-height: 44px; padding: 9px 14px; }
+.cc-skeleton { padding-bottom: 14px; }
+.cc-skeleton > div { height: 84px; aspect-ratio: auto; margin-bottom: 14px; }
+.cc-skeleton > span { margin: 8px 14px; }
+@media (max-width: 1100px) {
+  .cc-hero { padding: 26px; grid-template-columns: minmax(0, 1.4fr) minmax(0, .6fr); }
+  .course-catalog .cc-hero h1 { font-size: 34px; }
+}
+@media (max-width: 760px) {
+  .cc-hero { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .cc-hero-art { display: none; }
+}
+@media (max-width: 600px) {
+  .cc-hero { padding: 24px 22px; }
+  .course-catalog .cc-hero h1 { font-size: 32px; }
+  .cc-hero-actions { gap: 14px; }
+  .cc-hero-tags { margin-top: 16px; gap: 10px; }
+  .cc-card-body { padding: 14px; }
+  .cc-card-byline { gap: 8px; }
+}
