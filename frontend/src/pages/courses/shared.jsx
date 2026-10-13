@@ -11,7 +11,7 @@ export function withBenefitSlots(course) { const benefits = [...(course.benefits
 export const money = value => `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 2 }).format((value || 0) / 100)} ₽`
 export const duration = minutes => minutes >= 60 ? `${Math.floor(minutes / 60)} ч ${minutes % 60 ? `${minutes % 60} мин` : ''}` : `${minutes} мин`
 export const date = value => value ? new Date(value).toLocaleDateString('ru-RU') : ''
-export const styles = ['/static/courses.css?v=3']
+export const styles = ['/static/courses.css?v=4']
 export const profileStyles = ['/static/profile.css', '/static/profile-sidebar-v2.css?v=2', '/static/profile-buttons.css', '/static/profile-layout-stability.css?v=2', ...styles]
 export function Benefits({ items, showEmpty = false }) { return <div className="course-benefits">{items.filter(b => showEmpty || filledBenefit(b)).map((b, i) => { const palette = benefitColors[b.color]; return <article key={b.id || i}><i style={palette ? { background: palette.iconBg, color: palette.icon } : undefined}><Icon name={b.icon} /></i><h3>{b.title || 'Название преимущества'}</h3><p>{b.description || (showEmpty ? 'Незаполненный блок не появится на странице курса.' : '')}</p></article> })}</div> }
 export function Avatar({ person }) { return person.avatar ? <img className="course-avatar" src={person.avatar} alt="" /> : <span className="course-avatar">{person.name?.charAt(0) || 'А'}</span> }
