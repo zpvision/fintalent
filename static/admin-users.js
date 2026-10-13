@@ -1,6 +1,8 @@
-document.head.insertAdjacentHTML('beforeend','<link rel="stylesheet" href="/static/admin-users.css?v=3">');
+document.head.insertAdjacentHTML('beforeend','<link rel="stylesheet" href="/static/admin-users.css?v=4">');
 const usersNav=document.querySelector('#users-nav'),usersSection=document.querySelector('#users-section'),usersList=document.querySelector('#users-list'),usersEmpty=document.querySelector('#users-empty'),userModal=document.querySelector('#user-modal'),userForm=document.querySelector('#user-form'),passwordModal=document.querySelector('#password-modal'),passwordForm=document.querySelector('#password-form');
 let adminUsers=[];
+let usersStatus='active',usersSearch='';
+const normalizeUserSearch=value=>String(value||'').trim().toLocaleLowerCase('ru-RU').replace(/ё/g,'е').replace(/\s+/g,' ');
 const registrationDate=value=>value?new Date(value).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}):'—';
 
 function hideUsersSection(){usersSection.classList.add('hidden');userModal.classList.add('hidden');passwordModal.classList.add('hidden')}
@@ -18,9 +20,23 @@ function renderUsers(){
   let summary=usersSection.querySelector('.users-summary');
   if(!summary){summary=document.createElement('div');summary.className='users-summary';usersSection.prepend(summary)}
   const blocked=adminUsers.filter(user=>user.is_blocked).length;
-  summary.innerHTML=`<article><i>♙</i><span><small>ВСЕГО ПРОФИЛЕЙ</small><b>${adminUsers.length}</b><em>зарегистрированных пользователей</em></span></article><article class="blocked"><i>!</i><span><small>ЗАБЛОКИРОВАНО</small><b>${blocked}</b><em>${blocked?'доступ к аккаунтам закрыт':'заблокированных нет'}</em></span></article>`;
-  usersEmpty.classList.toggle('hidden',adminUsers.length!==0);document.querySelector('.users-table-wrap').classList.toggle('hidden',adminUsers.length===0);
-  usersList.innerHTML=adminUsers.map(user=>`<tr class="${user.is_blocked?'blocked':''}" data-id="${user.id}"><td><b>${esc(user.email)}</b>${user.is_blocked?'<small>Аккаунт заблокирован</small>':''}</td><td>${esc(user.full_name)}</td><td class="user-created">${registrationDate(user.created_at)}</td><td>${user.resume_id?`<a class="secondary user-profile" href="/profiles/view/${user.resume_id}" target="_blank" rel="noopener">Открыть профиль ↗</a>`:'<span class="user-profile-empty">Нет опубликованного профиля</span>'}</td><td><button class="secondary user-courses" aria-pressed="${Boolean(user.courses_access)}">${user.courses_access?'Разрешён':'Разрешить'}</button></td><td><button class="secondary user-edit">Изменить</button></td><td><button class="${user.is_blocked?'secondary':'danger'} user-block">${user.is_blocked?'Разблокировать':'Заблокировать'}</button></td><td><button class="secondary user-password">Изменить пароль</button></td></tr>`).join('');
+  const active=adminUsers.length-blocked;
+  summary.innerHTML=`<article><i>♙</i><span><small>ВСЕГО ПРОФИЛЕЙ</small><b>${adminUsers.length}</b><em>зарегистрированных пользователей</em></span></article><article class="actual"><i>✓</i><span><small>АКТУАЛЬНЫЕ ПРОФИ</small><b>${active}</b><em>незаблокированных пользователей</em></span></article><article class="blocked"><i>!</i><span><small>ЗАБЛОКИРОВАНО</small><b>${blocked}</b><em>${blocked?'доступ к аккаунтам закрыт':'заблокированных нет'}</em></span></article>`;
+  let controls=usersSection.querySelector('.users-controls');
+  if(!controls){
+    controls=document.createElement('div');controls.className='users-controls';
+    controls.innerHTML='<div class="users-tabs" role="group" aria-label="Статус пользователей"><button type="button" data-status="active">Актуальные <span></span></button><button type="button" data-status="blocked">Заблокированные <span></span></button></div><label class="users-search"><span>Поиск по почте или ФИО</span><input type="search" placeholder="Введите почту или ФИО" autocomplete="off"></label><p class="users-found" role="status" aria-live="polite"></p>';
+    summary.after(controls);
+    controls.querySelector('input').addEventListener('input',event=>{usersSearch=event.target.value;renderUsers()});
+    controls.querySelectorAll('[data-status]').forEach(button=>button.onclick=()=>{usersStatus=button.dataset.status;renderUsers()});
+  }
+  controls.querySelectorAll('[data-status]').forEach(button=>{const selected=button.dataset.status===usersStatus;button.classList.toggle('active',selected);button.setAttribute('aria-pressed',String(selected));button.querySelector('span').textContent=button.dataset.status==='active'?active:blocked});
+  const query=normalizeUserSearch(usersSearch);
+  const visible=adminUsers.filter(user=>Boolean(user.is_blocked)===(usersStatus==='blocked')&&(!query||normalizeUserSearch(user.email).includes(query)||normalizeUserSearch(user.full_name).includes(query)));
+  controls.querySelector('.users-found').textContent=`Показано: ${visible.length}`;
+  usersEmpty.textContent=query?'Пользователи не найдены. Попробуйте изменить запрос.':usersStatus==='blocked'?'Заблокированных пользователей нет.':'Актуальных пользователей пока нет.';
+  usersEmpty.classList.toggle('hidden',visible.length!==0);usersSection.querySelector('.users-table-wrap').classList.toggle('hidden',visible.length===0);
+  usersList.innerHTML=visible.map(user=>`<tr class="${user.is_blocked?'blocked':''}" data-id="${user.id}"><td><b>${esc(user.email)}</b>${user.is_blocked?'<small>Аккаунт заблокирован</small>':''}</td><td>${esc(user.full_name)}</td><td class="user-created">${registrationDate(user.created_at)}</td><td>${user.resume_id?`<a class="secondary user-profile" href="/profiles/view/${user.resume_id}" target="_blank" rel="noopener">Открыть профиль ↗</a>`:'<span class="user-profile-empty">Нет опубликованного профиля</span>'}</td><td><button class="secondary user-courses" aria-pressed="${Boolean(user.courses_access)}">${user.courses_access?'Разрешён':'Разрешить'}</button></td><td><button class="secondary user-edit">Изменить</button></td><td><button class="${user.is_blocked?'secondary':'danger'} user-block">${user.is_blocked?'Разблокировать':'Заблокировать'}</button></td><td><button class="secondary user-password">Изменить пароль</button></td></tr>`).join('');
   usersList.querySelectorAll('.user-courses').forEach(button=>button.onclick=()=>toggleUserCourses(button));
   usersList.querySelectorAll('.user-edit').forEach(button=>button.onclick=()=>openUserModal(button.closest('tr')));
   usersList.querySelectorAll('.user-block').forEach(button=>button.onclick=()=>toggleUserBlock(button.closest('tr')));
