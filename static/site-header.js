@@ -14,7 +14,7 @@
     fetch('/api/courses/access',{credentials:'include',cache:'no-store'}).then(r=>r.ok?r.json():null).then(access=>{
       let link=header.querySelector('.ft-main-nav a[href="/courses"]');
       if(!access?.allowed){link?.remove();return}
-      if(!link){link=document.createElement('a');link.href='/courses';link.textContent='Курсы';link.classList.toggle('active',active('/courses'));header.querySelector('.ft-main-nav').prepend(link)}
+      if(!link){link=document.createElement('a');link.href='/courses';link.textContent='Курсы';link.classList.toggle('active',active('/courses'));header.querySelector('.ft-main-nav').append(link)}
     }).catch(()=>header.querySelector('.ft-main-nav a[href="/courses"]')?.remove());
   }
   refreshCoursesLink();

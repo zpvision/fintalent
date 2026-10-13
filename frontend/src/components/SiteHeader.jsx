@@ -3,7 +3,6 @@ import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 const navigation = [
-  { href: '/courses', label: 'Курсы', paths: ['/courses'] },
   { href: '/vacancies', label: 'Вакансии', paths: ['/vacancies'] },
   { href: '/profiles', label: 'Профили', paths: ['/profiles', '/resume'] },
   { href: '/marketplace', label: 'Тесты', paths: ['/marketplace', '/tests'] },
@@ -11,6 +10,7 @@ const navigation = [
   { href: '/publications', label: 'Публикации', paths: ['/publications'] },
   { href: '/client-exchange', label: 'Клиентская биржа', paths: ['/client-exchange'] },
   { href: '/accounting-companies', label: 'Сообщества', paths: ['/accounting-companies'] },
+  { href: '/courses', label: 'Курсы', paths: ['/courses'] },
 ]
 
 function pathIsActive(pathname, paths) {
