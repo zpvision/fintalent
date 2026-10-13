@@ -29,6 +29,15 @@ const AuthContext = createContext({
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(readCachedUser)
   const [loading, setLoading] = useState(true)
+  const [coursesAccess, setCoursesAccess] = useState(false)
+  const [coursesAccessLoading, setCoursesAccessLoading] = useState(true)
+  const refreshCoursesAccess = useCallback(async () => {
+    try {
+      const access = await apiClient.get('/api/courses/access', { redirectOnUnauthorized: false })
+      setCoursesAccess(access.allowed === true)
+    } catch { setCoursesAccess(false) }
+    finally { setCoursesAccessLoading(false) }
+  }, [])
 
   const refresh = useCallback(async () => {
     try {
@@ -48,8 +57,13 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     refresh()
   }, [refresh])
+  useEffect(() => {
+    refreshCoursesAccess()
+    window.addEventListener('focus', refreshCoursesAccess)
+    return () => window.removeEventListener('focus', refreshCoursesAccess)
+  }, [refreshCoursesAccess, user?.id])
 
-  const value = useMemo(() => ({ user, loading, refresh }), [user, loading])
+  const value = useMemo(() => ({ user, loading, refresh, coursesAccess, coursesAccessLoading }), [user, loading, refresh, coursesAccess, coursesAccessLoading])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 

@@ -4,7 +4,7 @@ import Icon from '../../components/Icon'
 export const levels = { beginner: 'Для начинающих', intermediate: 'Средний уровень', advanced: 'Продвинутый' }
 export const statuses = { draft: 'Черновик', moderation: 'На модерации', published: 'Опубликован', hidden: 'Скрыт' }
 export const types = { video: 'Видео', text: 'Текст', practice: 'Практическое задание', test: 'Тест', materials: 'Материалы' }
-export const benefitIcons = { sparkles: 'Технологии', clock: 'Время', folder: 'Материалы', check: 'Практика', users: 'Команда', calculator: 'Расчёты', workflow: 'Процессы', bot: 'ИИ', list: 'Знания', message: 'Общение' }
+export const benefitIcons = { sparkles: 'Технологии', clock: 'Время', folder: 'Материалы', check: 'Практика', users: 'Команда', calculator: 'Расчёты', workflow: 'Процессы', bot: 'ИИ', list: 'Знания', message: 'Общение', book: 'Обучение', target: 'Цели', award: 'Достижения', chart: 'Аналитика', shield: 'Надёжность', briefcase: 'Карьера', globe: 'Возможности', lightbulb: 'Идеи', video: 'Видеоуроки', rocket: 'Развитие' }
 export const benefitColors = Object.fromEntries(window.ProfiMarketStylePresets.presets.filter(p => p.key !== 'metrics-default').map(p => [p.key, p]))
 export const filledBenefit = b => Boolean(b.title?.trim() || b.description?.trim())
 export function withBenefitSlots(course) { const benefits = [...(course.benefits || [])]; while (benefits.length < 4) benefits.push({ id: 0, icon: 'sparkles', color: '', title: '', description: '' }); return { ...course, benefits } }

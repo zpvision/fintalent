@@ -48,6 +48,9 @@ func prune(ctx context.Context, tx *sql.Tx, table, parent string, parentID int64
 	return e
 }
 func saveChildren(ctx context.Context, tx *sql.Tx, id int64, v *Input) error {
+	if err := validateLessonTypes(ctx, tx, id, v); err != nil {
+		return err
+	}
 	ids := []int64{}
 	seen := map[int64]bool{}
 	unique := func(id int64) error {
@@ -139,7 +142,7 @@ const detailSQL = `SELECT to_jsonb(c)||jsonb_build_object(
  'benefits',COALESCE((SELECT jsonb_agg(to_jsonb(b) ORDER BY sort_order,id) FROM course_benefits b WHERE course_id=c.id),'[]'),
  'bonuses',COALESCE((SELECT jsonb_agg(to_jsonb(b) ORDER BY sort_order,id) FROM course_bonuses b WHERE course_id=c.id),'[]'),
  'faq',COALESCE((SELECT jsonb_agg(to_jsonb(f) ORDER BY sort_order,id) FROM course_faq f WHERE course_id=c.id),'[]'),
- 'modules',COALESCE((SELECT jsonb_agg(to_jsonb(m)||jsonb_build_object('lessons',COALESCE((SELECT jsonb_agg(to_jsonb(l) ORDER BY sort_order,id) FROM course_lessons l WHERE module_id=m.id),'[]')) ORDER BY m.sort_order,m.id) FROM course_modules m WHERE course_id=c.id),'[]'),
+ 'modules',COALESCE((SELECT jsonb_agg(to_jsonb(m)||jsonb_build_object('lessons',COALESCE((SELECT jsonb_agg(to_jsonb(l)||jsonb_build_object('type_name',COALESCE(t.name,l.type),'type_icon',COALESCE(t.icon,'folder')) ORDER BY l.sort_order,l.id) FROM course_lessons l LEFT JOIN course_lesson_types t ON t.key=l.type WHERE module_id=m.id),'[]')) ORDER BY m.sort_order,m.id) FROM course_modules m WHERE course_id=c.id),'[]'),
  'instructors',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',u.id,'name',u.full_name,'avatar',COALESCE(u.avatar_url,''),'profile_id',r.id,'description',COALESCE((SELECT LEFT(concat_ws(E'\n',NULLIF(e.achievements,''),NULLIF(e.responsibilities,'')),1200) FROM resume_work_experiences e WHERE e.resume_id=r.id ORDER BY is_current DESC,start_year DESC,id DESC LIMIT 1),''),'headline',COALESCE((SELECT position FROM resume_work_experiences e WHERE e.resume_id=r.id ORDER BY is_current DESC,start_year DESC,id DESC LIMIT 1),'')) ORDER BY ci.sort_order,u.id) FROM course_instructors ci JOIN users u ON u.id=ci.user_id LEFT JOIN LATERAL (SELECT id FROM resumes WHERE user_id=u.id AND status='published' AND visibility='public' AND deleted_at IS NULL ORDER BY id DESC LIMIT 1) r ON TRUE WHERE ci.course_id=c.id),'[]'),
  'reviews',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',rv.id,'rating',rv.rating,'body',rv.body,'created_at',rv.created_at,'name',u.full_name,'avatar',COALESCE(u.avatar_url,'')) ORDER BY rv.created_at DESC,rv.id DESC) FROM course_reviews rv JOIN users u ON u.id=rv.user_id WHERE rv.course_id=c.id AND rv.status='published' AND NOT u.is_blocked),'[]'),
  'student_count',0)

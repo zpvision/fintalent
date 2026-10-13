@@ -64,7 +64,8 @@ type Input struct {
 }
 
 var imagePath = regexp.MustCompile(`^/static/uploads/profimarket/[a-f0-9]{32}\.(jpg|png|webp|gif)$`)
-var icons = map[string]bool{"sparkles": true, "clock": true, "folder": true, "check": true, "users": true, "calculator": true, "workflow": true, "bot": true, "list": true, "message": true}
+var icons = map[string]bool{"sparkles": true, "clock": true, "folder": true, "check": true, "users": true, "calculator": true, "workflow": true, "bot": true, "list": true, "message": true, "book": true, "target": true, "award": true, "chart": true, "shield": true, "briefcase": true, "globe": true, "lightbulb": true, "video": true, "rocket": true}
+var customLessonType = regexp.MustCompile(`^lesson-[1-9][0-9]{0,18}$`)
 var lessonTypes = map[string]bool{"video": true, "text": true, "practice": true, "test": true, "materials": true}
 
 func Validate(v *Input, publishing bool) error {
@@ -134,7 +135,7 @@ func Validate(v *Input, publishing bool) error {
 		}
 		for _, l := range m.Lessons {
 			lessons++
-			if !check(l.Title, 180, publishing) || !check(l.Description, 1200, false) || !lessonTypes[l.Type] || l.Duration < 0 || l.Duration > 100000 {
+			if !check(l.Title, 180, publishing) || !check(l.Description, 1200, false) || (!lessonTypes[l.Type] && !customLessonType.MatchString(l.Type)) || l.Duration < 0 || l.Duration > 100000 {
 				return fmt.Errorf("Проверьте название, тип и продолжительность уроков")
 			}
 		}

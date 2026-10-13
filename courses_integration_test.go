@@ -84,6 +84,13 @@ func TestCoursesIsolatedPostgres(t *testing.T) {
 		return id, nil
 	}, func(r *http.Request) bool { return r.Header.Get("X-Test-Admin") == "1" })
 	h.Register(mux)
+	mux.HandleFunc("/api/admin/course-access", adminCourseAccess)
+	mux.HandleFunc("/api/admin/users/", adminUserAction)
+	adminResponse := httptest.NewRecorder()
+	if err := createAdminSession(adminResponse, httptest.NewRequest("POST", "/api/admin/login", nil)); err != nil {
+		t.Fatal(err)
+	}
+	adminSessionCookie := adminResponse.Result().Cookies()[0]
 	request := func(method, path string, uid int64, isAdmin bool, body any, status int) []byte {
 		t.Helper()
 		var b bytes.Buffer
@@ -96,6 +103,7 @@ func TestCoursesIsolatedPostgres(t *testing.T) {
 		}
 		if isAdmin {
 			r.Header.Set("X-Test-Admin", "1")
+			r.AddCookie(adminSessionCookie)
 		}
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, r)
@@ -104,7 +112,88 @@ func TestCoursesIsolatedPostgres(t *testing.T) {
 		}
 		return w.Body.Bytes()
 	}
+	t.Run("restricted and public access", func(t *testing.T) {
+		for _, uid := range []int64{0, author, other} {
+			if raw := request("GET", "/api/courses/access", uid, false, nil, 200); !bytes.Contains(raw, []byte(`"allowed":false`)) {
+				t.Fatal("restricted module visible")
+			}
+			for _, route := range []string{"/api/courses", "/api/courses/meta", "/api/courses/my", "/api/courses/my/1", "/api/courses/view/example", "/api/courses/favorites/1"} {
+				request("GET", route, uid, false, nil, 404)
+			}
+		}
+		request("GET", "/api/admin/course-access", author, false, nil, 401)
+		request("PUT", "/api/admin/course-access", author, false, map[string]bool{"public_access": true}, 401)
+		grant := fmt.Sprintf("/api/admin/users/%d/courses-access", author)
+		request("PUT", grant, author, false, map[string]bool{"courses_access": true}, 401)
+		request("PUT", grant, 0, true, map[string]any{"courses_access": "true"}, 400)
+		request("PUT", grant, 0, true, map[string]bool{"courses_access": true}, 200)
+		request("GET", "/api/courses/meta", author, false, nil, 200)
+		request("GET", "/api/courses/meta", other, false, nil, 404)
+		request("GET", "/api/courses/meta", 0, true, nil, 200)
+		request("PUT", grant, 0, true, map[string]bool{"courses_access": false}, 200)
+		request("GET", "/api/courses/meta", author, false, nil, 404)
+		request("PUT", "/api/admin/users/9223372036854775807/courses-access", 0, true, map[string]bool{"courses_access": true}, 404)
+		request("PUT", "/api/admin/course-access", 0, true, map[string]bool{"public_access": true}, 200)
+		for _, uid := range []int64{0, author, other} {
+			request("GET", "/api/courses/meta", uid, false, nil, 200)
+		}
+		if err := prepareCoursesDatabase(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		request("GET", "/api/courses/meta", 0, false, nil, 200)
+		request("PUT", "/api/admin/course-access", 0, true, map[string]bool{"public_access": false}, 200)
+		request("GET", "/api/courses/meta", 0, false, nil, 404)
+		// The existing publication lifecycle exercises the public mode.
+		request("PUT", "/api/admin/course-access", 0, true, map[string]bool{"public_access": true}, 200)
+	})
 	request("POST", "/api/courses/my", 0, false, nil, 401)
+	t.Run("lesson type dictionary lifecycle", func(t *testing.T) {
+		var dictionaryID, itemID int64
+		if err := db.QueryRow(`SELECT id FROM dictionaries WHERE alias='course_lesson_types'`).Scan(&dictionaryID); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.QueryRow(`INSERT INTO dictionary_items(dictionary_id,value,icon,sort_order) VALUES($1,'Вебинар','/static/uploads/position-icons/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.svg',50) RETURNING id`, dictionaryID).Scan(&itemID); err != nil {
+			t.Fatal(err)
+		}
+		key := fmt.Sprintf("lesson-%d", itemID)
+		meta := request("GET", "/api/courses/meta", 0, false, nil, 200)
+		if !bytes.Contains(meta, []byte(key)) {
+			t.Fatal("new dictionary type missing from metadata")
+		}
+		var created struct {
+			ID int64 `json:"id"`
+		}
+		_ = json.Unmarshal(request("POST", "/api/courses/my", author, false, nil, 201), &created)
+		p := fmt.Sprintf("/api/courses/my/%d", created.ID)
+		var input courses.Input
+		_ = json.Unmarshal(request("GET", p, author, false, nil, 200), &input)
+		input.Modules = []courses.Module{{Title: "Модуль", Lessons: []courses.Lesson{{Title: "Вебинар", Type: key}}}}
+		_ = json.Unmarshal(request("PUT", p, author, false, input, 200), &input)
+		if _, err := db.Exec(`UPDATE dictionary_items SET value='Прямой эфир',active=FALSE,deleted_at=NOW() WHERE id=$1`, itemID); err != nil {
+			t.Fatal(err)
+		}
+		meta = request("GET", "/api/courses/meta", 0, false, nil, 200)
+		if bytes.Contains(meta, []byte(key)) {
+			t.Fatal("deleted type selectable")
+		}
+		raw := request("PUT", p, author, false, input, 200)
+		if !bytes.Contains(raw, []byte("Прямой эфир")) || !bytes.Contains(raw, []byte("type_icon")) {
+			t.Fatal("existing lesson lost dictionary presentation")
+		}
+		_ = json.Unmarshal(raw, &input)
+		input.Modules[0].Lessons = append(input.Modules[0].Lessons, courses.Lesson{Title: "Новый", Type: key})
+		request("PUT", p, author, false, input, 400)
+		input.Modules[0].Lessons = input.Modules[0].Lessons[:1]
+		input.Modules[0].Lessons[0].Type = "lesson-9223372036854775807"
+		request("PUT", p, author, false, input, 400)
+		if err := prepareCoursesDatabase(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		meta = request("GET", "/api/courses/meta", 0, false, nil, 200)
+		if bytes.Contains(meta, []byte(key)) {
+			t.Fatal("migration reactivated deleted type")
+		}
+	})
 	var created struct {
 		ID int64 `json:"id"`
 	}

@@ -36,6 +36,7 @@ import ProfilePurposePage from './pages/profile/ProfilePurposePage'
 import PublicationEditorPage from './pages/publications/PublicationEditorPage'
 import AdminPage from './pages/admin/AdminPage'
 import PublicLayout from './layouts/PublicLayout'
+import CourseAccessGate from './components/CourseAccessGate'
 import CoursesPage from './pages/courses/CoursesPage'
 import CourseEditor from './pages/courses/CourseEditor'
 import CourseView from './pages/courses/CourseView'
@@ -148,12 +149,12 @@ function ProfiMarketMyRoute() {
 export default function App() {
   return (
     <><ReactNavigationBridge /><Routes>
-      <Route path="/courses" element={<CoursesPage />} />
-      <Route path="/courses/:slug" element={<CourseView />} />
-      <Route path="/profile/courses" element={<CoursesPage mine />} />
-      <Route path="/profile/courses/create" element={<CourseEditor />} />
-      <Route path="/profile/courses/:id/edit" element={<CourseEditor />} />
-      <Route path="/profile/courses/:id/preview" element={<CourseView preview />} />
+      <Route path="/courses" element={<CourseAccessGate><CoursesPage /></CourseAccessGate>} />
+      <Route path="/courses/:slug" element={<CourseAccessGate><CourseView /></CourseAccessGate>} />
+      <Route path="/profile/courses" element={<CourseAccessGate><CoursesPage mine /></CourseAccessGate>} />
+      <Route path="/profile/courses/create" element={<CourseAccessGate><CourseEditor /></CourseAccessGate>} />
+      <Route path="/profile/courses/:id/edit" element={<CourseAccessGate><CourseEditor /></CourseAccessGate>} />
+      <Route path="/profile/courses/:id/preview" element={<CourseAccessGate><CourseView preview /></CourseAccessGate>} />
       <Route path="/admin/courses/:id/preview" element={<CourseView admin />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/register" element={<RegisterPage />} />

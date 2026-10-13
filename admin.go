@@ -451,7 +451,7 @@ func adminDictionary(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusNotFound, "Справочник не найден")
 			return
 		}
-		if existingAlias == "course_categories" || existingAlias == "course_features" {
+		if existingAlias == "course_categories" || existingAlias == "course_features" || existingAlias == "course_lesson_types" {
 			if strings.TrimSpace(payload.Alias) != existingAlias {
 				writeJSON(w, http.StatusConflict, "Alias системного справочника курсов менять нельзя")
 				return
@@ -477,7 +477,7 @@ func adminDictionary(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, "Справочник сохранён")
 	case http.MethodDelete:
 		var systemCourseDictionary bool
-		if err := db.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM dictionaries WHERE id=$1 AND alias IN ('course_categories','course_features'))`, id).Scan(&systemCourseDictionary); err != nil {
+		if err := db.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM dictionaries WHERE id=$1 AND alias IN ('course_categories','course_features','course_lesson_types'))`, id).Scan(&systemCourseDictionary); err != nil {
 			writeJSON(w, http.StatusInternalServerError, "Не удалось проверить справочник")
 			return
 		}

@@ -12,12 +12,13 @@ import (
 )
 
 type adminUser struct {
-	ID        int64     `json:"id"`
-	Email     string    `json:"email"`
-	FullName  string    `json:"full_name"`
-	IsBlocked bool      `json:"is_blocked"`
-	CreatedAt time.Time `json:"created_at"`
-	ResumeID  *int64    `json:"resume_id,omitempty"`
+	CoursesAccess bool      `json:"courses_access"`
+	ID            int64     `json:"id"`
+	Email         string    `json:"email"`
+	FullName      string    `json:"full_name"`
+	IsBlocked     bool      `json:"is_blocked"`
+	CreatedAt     time.Time `json:"created_at"`
+	ResumeID      *int64    `json:"resume_id,omitempty"`
 }
 
 func adminUsers(w http.ResponseWriter, r *http.Request) {
@@ -28,7 +29,7 @@ func adminUsers(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusMethodNotAllowed, "Метод не поддерживается")
 		return
 	}
-	rows, err := db.QueryContext(r.Context(), `SELECT u.id,u.email,u.full_name,u.is_blocked,u.created_at,r.id
+	rows, err := db.QueryContext(r.Context(), `SELECT u.id,u.email,u.full_name,u.is_blocked,u.created_at,r.id,u.courses_access
 		FROM users u
 		LEFT JOIN resumes r ON r.user_id=u.id AND r.status='published' AND r.deleted_at IS NULL
 		WHERE NOT u.is_system ORDER BY u.created_at DESC,u.id DESC`)
@@ -40,7 +41,7 @@ func adminUsers(w http.ResponseWriter, r *http.Request) {
 	users := []adminUser{}
 	for rows.Next() {
 		var item adminUser
-		if err = rows.Scan(&item.ID, &item.Email, &item.FullName, &item.IsBlocked, &item.CreatedAt, &item.ResumeID); err != nil {
+		if err = rows.Scan(&item.ID, &item.Email, &item.FullName, &item.IsBlocked, &item.CreatedAt, &item.ResumeID, &item.CoursesAccess); err != nil {
 			writeJSON(w, http.StatusInternalServerError, "Не удалось загрузить пользователей")
 			return
 		}
@@ -68,6 +69,8 @@ func adminUserAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch parts[1] {
+	case "courses-access":
+		adminUserCourseAccess(w, r, userID)
 	case "profile":
 		var payload struct {
 			FullName string `json:"full_name"`
@@ -101,7 +104,7 @@ func adminUserAction(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var updated adminUser
-		err = tx.QueryRowContext(r.Context(), `UPDATE users SET full_name=$1,email=$2 WHERE id=$3 AND NOT is_system RETURNING id,email,full_name,is_blocked,created_at`, payload.FullName, payload.Email, userID).Scan(&updated.ID, &updated.Email, &updated.FullName, &updated.IsBlocked, &updated.CreatedAt)
+		err = tx.QueryRowContext(r.Context(), `UPDATE users SET full_name=$1,email=$2 WHERE id=$3 AND NOT is_system RETURNING id,email,full_name,is_blocked,created_at,courses_access`, payload.FullName, payload.Email, userID).Scan(&updated.ID, &updated.Email, &updated.FullName, &updated.IsBlocked, &updated.CreatedAt, &updated.CoursesAccess)
 		if err != nil {
 			if strings.Contains(err.Error(), "23505") {
 				writeJSON(w, http.StatusConflict, "Пользователь с таким email уже зарегистрирован")

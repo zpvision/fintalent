@@ -16,6 +16,12 @@ var courseBenefitColorsSchema string
 //go:embed migrations/072_course_settings.sql
 var courseSettingsSchema string
 
+//go:embed migrations/073_course_lesson_types.sql
+var courseLessonTypesSchema string
+
+//go:embed migrations/074_course_access.sql
+var courseAccessSchema string
+
 func prepareCoursesDatabase(ctx context.Context) error {
 	_, err := db.ExecContext(ctx, coursesSchema)
 	if err != nil {
@@ -26,6 +32,14 @@ func prepareCoursesDatabase(ctx context.Context) error {
 		return err
 	}
 	_, err = db.ExecContext(ctx, courseSettingsSchema)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, courseLessonTypesSchema)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, courseAccessSchema)
 	return err
 }
 func registerCoursesRoutes() {
@@ -37,9 +51,10 @@ func registerCoursesRoutes() {
 		return u.ID, nil
 	}, isAdmin)
 	h.Register(http.DefaultServeMux)
-	http.HandleFunc("/courses", serveFrontendPage("static/courses-unavailable.html"))
-	http.HandleFunc("/courses/", serveFrontendPage("static/courses-unavailable.html"))
-	http.HandleFunc("/profile/courses", serveFrontendPage("static/courses-unavailable.html"))
-	http.HandleFunc("/profile/courses/", serveFrontendPage("static/courses-unavailable.html"))
-	http.HandleFunc("/api/courses/upload", profiMarketUploadAPI)
+	http.HandleFunc("/api/admin/course-access", adminCourseAccess)
+	http.HandleFunc("/courses", h.Gate(serveFrontendPage("static/courses-unavailable.html")))
+	http.HandleFunc("/courses/", h.Gate(serveFrontendPage("static/courses-unavailable.html")))
+	http.HandleFunc("/profile/courses", h.Gate(serveFrontendPage("static/courses-unavailable.html")))
+	http.HandleFunc("/profile/courses/", h.Gate(serveFrontendPage("static/courses-unavailable.html")))
+	http.HandleFunc("/api/courses/upload", h.Gate(profiMarketUploadAPI))
 }

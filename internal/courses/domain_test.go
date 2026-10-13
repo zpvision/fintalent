@@ -9,6 +9,22 @@ func validInput() Input {
 	category := int64(1)
 	return Input{Title: "Курс для бухгалтера", Description: "Практические знания для ежедневной работы", CategoryID: &category, Level: "beginner", CoverImage: "/static/uploads/profimarket/" + strings.Repeat("a", 32) + ".webp", Hours: 6, AccessMonths: 12, Benefits: []Benefit{{Icon: "clock", Title: "Время", Description: "Экономия времени"}, {Icon: "check", Title: "Практика", Description: "Рабочие навыки"}, {Icon: "folder", Title: "Материалы", Description: "Готовые шаблоны"}}, Modules: []Module{{Title: "Основы", Lessons: []Lesson{{Title: "Первый урок", Type: "video", Duration: 15}}}}}
 }
+func TestLessonTypeKeys(t *testing.T) {
+	for _, key := range []string{"video", "lesson-1", "lesson-9223372036854775807"} {
+		v := validInput()
+		v.Modules[0].Lessons[0].Type = key
+		if err := Validate(&v, false); err != nil {
+			t.Errorf("%s: %v", key, err)
+		}
+	}
+	for _, key := range []string{"", "unknown", "lesson-0", "lesson--1", "lesson-1x", "lesson-12345678901234567890"} {
+		v := validInput()
+		v.Modules[0].Lessons[0].Type = key
+		if err := Validate(&v, false); err == nil {
+			t.Errorf("accepted %q", key)
+		}
+	}
+}
 func TestPublicationValidation(t *testing.T) {
 	cases := []struct {
 		name   string

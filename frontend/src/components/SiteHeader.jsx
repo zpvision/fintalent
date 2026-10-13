@@ -19,7 +19,7 @@ function pathIsActive(pathname, paths) {
 
 export default function SiteHeader() {
   const { pathname } = useLocation()
-  const { user, loading } = useAuth()
+  const { user, loading, coursesAccess } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
   const name = user?.full_name || user?.email || 'Профиль'
   const initial = name.trim().charAt(0).toUpperCase()
@@ -43,7 +43,7 @@ export default function SiteHeader() {
         ☰
       </button>
       <nav className="ft-main-nav">
-        {navigation.map((item) => {
+        {navigation.filter(item => item.href !== '/courses' || coursesAccess).map((item) => {
           const className = pathIsActive(pathname, item.paths) ? 'active' : ''
           return item.legacy
             ? <a className={className} href={item.href} key={item.href}>{item.label}</a>
