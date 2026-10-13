@@ -9,6 +9,36 @@ func validInput() Input {
 	category := int64(1)
 	return Input{Title: "Курс для бухгалтера", Description: "Практические знания для ежедневной работы", CategoryID: &category, Level: "beginner", CoverImage: "/static/uploads/profimarket/" + strings.Repeat("a", 32) + ".webp", Hours: 6, AccessMonths: 12, Benefits: []Benefit{{Icon: "clock", Title: "Время", Description: "Экономия времени"}, {Icon: "check", Title: "Практика", Description: "Рабочие навыки"}, {Icon: "folder", Title: "Материалы", Description: "Готовые шаблоны"}}, Modules: []Module{{Title: "Основы", Lessons: []Lesson{{Title: "Первый урок", Type: "video", Duration: 15}}}}}
 }
+func TestCustomFeatureValidation(t *testing.T) {
+	for _, publishing := range []bool{false, true} {
+		v := validInput()
+		for i := 0; i < 10; i++ {
+			v.CustomFeatures = append(v.CustomFeatures, Bonus{Title: strings.Repeat("я", 179) + string(rune('а'+i))})
+		}
+		if err := Validate(&v, publishing); err != nil {
+			t.Fatalf("ten 180-character features rejected: %v", err)
+		}
+		v.CustomFeatures = append(v.CustomFeatures, Bonus{Title: "Лишний пункт"})
+		if Validate(&v, publishing) == nil {
+			t.Fatal("eleven features accepted")
+		}
+		for _, items := range [][]Bonus{
+			{{Title: " \n\t "}}, {{Title: strings.Repeat("я", 181)}}, {{ID: -1, Title: "Пункт"}},
+			{{Title: "Проверка заданий"}, {Title: " проверка   ЗАДАНИЙ "}},
+		} {
+			v = validInput()
+			v.CustomFeatures = items
+			if Validate(&v, publishing) == nil {
+				t.Fatalf("invalid features accepted: %+v", items)
+			}
+		}
+		v = validInput()
+		v.CustomFeatures = []Bonus{{Title: "  Разбор кейсов  "}}
+		if err := Validate(&v, publishing); err != nil || v.CustomFeatures[0].Title != "Разбор кейсов" {
+			t.Fatalf("trim failed: %v", err)
+		}
+	}
+}
 func TestLessonTypeKeys(t *testing.T) {
 	for _, key := range []string{"video", "lesson-1", "lesson-9223372036854775807"} {
 		v := validInput()

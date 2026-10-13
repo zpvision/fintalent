@@ -211,7 +211,7 @@ func (h *Handler) owned(w http.ResponseWriter, r *http.Request) {
 		if e := h.save(r.Context(), id, uid, &v); e != nil {
 			if errors.Is(e, ErrConflict) {
 				fail(w, 409, e.Error())
-			} else if errors.Is(e, ErrChild) || errors.Is(e, ErrCategory) || errors.Is(e, ErrFeature) || errors.Is(e, ErrLessonType) {
+			} else if errors.Is(e, ErrChild) || errors.Is(e, ErrCategory) || errors.Is(e, ErrFeature) || errors.Is(e, ErrLessonType) || errors.Is(e, ErrCustomFeature) {
 				fail(w, 400, e.Error())
 			} else {
 				dbError(w, e)

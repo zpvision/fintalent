@@ -39,28 +39,29 @@ type FAQ struct {
 	Answer   string `json:"answer"`
 }
 type Input struct {
-	Revision     int64     `json:"revision"`
-	Title        string    `json:"title"`
-	Description  string    `json:"description"`
-	CategoryID   *int64    `json:"category_id"`
-	Level        string    `json:"level"`
-	CoverImage   string    `json:"cover_image"`
-	PromoURL     string    `json:"promo_url"`
-	Price        int64     `json:"price"` // RUB minor units (kopecks).
-	OldPrice     *int64    `json:"old_price"`
-	Hours        float64   `json:"hours"`
-	AccessMonths int       `json:"access_months"`
-	Certificate  bool      `json:"certificate"`
-	Chat         bool      `json:"chat"`
-	Updates      bool      `json:"updates"`
-	AnyDevice    bool      `json:"any_device"`
-	Corporate    bool      `json:"corporate"`
-	FeatureIDs   []int64   `json:"feature_ids"`
-	BonusesColor string    `json:"bonuses_color"`
-	Benefits     []Benefit `json:"benefits"`
-	Bonuses      []Bonus   `json:"bonuses"`
-	Modules      []Module  `json:"modules"`
-	FAQ          []FAQ     `json:"faq"`
+	Revision       int64     `json:"revision"`
+	Title          string    `json:"title"`
+	Description    string    `json:"description"`
+	CategoryID     *int64    `json:"category_id"`
+	Level          string    `json:"level"`
+	CoverImage     string    `json:"cover_image"`
+	PromoURL       string    `json:"promo_url"`
+	Price          int64     `json:"price"` // RUB minor units (kopecks).
+	OldPrice       *int64    `json:"old_price"`
+	Hours          float64   `json:"hours"`
+	AccessMonths   int       `json:"access_months"`
+	Certificate    bool      `json:"certificate"`
+	Chat           bool      `json:"chat"`
+	Updates        bool      `json:"updates"`
+	AnyDevice      bool      `json:"any_device"`
+	Corporate      bool      `json:"corporate"`
+	FeatureIDs     []int64   `json:"feature_ids"`
+	CustomFeatures []Bonus   `json:"custom_features"`
+	BonusesColor   string    `json:"bonuses_color"`
+	Benefits       []Benefit `json:"benefits"`
+	Bonuses        []Bonus   `json:"bonuses"`
+	Modules        []Module  `json:"modules"`
+	FAQ            []FAQ     `json:"faq"`
 }
 
 var imagePath = regexp.MustCompile(`^/static/uploads/profimarket/[a-f0-9]{32}\.(jpg|png|webp|gif)$`)
@@ -69,6 +70,22 @@ var customLessonType = regexp.MustCompile(`^lesson-[1-9][0-9]{0,18}$`)
 var lessonTypes = map[string]bool{"video": true, "text": true, "practice": true, "test": true, "materials": true}
 
 func Validate(v *Input, publishing bool) error {
+	if len(v.CustomFeatures) > 10 {
+		return fmt.Errorf("Допустимо до 10 собственных возможностей курса")
+	}
+	seenCustom := map[string]bool{}
+	for i := range v.CustomFeatures {
+		feature := &v.CustomFeatures[i]
+		feature.Title = strings.TrimSpace(feature.Title)
+		key := featureTitleKey(feature.Title)
+		if feature.ID < 0 || key == "" || utf8.RuneCountInString(feature.Title) > 180 {
+			return fmt.Errorf("Заполните собственные возможности курса: от 1 до 180 символов")
+		}
+		if seenCustom[key] {
+			return fmt.Errorf("Собственные возможности курса не должны повторяться")
+		}
+		seenCustom[key] = true
+	}
 	if !validBenefitColor(v.BonusesColor) {
 		return fmt.Errorf("Выберите цвет бонусов из палитры")
 	}
@@ -149,6 +166,10 @@ func Validate(v *Input, publishing bool) error {
 		return fmt.Errorf("Добавьте уроки")
 	}
 	return nil
+}
+
+func featureTitleKey(title string) string {
+	return strings.ToLower(strings.Join(strings.Fields(title), " "))
 }
 
 func validBenefitColor(color string) bool {

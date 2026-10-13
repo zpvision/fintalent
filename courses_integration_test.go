@@ -235,6 +235,65 @@ func TestCoursesIsolatedPostgres(t *testing.T) {
 		t.Fatal("benefit colors or empty slots were not persisted")
 	}
 	request("PUT", path, author, false, v, 409)
+	t.Run("custom course features", func(t *testing.T) {
+		saved.CustomFeatures = []courses.Bonus{{Title: "  Проверка домашних заданий автором  "}, {Title: "Индивидуальная консультация"}}
+		_ = json.Unmarshal(request("PUT", path, author, false, saved, 200), &saved)
+		if len(saved.CustomFeatures) != 2 || saved.CustomFeatures[0].ID <= 0 || saved.CustomFeatures[0].Title != "Проверка домашних заданий автором" {
+			t.Fatal("custom features not persisted")
+		}
+		firstID := saved.CustomFeatures[0].ID
+		meta := request("GET", "/api/courses/meta", 0, false, nil, 200)
+		if bytes.Contains(meta, []byte(saved.CustomFeatures[0].Title)) {
+			t.Fatal("custom feature leaked into dictionary")
+		}
+		preview := request("GET", fmt.Sprintf("/api/admin/courses/%d", id), 0, true, nil, 200)
+		if !bytes.Contains(preview, []byte(saved.CustomFeatures[0].Title)) {
+			t.Fatal("custom features missing in moderation preview")
+		}
+		bad := saved
+		bad.Title = "Не должно сохраниться"
+		bad.CustomFeatures = []courses.Bonus{{ID: firstID, Title: "Чат с автором и участниками"}}
+		request("PUT", path, author, false, bad, 400)
+		var unchanged courses.Input
+		_ = json.Unmarshal(request("GET", path, author, false, nil, 200), &unchanged)
+		if unchanged.Title != saved.Title || unchanged.Revision != saved.Revision || unchanged.CustomFeatures[0].Title != saved.CustomFeatures[0].Title {
+			t.Fatal("duplicate update not rolled back")
+		}
+		// A child ID from another course cannot be adopted or changed.
+		var second struct {
+			ID int64 `json:"id"`
+		}
+		_ = json.Unmarshal(request("POST", "/api/courses/my", other, false, nil, 201), &second)
+		secondPath := fmt.Sprintf("/api/courses/my/%d", second.ID)
+		var secondInput courses.Input
+		_ = json.Unmarshal(request("GET", secondPath, other, false, nil, 200), &secondInput)
+		secondInput.CustomFeatures = []courses.Bonus{{ID: firstID, Title: "Чужой пункт"}}
+		request("PUT", secondPath, other, false, secondInput, 400)
+		bad = saved
+		bad.CustomFeatures = append([]courses.Bonus{}, saved.CustomFeatures...)
+		bad.CustomFeatures = append(bad.CustomFeatures, bad.CustomFeatures[0])
+		request("PUT", path, author, false, bad, 400)
+		saved.CustomFeatures[0], saved.CustomFeatures[1] = saved.CustomFeatures[1], saved.CustomFeatures[0]
+		_ = json.Unmarshal(request("PUT", path, author, false, saved, 200), &saved)
+		if saved.CustomFeatures[1].ID != firstID {
+			t.Fatal("feature order or identity lost")
+		}
+		legacy := saved
+		legacy.CustomFeatures = nil
+		_ = json.Unmarshal(request("PUT", path, author, false, legacy, 200), &saved)
+		if len(saved.CustomFeatures) != 2 {
+			t.Fatal("older client erased custom features")
+		}
+		saved.CustomFeatures = saved.CustomFeatures[1:]
+		_ = json.Unmarshal(request("PUT", path, author, false, saved, 200), &saved)
+		if len(saved.CustomFeatures) != 1 || saved.CustomFeatures[0].ID != firstID {
+			t.Fatal("custom feature removal failed")
+		}
+		var count int
+		if err := db.QueryRow(`SELECT count(*) FROM course_custom_features WHERE course_id=$1`, id).Scan(&count); err != nil || count != 1 {
+			t.Fatal("custom feature removal not persisted")
+		}
+	})
 	var customFeature int64
 	if err := db.QueryRow(`INSERT INTO dictionary_items(dictionary_id,value,sort_order) SELECT id,'Еженедельные встречи',100 FROM dictionaries WHERE alias='course_features' RETURNING id`).Scan(&customFeature); err != nil {
 		t.Fatal(err)
@@ -313,7 +372,10 @@ func TestCoursesIsolatedPostgres(t *testing.T) {
 	request("GET", publicPath, 0, false, nil, 404)
 	request("POST", fmt.Sprintf("/api/admin/courses/%d/approve", id), author, false, nil, 401)
 	request("POST", fmt.Sprintf("/api/admin/courses/%d/approve", id), 0, true, nil, 200)
-	request("GET", publicPath, 0, false, nil, 200)
+	publicView := request("GET", publicPath, 0, false, nil, 200)
+	if !bytes.Contains(publicView, []byte(saved.CustomFeatures[0].Title)) {
+		t.Fatal("custom features missing from published course")
+	}
 	favoritePath := fmt.Sprintf("/api/courses/favorites/%d", id)
 	request("POST", favoritePath, other, false, map[string]bool{"favorite": true}, 200)
 	favorite := request("GET", favoritePath, other, false, nil, 200)

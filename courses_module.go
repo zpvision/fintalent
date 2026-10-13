@@ -22,6 +22,9 @@ var courseLessonTypesSchema string
 //go:embed migrations/074_course_access.sql
 var courseAccessSchema string
 
+//go:embed migrations/075_course_custom_features.sql
+var courseCustomFeaturesSchema string
+
 func prepareCoursesDatabase(ctx context.Context) error {
 	_, err := db.ExecContext(ctx, coursesSchema)
 	if err != nil {
@@ -40,6 +43,10 @@ func prepareCoursesDatabase(ctx context.Context) error {
 		return err
 	}
 	_, err = db.ExecContext(ctx, courseAccessSchema)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, courseCustomFeaturesSchema)
 	return err
 }
 func registerCoursesRoutes() {
