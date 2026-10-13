@@ -36,11 +36,11 @@ export default function CourseProgramStep({ value, meta, update, moduleUpdate, l
     <div className="course-program-content">
       {!value.modules.length && <div className="course-inline-empty">Начните с первого модуля. Например, «Знакомство с инструментами». Затем добавьте в него уроки.</div>}
       {value.modules.map((m, i) => <section className="course-module-editor" key={moduleKey(m, i)} ref={register(moduleKey(m, i))} tabIndex={-1} aria-label={`Модуль ${i + 1}`} onFocusCapture={() => setActive(moduleKey(m, i))}>
-        <div className="course-row-head"><div className="course-program-module-title"><span>{i + 1}</span><div><h3>Модуль {i + 1}</h3><small>{m.lessons.length} уроков · {m.lessons.reduce((n, l) => n + l.duration_minutes, 0)} мин</small></div></div><Reorder index={i} count={value.modules.length} label={`модуль ${i + 1} и его уроки`} move={(a, b) => update('modules', moveItem(value.modules, a, b))} remove={() => remove('modules', i)} /></div>
+        <div className="course-row-head"><div className="course-program-module-title"><span>{i + 1}</span><div><h3>Модуль {i + 1}</h3><small>{m.lessons.length} уроков · {m.lessons.reduce((n, l) => n + l.duration_minutes, 0)} мин</small></div></div><Reorder deleteIcon index={i} count={value.modules.length} label={`модуль ${i + 1} и его уроки`} move={(a, b) => update('modules', moveItem(value.modules, a, b))} remove={() => remove('modules', i)} /></div>
         <Field label="Название модуля" value={m.title} onChange={title => moduleUpdate(i, { title })} placeholder="Например, первые шаги и основные инструменты" />
         {m.lessons.map((l, j) => <details className="course-lesson-editor" key={lessonKey(m, i, l, j)} ref={register(lessonKey(m, i, l, j))} tabIndex={-1} open onFocusCapture={event => { event.stopPropagation(); setActive(lessonKey(m, i, l, j)) }}>
           <summary><span className="course-program-lesson-title"><span>{i + 1}.{j + 1}</span><b>{l.title || 'Новый урок'}</b></span><small>{lessonTypeInfo(l, typeOptions).name} · {l.duration_minutes} мин</small></summary>
-          <div><div className="course-row-head"><h4>Настройки урока</h4><Reorder index={j} count={m.lessons.length} label={`урок ${j + 1}`} move={(a, b) => moduleUpdate(i, { lessons: moveItem(m.lessons, a, b) })} remove={() => { if (confirm('Удалить урок?')) moduleUpdate(i, { lessons: m.lessons.filter((_, k) => k !== j) }) }} /></div>
+          <div><div className="course-row-head"><h4>Настройки урока</h4><Reorder deleteIcon index={j} count={m.lessons.length} label={`урок ${j + 1}`} move={(a, b) => moduleUpdate(i, { lessons: moveItem(m.lessons, a, b) })} remove={() => { if (confirm('Удалить урок?')) moduleUpdate(i, { lessons: m.lessons.filter((_, k) => k !== j) }) }} /></div>
             <div className="course-lesson-fields">
               <Field label="Название урока" value={l.title} onChange={title => lessonUpdate(i, j, { title })} placeholder="Какой теме посвящён урок?" />
               <CourseLessonType lesson={l} options={typeOptions} onChange={type => lessonUpdate(i, j, { type })} />
@@ -50,9 +50,9 @@ export default function CourseProgramStep({ value, meta, update, moduleUpdate, l
           </div>
         </details>)}
         {!typeOptions.length && <p className="course-muted">Нет активных типов уроков. Добавьте их в справочнике «Типы уроков» админки.</p>}
-        <button type="button" className="course-add" disabled={!typeOptions.length} onClick={() => moduleUpdate(i, { lessons: [...m.lessons, { ...lesson(), type: typeOptions[0]?.key || '' }] })}>＋ Добавить урок</button>
+        <button type="button" className="course-add course-program-add-lesson" disabled={!typeOptions.length} onClick={() => moduleUpdate(i, { lessons: [...m.lessons, { ...lesson(), type: typeOptions[0]?.key || '' }] })}><span aria-hidden="true">＋</span>Добавить урок</button>
       </section>)}
-      <button type="button" className="course-add course-program-add-module" onClick={() => update('modules', [...value.modules, { id: 0, title: '', description: '', lessons: [] }])}>＋ Добавить модуль</button>
+      <button type="button" className="course-add course-program-add-module" onClick={() => update('modules', [...value.modules, { id: 0, title: '', description: '', lessons: [] }])}><span aria-hidden="true">＋</span>Добавить модуль</button>
     </div>
   </div>
 }
