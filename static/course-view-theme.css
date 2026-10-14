@@ -1,0 +1,70 @@
+﻿/* Public course and full-page previews share this theme. */
+.course-public { --course-blue: #3575dd; --course-ink: #213c62; }
+.course-public .course-hero { border-color: #dce6f4; border-radius: 22px; box-shadow: 0 12px 36px #284c7810; }
+.course-public .course-hero-main { background: linear-gradient(120deg,#eaf3ff,#e9f8fc); }
+.course-public .course-hero-copy { padding: 30px 0 30px 28px; }
+.course-public .course-hero h1 { line-height: 1.18; overflow-wrap: anywhere; }
+.course-public .course-hero-copy > p { font-size: 14px; line-height: 1.75; }
+.course-public .has-cover .course-hero-art::after { background: linear-gradient(90deg,#0d2344e8,#102c4ba6 60%,#132e4840); }
+.course-public .course-badges span { border-radius: 30px; padding: 7px 12px; font-size: 11px; }
+.course-public .course-trailer { border-radius: 13px; padding: 13px; }
+.course-public .course-hero-stats { padding: 22px 8px; background: linear-gradient(110deg,#fff,#f5f9ff); }
+.course-public .course-hero-stats b { color: #234e85; font-size: 13px; flex-wrap: wrap; justify-content: center; }
+.course-public .course-hero-stats small { font-size: 11px; }
+.course-public .course-content { background: transparent; border: 0; overflow: visible; margin-top: 22px; }
+.course-public .course-tabs { padding: 6px; gap: 4px; border: 1px solid #dce6f4; border-radius: 14px; background: white; }
+.course-public .course-tabs a { flex: 1; text-align: center; border: 0; border-radius: 9px; padding: 13px 12px; }
+.course-public .course-tabs a.active { background: #eaf2ff; color: #285fbd; }
+.course-public .course-content > section { padding: 26px; background: white; border: 1px solid #e0e8f3; border-radius: 20px; margin-top: 20px; scroll-margin-top: 90px; }
+.course-public .course-content h2 { color: #193e76; font-size: 25px; letter-spacing: -.4px; }
+.course-public .course-benefits { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 14px; }
+.course-public .course-benefits > article { padding: 20px; border-radius: 15px; background: linear-gradient(140deg,#f8fbff,white); border-color: #e1eaf7; }
+.course-public .course-benefits i { width: 44px; height: 44px; border-radius: 14px; }
+.course-public .course-benefits h3 { font-size: 15px; line-height: 1.5; color: #294c79; }
+.course-public .course-benefits p { font-size: 13px; color: #6d7e95; line-height: 1.75; }
+.course-public .course-teacher { background: linear-gradient(120deg,#f1f6ff,#fbfdff); border-color: #dce7f7; padding: 24px; border-radius: 16px; margin-top: 12px; }
+.course-public .course-teacher > div { min-width: 0; overflow-wrap: anywhere; }
+.course-public .course-teacher > .course-avatar { width: 72px; height: 72px; box-shadow: 0 0 0 5px white; background: #dbeaff; color: #386fc0; }
+.course-public .course-teacher a { border-radius: 9px; padding: 12px 15px; background: white; border: 1px solid #d5e2f5; font-weight: 600; }
+.course-public .course-review-summary { background: #f5f8fd; padding: 24px; border-radius: 15px; }
+.course-public .course-review-cards { grid-template-columns: repeat(2,minmax(0,1fr)); }
+.course-public .course-reviews-empty { border: 1px dashed #cbdcf3; padding: 30px 18px; background: #f7faff; }
+.course-public .course-reviews-empty > svg { width: 30px; height: 30px; margin-bottom: 10px; color: #6c97d4; }
+.course-public .course-reviews-empty h3 { color: #42618c; font-size: 16px; margin-bottom: 8px; }
+.course-public .course-faq { border-radius: 13px; border-color: #dfe8f5; margin-bottom: 12px; overflow: hidden; }
+.course-public .course-faq summary { padding: 19px; font-size: 14px; line-height: 1.5; align-items: center; min-height: 56px; color: #345782; }
+.course-public .course-faq[open] { background: #f5f9ff; border-color: #c6daf7; }
+.course-public .course-faq p { padding: 0 19px 19px; font-size: 13px; }
+.course-public .course-purchase { border-radius: 20px; border-color: #cddff8; padding: 24px; background: linear-gradient(160deg,#edf5ff,white 260px); box-shadow: 0 12px 32px #254d7e0d; }
+.course-public .course-purchase-label { display: flex; align-items: center; gap: 9px; color: #5279ab; font-size: 11px; line-height: 1.5; margin-bottom: 20px; }
+.course-public .course-purchase-label svg { width: 20px; height: 20px; flex-shrink: 0; }
+.course-public .course-price strong { font-size: 36px; color: #193e76; }
+.course-public .course-primary { background: linear-gradient(110deg,#3f7ce8,#2863cd); border-radius: 11px; box-shadow: 0 6px 15px #356dd626; min-height: 46px; }
+.course-public .course-secondary { border-radius: 10px; min-height: 44px; }
+.course-public .course-perks { padding-top: 20px; border-top: 1px solid #e0e9f6; }
+.course-public .course-perks li { font-size: 12px; line-height: 1.6; align-items: flex-start; overflow-wrap: anywhere; }
+.course-public .course-perks svg { flex: 0 0 16px; margin-top: 2px; color: #4581d5; }
+.course-public .course-payment-note { line-height: 1.6; }
+.course-public .course-bonuses,.course-public .course-corporate { border-radius: 13px; }
+.course-public .course-related { border-radius: 18px; }
+.course-public :is(a,button,summary):focus-visible { outline: 3px solid #85b3f6; outline-offset: 3px; }
+@media(max-width:1100px) {
+ .course-public .course-hero-copy { padding-left: 22px; }
+ .course-public .course-content > section { padding: 20px; }
+ .course-public .course-purchase { padding: 18px; }
+ .course-public .course-tabs a { padding: 13px 10px; }
+}
+@media(max-width:600px) {
+ .course-public .course-hero-copy,.course-public .has-cover .course-hero-copy { padding: 24px 20px 82px; }
+ .course-public .has-cover .course-hero-art::after { background: linear-gradient(180deg,#10294bdf,#10294bad); }
+ .course-public .course-content > section { padding: 18px 14px; border-radius: 16px; }
+ .course-public .course-content h2 { font-size: 22px; }
+ .course-public .course-benefits,.course-public .course-review-cards { grid-template-columns: minmax(0,1fr); }
+ .course-public .course-benefits > article { padding: 18px; }
+ .course-public .course-teacher { flex-direction: column; padding: 20px; }
+ .course-public .course-faq summary { padding: 16px; }
+ .course-public .course-review-summary { padding: 16px; gap: 18px; }
+ .course-public .course-notification { bottom: 90px; }
+ .course-public .course-mobile-cta { padding-bottom: max(12px,env(safe-area-inset-bottom)); }
+}
+@media(max-width:600px) { .course-public .course-hero-main:not(:has(.course-trailer)) .course-hero-copy { padding-bottom: 28px; } }
