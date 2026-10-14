@@ -44,3 +44,17 @@
 .course-tariff-prices > strong { font-size:22px; line-height:1.2; font-weight:750; letter-spacing:-.4px; color:#1552aa; font-variant-numeric:tabular-nums; display:inline-block; padding:8px 11px; border:1px solid #cbdff7; border-radius:10px; background:linear-gradient(120deg,#edf5ff,#eefaf8); box-shadow:0 3px 8px #245c9610; }
 .course-tariff.selected .course-tariff-prices > strong { color:#125ee1; border-color:#8fb9f1; background:linear-gradient(120deg,#dfedff,#ddf5ef); box-shadow:0 3px 10px #276bd51a; }
 @media(max-width:400px) { .course-tariff-heading { display:grid; grid-template-columns:16px minmax(0,1fr); align-items:baseline; } .course-tariff-heading .course-tariff-prices { grid-column:2; align-items:flex-start; } }
+
+.course-tariff.is-selecting { animation:course-tariff-glow .55s ease-out; }
+.course-tariff.is-selecting .course-tariff-prices > strong { animation:course-tariff-price-pop .5s ease-out; transform-origin:center; }
+@keyframes course-tariff-glow {
+ 0%,100% { box-shadow:0 0 0 1px #4987e7; }
+ 40% { box-shadow:0 0 0 3px #39b8bf66,0 0 22px #239ad936; border-color:#25a9bc; }
+}
+@keyframes course-tariff-price-pop {
+ 0%,100% { transform:scale(1); }
+ 40% { transform:scale(1.055); box-shadow:0 4px 17px #228dc52e; }
+}
+@media(prefers-reduced-motion:reduce) {
+ .course-tariff.is-selecting,.course-tariff.is-selecting .course-tariff-prices > strong { animation:none; }
+}
