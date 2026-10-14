@@ -58,3 +58,9 @@
 @media(prefers-reduced-motion:reduce) {
  .course-tariff.is-selecting,.course-tariff.is-selecting .course-tariff-prices > strong { animation:none; }
 }
+
+@media(hover:hover) {
+ .course-tariff:not(.selected) { transition:background-color .18s ease,border-color .18s ease,box-shadow .18s ease; }
+ .course-tariff:not(.selected):hover { background:#f6faff; border-color:#a9c8ef; box-shadow:0 3px 12px #3475d90d; }
+}
+@media(prefers-reduced-motion:reduce) { .course-tariff:not(.selected) { transition:none; } }
