@@ -97,7 +97,7 @@ func (h *Handler) meta(w http.ResponseWriter, r *http.Request) {
 	respond(w, 200, map[string]any{"categories": raw, "features": features, "lesson_types": lessonTypes})
 }
 func (h *Handler) list(w http.ResponseWriter, r *http.Request, where string, args ...any) {
-	rows, e := h.db.QueryContext(r.Context(), `SELECT to_jsonb(c)||jsonb_build_object('category',COALESCE(d.value,''),'author_name',u.full_name) FROM courses c JOIN users u ON u.id=c.owner_id LEFT JOIN dictionary_items d ON d.id=c.category_id WHERE `+where+` ORDER BY c.updated_at DESC,c.id DESC LIMIT 200`, args...)
+	rows, e := h.db.QueryContext(r.Context(), `SELECT to_jsonb(c)||jsonb_build_object('category',COALESCE(d.value,''),'author_name',u.full_name,'min_price',CASE WHEN c.pricing_mode='tariffs' THEN (SELECT MIN(t.price) FROM course_tariffs t WHERE t.course_id=c.id) ELSE c.price END) FROM courses c JOIN users u ON u.id=c.owner_id LEFT JOIN dictionary_items d ON d.id=c.category_id WHERE `+where+` ORDER BY c.updated_at DESC,c.id DESC LIMIT 200`, args...)
 	if e != nil {
 		dbError(w, e)
 		return

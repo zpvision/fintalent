@@ -294,6 +294,61 @@ func TestCoursesIsolatedPostgres(t *testing.T) {
 			t.Fatal("custom feature removal not persisted")
 		}
 	})
+	t.Run("course tariffs", func(t *testing.T) {
+		saved.PricingMode = "tariffs"
+		saved.Tariffs = []courses.Tariff{{Title: "Базовый", Description: "Материалы", Price: 100}, {Title: "С поддержкой", Description: "Обратная связь", Price: 200, Recommended: true}}
+		_ = json.Unmarshal(request("PUT", path, author, false, saved, 200), &saved)
+		first := saved.Tariffs[0].ID
+		if first <= 0 || len(saved.Tariffs) != 2 || !saved.Tariffs[1].Recommended {
+			t.Fatal("tariffs not persisted")
+		}
+		saved.Tariffs[0], saved.Tariffs[1] = saved.Tariffs[1], saved.Tariffs[0]
+		saved.Tariffs[0].Recommended = false
+		saved.Tariffs[1].Recommended = true
+		_ = json.Unmarshal(request("PUT", path, author, false, saved, 200), &saved)
+		if saved.Tariffs[1].ID != first || !saved.Tariffs[1].Recommended {
+			t.Fatal("reorder/recommend failed")
+		}
+		var second struct{ ID int64 }
+		_ = json.Unmarshal(request("POST", "/api/courses/my", other, false, nil, 201), &second)
+		secondPath := fmt.Sprintf("/api/courses/my/%d", second.ID)
+		var foreign courses.Input
+		_ = json.Unmarshal(request("GET", secondPath, other, false, nil, 200), &foreign)
+		foreign.PricingMode = "tariffs"
+		foreign.Tariffs = saved.Tariffs
+		request("PUT", secondPath, other, false, foreign, 400)
+		legacy := saved
+		legacy.PricingMode = ""
+		legacy.Tariffs = nil
+		_ = json.Unmarshal(request("PUT", path, author, false, legacy, 200), &saved)
+		if saved.PricingMode != "tariffs" || len(saved.Tariffs) != 2 {
+			t.Fatal("legacy erased pricing")
+		}
+		list := request("GET", "/api/courses/my", author, false, nil, 200)
+		var rows []struct {
+			ID       int64
+			MinPrice int64 `json:"min_price"`
+		}
+		_ = json.Unmarshal(list, &rows)
+		found := false
+		for _, row := range rows {
+			if row.ID == id {
+				found = true
+				if row.MinPrice != 100 {
+					t.Fatal("minimum price incorrect")
+				}
+			}
+		}
+		if !found {
+			t.Fatal("course missing")
+		}
+		saved.PricingMode = "single"
+		_ = json.Unmarshal(request("PUT", path, author, false, saved, 200), &saved)
+		if len(saved.Tariffs) != 2 || saved.Price != 590000 {
+			t.Fatal("mode switch lost values")
+		}
+	})
+
 	var customFeature int64
 	if err := db.QueryRow(`INSERT INTO dictionary_items(dictionary_id,value,sort_order) SELECT id,'Еженедельные встречи',100 FROM dictionaries WHERE alias='course_features' RETURNING id`).Scan(&customFeature); err != nil {
 		t.Fatal(err)

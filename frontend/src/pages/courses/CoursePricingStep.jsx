@@ -1,3 +1,5 @@
+import CourseTariffEditor from './CourseTariffEditor'
+import CourseTariffs from './CourseTariffs'
 import Icon from '../../components/Icon'
 import Field from './CourseField'
 import Reorder from './CourseReorder'
@@ -19,13 +21,15 @@ export default function CoursePricingStep({ value, update, meta, item, remove, m
   }
   return <div className="course-pricing-layout">
     <div className="course-pricing-settings">
-      <section className="course-pricing-section"><header><i><Icon name="calculator" /></i><div><h3>Цена вашего курса</h3><p>Укажите стоимость для участника. Старая цена нужна только для предложения со скидкой.</p></div></header>
-        <div className="course-form-grid">
+      <section className="course-pricing-section"><header><i><Icon name="calculator" /></i><div><h3>Цена вашего курса</h3><p>Выберите одну цену или предложите участникам несколько тарифов.</p></div></header>
+        <CourseTariffEditor {...{ value, update, item, remove, moveItem }} />
+        {value.pricing_mode !== 'tariffs' && <><div className="course-form-grid">
           <Field label="Текущая цена, ₽" type="number" min="0" max="100000000" step="0.01" value={value.price / 100} onChange={v => update('price', Math.round(Number(v) * 100))} hint="Именно эту сумму увидит покупатель." />
           <Field label="Старая цена, ₽" type="number" min="0" max="100000000" step="0.01" value={value.old_price == null ? '' : value.old_price / 100} onChange={v => update('old_price', v === '' ? null : Math.round(Number(v) * 100))} hint="Необязательно. Должна быть выше текущей цены." />
         </div>
         {invalidOldPrice && <p className="course-pricing-error" role="alert">Старая цена должна быть больше текущей. Измените её или очистите поле.</p>}
         {discounted && <div className="course-discount-result"><Icon name="check" /><span>Скидка <b>{discount}%</b><small>Участник экономит {money(value.old_price - value.price)}</small></span></div>}
+      </>}
       </section>
       <section className="course-pricing-section"><header><i><Icon name="clock" /></i><div><h3>Обучение и доступ</h3><p>Помогите участнику спланировать обучение и понять условия курса.</p></div></header>
         <div className="course-form-grid">
@@ -41,6 +45,6 @@ export default function CoursePricingStep({ value, update, meta, item, remove, m
       </section>
       <section className="course-pricing-section"><header><i><Icon name="folder" /></i><div><h3>Бонусы при покупке</h3><p>Добавьте материалы и подарки, которые получит участник. Блок сразу появится справа.</p></div></header><div className="course-field course-bonus-palette"><span>Цвет фона блока</span><IconSelect label="Цвет фона бонусов" buttonText="Выбрать цвет" value={value.bonuses_color || ''} options={{ '': 'Автоматически', ...Object.fromEntries(Object.entries(benefitColors).map(([key, p]) => [key, p.name])) }} onChange={color => update('bonuses_color', color)} renderIcon={key => <span className="course-color-swatch" style={{ background: benefitColors[key]?.card || '#ffffff' }} />} /></div>{value.bonuses.map((b, i) => <div className="course-repeat-row" key={b.id || 'new-' + i}><Field label={'Бонус ' + (i + 1)} value={b.title} onChange={title => item('bonuses', i, { title })} placeholder="Например, библиотека промптов" /><Reorder deleteIcon index={i} count={value.bonuses.length} label={'бонус ' + (i + 1)} move={(a, b) => update('bonuses', moveItem(value.bonuses, a, b))} remove={() => remove('bonuses', i)} /></div>)}<button type="button" className="course-add" disabled={value.bonuses.length >= 30} onClick={() => update('bonuses', [...value.bonuses, { id: 0, title: '' }])}>＋ Добавить бонус</button></section>
     </div>
-    <aside className="course-price-preview" aria-label="Предпросмотр стоимости курса"><small className="course-price-eyebrow">ВАШЕ ПРЕДЛОЖЕНИЕ</small><h3>{value.title || 'Ваш курс'}</h3><div className="course-price"><strong>{money(value.price)}</strong>{discounted && <><del>{money(value.old_price)}</del><span>−{discount}%</span></>}</div><p className="course-price-caption">Стоимость курса для одного участника</p><ul><li><Icon name="clock" /><span>Доступ на <b>{value.access_months} мес.</b></span></li><li><Icon name="list" /><span>Около <b>{value.hours} ч</b> обучения</span></li>{previewFeatures.map(f => <li key={f.id}><Icon name="check" /><span>{f.name}</span></li>)}</ul><CourseBonuses course={value} /><div className="course-price-preview-note">Цена и условия появятся на странице курса. Продажи откроются после подключения оплаты.</div></aside>
+    <aside className="course-price-preview" aria-label="Предпросмотр стоимости курса"><small className="course-price-eyebrow">ВАШЕ ПРЕДЛОЖЕНИЕ</small><h3>{value.title || 'Ваш курс'}</h3>{value.pricing_mode === 'tariffs' ? <CourseTariffs key={JSON.stringify(value.tariffs)} course={value} /> : <div className="course-price"><strong>{money(value.price)}</strong>{discounted && <><del>{money(value.old_price)}</del><span>−{discount}%</span></>}</div>}<p className="course-price-caption">Стоимость курса для одного участника</p><ul><li><Icon name="clock" /><span>Доступ на <b>{value.access_months} мес.</b></span></li><li><Icon name="list" /><span>Около <b>{value.hours} ч</b> обучения</span></li>{previewFeatures.map(f => <li key={f.id}><Icon name="check" /><span>{f.name}</span></li>)}</ul><CourseBonuses course={value} /><div className="course-price-preview-note">Цена и условия появятся на странице курса. Продажи откроются после подключения оплаты.</div></aside>
   </div>
 }

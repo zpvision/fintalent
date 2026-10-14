@@ -3,11 +3,11 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import PublicLayout from '../../layouts/PublicLayout'
 import Icon from '../../components/Icon'
-import { levels, money } from './shared'
+import { levels, money, catalogPrice } from './shared'
 
 function CatalogCard({ course }) {
   const href = `/courses/${course.slug}`
-  const discounted = course.old_price > course.price
+  const discounted = course.pricing_mode !== 'tariffs' && course.old_price > course.price
   return <article className="cc-card">
     <Link to={href} className={`cc-cover${course.cover_image ? '' : ' cc-cover-placeholder'}`} aria-label={`Подробнее о курсе «${course.title}»`}>
       {course.cover_image ? <img src={course.cover_image} alt="" loading="lazy" /> : <div className="cc-cover-art" aria-hidden="true"><Icon name="book" /><span>ЗНАНИЯ В ДЕЛЕ</span><i>✦</i></div>}
@@ -20,7 +20,7 @@ function CatalogCard({ course }) {
       <p className="cc-description">{course.description}</p>
       <div className="cc-card-byline"><div className="cc-card-meta">{course.hours > 0 && <span><Icon name="clock" />{new Intl.NumberFormat('ru-RU').format(course.hours)} ч обучения</span>}{course.access_months > 0 && <span><Icon name="folder" />Доступ: {course.access_months} мес.</span>}</div>
       <div className="cc-author"><i aria-hidden="true">{(course.author_name || 'А').trim().charAt(0).toUpperCase()}</i><div><small>Автор курса</small><b>{course.author_name || 'Специалист FinTalent'}</b></div></div>
-      </div><div className="cc-card-bottom"><div className="cc-card-price"><small>Стоимость курса</small><div><strong>{money(course.price)}</strong>{discounted && <del>{money(course.old_price)}</del>}</div></div><Link to={href} className="cc-details">Посмотреть подробнее <span aria-hidden="true">↗</span></Link></div>
+      </div><div className="cc-card-bottom"><div className="cc-card-price"><small>Стоимость курса</small><div><strong>{catalogPrice(course)}</strong>{discounted && <del>{money(course.old_price)}</del>}</div></div><Link to={href} className="cc-details">Посмотреть подробнее <span aria-hidden="true">↗</span></Link></div>
     </div>
   </article>
 }

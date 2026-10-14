@@ -136,6 +136,7 @@ func saveChildren(ctx context.Context, tx *sql.Tx, id int64, v *Input) error {
 
 // Aggregate only at the API boundary; all editable entities are relational rows.
 const detailSQL = `SELECT to_jsonb(c)||jsonb_build_object(
+ 'tariffs',COALESCE((SELECT jsonb_agg(to_jsonb(t) ORDER BY t.sort_order,t.id) FROM course_tariffs t WHERE t.course_id=c.id),'[]'),
  'custom_features',COALESCE((SELECT jsonb_agg(to_jsonb(f) ORDER BY f.sort_order,f.id) FROM course_custom_features f WHERE f.course_id=c.id),'[]'),
  'category',COALESCE(d.value,''),
  'feature_ids',COALESCE((SELECT jsonb_agg(s.dictionary_item_id ORDER BY i.sort_order,i.id) FROM course_feature_selections s JOIN dictionary_items i ON i.id=s.dictionary_item_id WHERE s.course_id=c.id),'[]'),
@@ -181,6 +182,9 @@ func (h *Handler) save(ctx context.Context, id, user int64, v *Input) error {
 		if !ok {
 			return ErrCategory
 		}
+	}
+	if e = saveTariffs(ctx, tx, id, v); e != nil {
+		return e
 	}
 	if e = saveFeatures(ctx, tx, id, v); e != nil {
 		return e

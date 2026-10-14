@@ -38,7 +38,16 @@ type FAQ struct {
 	Question string `json:"question"`
 	Answer   string `json:"answer"`
 }
+type Tariff struct {
+	ID          int64  `json:"id"`
+	Title       string `json:"title"`
+	Description string `json:"description"`
+	Price       int64  `json:"price"`
+	Recommended bool   `json:"recommended"`
+}
 type Input struct {
+	PricingMode    string    `json:"pricing_mode"`
+	Tariffs        []Tariff  `json:"tariffs"`
 	Revision       int64     `json:"revision"`
 	Title          string    `json:"title"`
 	Description    string    `json:"description"`
@@ -70,6 +79,9 @@ var customLessonType = regexp.MustCompile(`^lesson-[1-9][0-9]{0,18}$`)
 var lessonTypes = map[string]bool{"video": true, "text": true, "practice": true, "test": true, "materials": true}
 
 func Validate(v *Input, publishing bool) error {
+	if err := validateTariffs(v, publishing); err != nil {
+		return err
+	}
 	if len(v.CustomFeatures) > 10 {
 		return fmt.Errorf("Допустимо до 10 собственных возможностей курса")
 	}

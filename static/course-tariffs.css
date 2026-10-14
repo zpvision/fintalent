@@ -1,0 +1,33 @@
+﻿.course-pricing-mode { display:flex; gap:6px; padding:6px; background:#edf3fc; border-radius:12px; margin-bottom:20px; }
+.course-pricing-mode button { flex:1; padding:12px; min-height:46px; border:0; border-radius:9px; background:transparent; color:#526c92; font:inherit; cursor:pointer; }
+.course-pricing-mode button[aria-pressed=true] { background:white; color:#2866c8; box-shadow:0 3px 10px #234b7d12; font-weight:600; }
+.course-tariff-editor > article { background:#f7faff; border:1px solid #dbe7f7; border-radius:15px; padding:18px; margin:16px 0; }
+.course-tariff-editor > article > header { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:14px; color:#3465a5; }
+.course-tariff-recommend { display:flex; gap:10px; align-items:center; font-size:12px; color:#54749a; margin-top:10px; cursor:pointer; min-height:44px; }
+.course-tariff-recommend input { width:18px; height:18px; accent-color:#3576dc; }
+.course-tariffs { margin:0 0 20px; padding:0; border:0; min-width:0; }
+.course-tariffs legend { font-size:19px; font-weight:700; color:#244878; margin-bottom:16px; }
+.course-tariff { display:block; border:1px solid #dbe5f3; border-radius:13px; padding:16px; background:white; margin-bottom:10px; cursor:pointer; }
+.course-tariff.selected { border-color:#4987e7; background:#eff6ff; box-shadow:0 0 0 1px #4987e7; }
+.course-tariff:focus-within { outline:3px solid #a9cafa; outline-offset:3px; }
+.course-tariff-badge { display:inline-block; background:#3475d9; color:white!important; border-radius:5px; padding:4px 7px; margin-bottom:11px; font-size:10px!important; }
+.course-tariff-heading { display:flex; flex-wrap:wrap; align-items:baseline; gap:8px; color:#234b80; }
+.course-tariff-heading input { flex:none; accent-color:#3475d9; width:16px; height:16px; margin:0; }
+.course-tariff-heading b { flex:1; min-width:70px; overflow-wrap:anywhere; font-size:13px; line-height:1.5; }
+.course-tariff-heading strong { font-size:16px; overflow-wrap:anywhere; max-width:100%; }
+.course-tariff-description { display:block; margin:9px 0 0 24px; font-size:12px; color:#69819e; line-height:1.65; white-space:pre-line; overflow-wrap:anywhere; }
+.course-public .course-main-column { display:contents; }
+.course-public .course-main-column > .course-hero { grid-column:1; grid-row:1; min-width:0; }
+.course-public .course-main-column > .course-content { grid-column:1; grid-row:2; min-width:0; margin-top:0; }
+.course-public .course-side-column { grid-column:2; grid-row:1 / span 2; min-width:0; }
+.course-public #course-pricing { scroll-margin-top:90px; }
+@media(max-width:850px) {
+ .course-public .course-side-column { display:contents; }
+ .course-public .course-purchase-column { grid-column:1; grid-row:2; min-width:0; }
+ .course-public .course-main-column > .course-content { grid-row:3; }
+ .course-public .course-related { grid-column:1; grid-row:4; }
+}
+@media(max-width:600px) {
+ .course-pricing-mode { flex-direction:column; }
+ .course-tariff-editor > article { padding:14px; }
+}
