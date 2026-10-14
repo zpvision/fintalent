@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 	"strings"
 	"unicode/utf8"
 )
@@ -29,11 +30,17 @@ func validateTariffs(v *Input, publishing bool) error {
 			return ErrChild
 		}
 		ids[t.ID] = true
-		if t.Price < 0 || t.Price > 10000000000 || utf8.RuneCountInString(t.Title) > 80 || utf8.RuneCountInString(t.Description) > 600 {
-			return fmt.Errorf("Тариф: название до 80, описание до 600 символов, цена от 0 до 100 млн ₽")
+		if t.Price < 0 || t.Price > 10000000000 || utf8.RuneCountInString(t.Title) > 80 || utf8.RuneCountInString(t.Description) > 300 {
+			return fmt.Errorf("Тариф: название до 80, описание до 300 символов, цена от 0 до 100 млн ₽")
 		}
 		if publishing && v.PricingMode == "tariffs" && (t.Title == "" || t.Description == "") {
 			return fmt.Errorf("Заполните название и описание каждого тарифа")
+		}
+		if t.OldPrice != nil && (*t.OldPrice <= t.Price || *t.OldPrice > 10000000000) {
+			return fmt.Errorf("Старая цена тарифа должна быть выше текущей и не больше 100 млн ₽")
+		}
+		if math.IsNaN(t.Hours) || math.IsInf(t.Hours, 0) || t.Hours < 0 || t.Hours > 100000 || (publishing && v.PricingMode == "tariffs" && t.Hours <= 0) {
+			return fmt.Errorf("Укажите часы обучения для каждого тарифа: больше 0 и до 100000")
 		}
 		key := featureTitleKey(t.Title)
 		if key != "" && names[key] {
@@ -62,7 +69,7 @@ func saveTariffs(ctx context.Context, tx *sql.Tx, courseID int64, v *Input) erro
 		ids := []int64{}
 		for i := range v.Tariffs {
 			t := &v.Tariffs[i]
-			if err := syncRow(ctx, tx, "course_tariffs", "course_id", courseID, &t.ID, []string{"title", "description", "price", "recommended", "sort_order"}, []any{t.Title, t.Description, t.Price, t.Recommended, i}); err != nil {
+			if err := syncRow(ctx, tx, "course_tariffs", "course_id", courseID, &t.ID, []string{"title", "description", "price", "recommended", "sort_order", "old_price", "hours"}, []any{t.Title, t.Description, t.Price, t.Recommended, i, t.OldPrice, t.Hours}); err != nil {
 				return err
 			}
 			ids = append(ids, t.ID)

@@ -31,3 +31,12 @@
  .course-pricing-mode { flex-direction:column; }
  .course-tariff-editor > article { padding:14px; }
 }
+.course-tariff-fields { display:grid; grid-template-columns:minmax(0,1.3fr) repeat(2,minmax(0,1fr)); gap:14px; }
+.course-tariff-prices { display:flex; flex-direction:column; align-items:flex-end; gap:4px; max-width:100%; }
+.course-tariff-prices > span { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.course-tariff-prices del { font-size:11px; color:#8392a7; }
+.course-tariff-prices small { font-size:10px; color:#b64d6d; background:#ffeaf0; border-radius:5px; padding:3px 5px; }
+.course-tariff-hours { display:flex; align-items:center; gap:6px; margin:10px 0 0 24px; color:#527cad; font-size:12px; }
+.course-tariff-hours svg { width:14px; height:14px; }
+@media(max-width:1100px) { .course-tariff-fields { grid-template-columns:repeat(2,minmax(0,1fr)); } .course-tariff-fields > :first-child { grid-column:1 / -1; } }
+@media(max-width:600px) { .course-tariff-fields { grid-template-columns:minmax(0,1fr); } }

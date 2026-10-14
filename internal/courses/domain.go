@@ -39,11 +39,13 @@ type FAQ struct {
 	Answer   string `json:"answer"`
 }
 type Tariff struct {
-	ID          int64  `json:"id"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	Price       int64  `json:"price"`
-	Recommended bool   `json:"recommended"`
+	OldPrice    *int64  `json:"old_price"`
+	Hours       float64 `json:"hours"`
+	ID          int64   `json:"id"`
+	Title       string  `json:"title"`
+	Description string  `json:"description"`
+	Price       int64   `json:"price"`
+	Recommended bool    `json:"recommended"`
 }
 type Input struct {
 	PricingMode    string    `json:"pricing_mode"`
@@ -137,7 +139,7 @@ func Validate(v *Input, publishing bool) error {
 	if len(v.Benefits) > 4 || len(v.Bonuses) > 30 || len(v.FAQ) > 50 {
 		return fmt.Errorf("Допустимо до 4 преимуществ, 30 бонусов и 50 вопросов")
 	}
-	if publishing && (utf8.RuneCountInString(v.Title) < 5 || utf8.RuneCountInString(v.Description) < 20 || v.CategoryID == nil || v.CoverImage == "" || v.Hours <= 0 || len(v.Modules) == 0) {
+	if publishing && (utf8.RuneCountInString(v.Title) < 5 || utf8.RuneCountInString(v.Description) < 20 || v.CategoryID == nil || v.CoverImage == "" || (v.PricingMode != "tariffs" && v.Hours <= 0) || len(v.Modules) == 0) {
 		return fmt.Errorf("Для публикации заполните название, описание, категорию, обложку, часы обучения и программу")
 	}
 	check := func(text string, max int, required bool) bool {

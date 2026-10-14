@@ -296,9 +296,13 @@ func TestCoursesIsolatedPostgres(t *testing.T) {
 	})
 	t.Run("course tariffs", func(t *testing.T) {
 		saved.PricingMode = "tariffs"
-		saved.Tariffs = []courses.Tariff{{Title: "Базовый", Description: "Материалы", Price: 100}, {Title: "С поддержкой", Description: "Обратная связь", Price: 200, Recommended: true}}
+		tariffOldPrice := int64(300)
+		saved.Tariffs = []courses.Tariff{{Title: "Базовый", Description: "Материалы", Price: 100, OldPrice: &tariffOldPrice, Hours: 2.5}, {Title: "С поддержкой", Description: "Обратная связь", Price: 200, Hours: 5, Recommended: true}}
 		_ = json.Unmarshal(request("PUT", path, author, false, saved, 200), &saved)
 		first := saved.Tariffs[0].ID
+		if saved.Tariffs[0].OldPrice == nil || *saved.Tariffs[0].OldPrice != 300 || saved.Tariffs[0].Hours != 2.5 {
+			t.Fatal("tariff price/hours not persisted")
+		}
 		if first <= 0 || len(saved.Tariffs) != 2 || !saved.Tariffs[1].Recommended {
 			t.Fatal("tariffs not persisted")
 		}

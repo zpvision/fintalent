@@ -18,7 +18,7 @@ function CatalogCard({ course }) {
     <div className="cc-card-body">
       <h3><Link to={href}>{course.title}</Link></h3>
       <p className="cc-description">{course.description}</p>
-      <div className="cc-card-byline"><div className="cc-card-meta">{course.hours > 0 && <span><Icon name="clock" />{new Intl.NumberFormat('ru-RU').format(course.hours)} ч обучения</span>}{course.access_months > 0 && <span><Icon name="folder" />Доступ: {course.access_months} мес.</span>}</div>
+      <div className="cc-card-byline"><div className="cc-card-meta">{course.pricing_mode !== 'tariffs' && course.hours > 0 && <span><Icon name="clock" />{new Intl.NumberFormat('ru-RU').format(course.hours)} ч обучения</span>}{course.access_months > 0 && <span><Icon name="folder" />Доступ: {course.access_months} мес.</span>}</div>
       <div className="cc-author"><i aria-hidden="true">{(course.author_name || 'А').trim().charAt(0).toUpperCase()}</i><div><small>Автор курса</small><b>{course.author_name || 'Специалист FinTalent'}</b></div></div>
       </div><div className="cc-card-bottom"><div className="cc-card-price"><small>Стоимость курса</small><div><strong>{catalogPrice(course)}</strong>{discounted && <del>{money(course.old_price)}</del>}</div></div><Link to={href} className="cc-details">Посмотреть подробнее <span aria-hidden="true">↗</span></Link></div>
     </div>
