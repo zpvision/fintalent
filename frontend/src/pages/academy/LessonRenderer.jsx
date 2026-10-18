@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import Icon from '../../components/Icon'
 import { academyAPI } from '../../api/academy'
+import AcademyTest from './AcademyTest'
+import AcademyAssignment from './AcademyAssignment'
 
 export const blockTypes = { text: ['Текст', 'book'], video: ['Видео', 'video'], image: ['Изображение', 'globe'], file: ['Файл', 'folder'], link: ['Ссылка', 'globe'], note: ['Примечание', 'lightbulb'], test: ['Тест FinTalent', 'check'], assignment: ['Практическое задание', 'briefcase'] }
 export const noteTypes = { info: 'Информация', tip: 'Совет', important: 'Важно', warning: 'Предупреждение', example: 'Пример' }
@@ -19,7 +21,7 @@ export function Inline({ html = '' }) {
   }
   return [...doc.body.childNodes].map((node, i) => render(node, i))
 }
-function Rich({ blocks = [] }) { return blocks.map((b, i) => {
+export function Rich({ blocks = [] }) { return blocks.map((b, i) => {
   if (b.type === 'table') return <div className="academy-table-wrap" key={i}><table><tbody>{b.rows?.map((row, j) => <tr key={j}>{row.map((cell, k) => <td key={k}><Inline html={cell} /></td>)}</tr>)}</tbody></table></div>
   if (['bullets', 'numbered', 'checklist'].includes(b.type)) { const List = b.type === 'numbered' ? 'ol' : 'ul'; return <List key={i}>{b.items?.map((item, j) => <li key={j}><Inline html={item} /></li>)}</List> }
   if (b.type === 'divider') return <hr key={i} />
@@ -52,7 +54,7 @@ export function AssetLink({ id, courseID, assets = [], assetURL }) {
   const asset = assets.find(a => a.id === id)
   return <a className="academy-asset" href={mediaURL(id, true)}><Icon name="folder" /><span><b>{asset?.name || 'Учебный материал'}</b><small>{asset ? `${asset.mime.split('/').at(-1)} · ${fileSize(asset.size)}` : 'Скачать файл'}</small></span><span aria-hidden="true">↓</span></a>
 }
-export default function LessonRenderer({ lesson, courseID, assets = [], tests = [], assetURL, mode = 'preview' }) {
+export default function LessonRenderer({ lesson, courseID, assets = [], tests = [], assetURL, mode = 'preview', assessmentContext }) {
   const mediaURL = assetURL || ((id, download = false) => academyAPI.assetURL(courseID, id, download))
   return <article className="academy-lesson-renderer"><header>{lesson.cover_asset_id > 0 && <img className="academy-lesson-cover" src={mediaURL(lesson.cover_asset_id)} alt="" />}<small>{mode === 'learn' ? 'УРОК' : 'ПРЕДПРОСМОТР УРОКА'} · {lesson.duration_minutes || 0} МИН</small><h1>{lesson.title || 'Новый урок'}</h1>{lesson.description && <p>{lesson.description}</p>}</header>
     {lesson.blocks.map(b => { const d = b.data; return <section key={b.key} className={`academy-render-block type-${b.type}`}>
@@ -62,8 +64,8 @@ export default function LessonRenderer({ lesson, courseID, assets = [], tests = 
       {b.type === 'file' && (d.asset_id ? <AssetLink id={d.asset_id} {...{ courseID, assets, assetURL: mediaURL }} /> : <p className="course-muted">Файл ещё не добавлен</p>)}
       {b.type === 'link' && <div className="academy-render-link"><Icon name="globe" /><a href={safeURL(d.url)} target="_blank" rel="noopener noreferrer">{d.title || d.url || 'Ссылка'}</a>{d.text && <p>{d.text}</p>}</div>}
       {b.type === 'note' && <aside className={`academy-callout ${d.variant}`}><Icon name={d.variant === 'warning' ? 'shield' : 'lightbulb'} /><div><b>{d.title || noteTypes[d.variant]}</b><p>{d.text}</p></div></aside>}
-      {b.type === 'test' && <div className="academy-future"><Icon name="check" /><h3>{tests.find(t => t.id === d.test_version_id)?.title || 'Тест FinTalent'}</h3><p>{tests.find(t => t.id === d.test_version_id)?.description}</p><p>{mode === 'learn' ? 'Интерактивное прохождение теста пока недоступно. Тест не будет засчитан как выполненный.' : 'Тест прикреплён к уроку. Прохождение появится на Этапе C.'}</p></div>}
-      {b.type === 'assignment' && <div className="academy-assignment"><small>ПРАКТИКА</small><h3>{d.title || 'Практическое задание'}</h3><p>{d.text}</p><Rich blocks={d.rich} />{d.material_ids?.map(id => <AssetLink key={id} id={id} {...{ courseID, assets, assetURL: mediaURL }} />)}<p className="course-muted">Формат ответа: {({ text: 'текст', file: 'файл', link: 'ссылка' })[d.answer_format]}. Сдача и проверка работ пока недоступны.</p></div>}
+      {b.type === 'test' && assessmentContext && <AcademyTest context={{ ...assessmentContext, blockKey: b.key }} />}{b.type === 'test' && !assessmentContext && <div className="academy-future"><Icon name="check" /><h3>{tests.find(t => t.id === d.test_version_id)?.title || 'Тест FinTalent'}</h3><p>{tests.find(t => t.id === d.test_version_id)?.description}</p><p>{'Предпросмотр теста. Ученик сможет пройти его в своей учебной комнате после публикации версии.'}</p></div>}
+      {b.type === 'assignment' && <div className="academy-assignment"><small>ПРАКТИКА</small><h3>{d.title || 'Практическое задание'}</h3><p>{d.text}</p><Rich blocks={d.rich} />{d.material_ids?.map(id => <AssetLink key={id} id={id} {...{ courseID, assets, assetURL: mediaURL }} />)}<p className="course-muted">Формат ответа: {({ text: 'текст', file: 'файл', link: 'ссылка' })[d.answer_format]}. Ответы принимаются в учебной комнате ученика.</p>{assessmentContext && <AcademyAssignment context={{ ...assessmentContext, blockKey: b.key }} />}</div>}
     </section> })}
     {!lesson.blocks.length && <div className="academy-empty"><img src="/static/academy/program-start.png" alt="" /><h2>Содержимое урока ещё готовится</h2><p>{mode === 'learn' ? 'В этой версии урока ещё нет блоков.' : 'Добавьте первый блок в редакторе.'}</p></div>}
   </article>

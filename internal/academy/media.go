@@ -70,7 +70,7 @@ func (h *Handler) assets(w http.ResponseWriter, r *http.Request, course, user in
 	if len(parts) == 0 || parts[0] == "" {
 		if r.Method == "GET" {
 			var raw []byte
-			e := h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'entity_key',entity_key,'name',name,'mime',mime,'size',size) ORDER BY id),'[]') FROM academy_media_assets WHERE program_id=$1 AND deleted_at IS NULL`, program).Scan(&raw)
+			e := h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'entity_key',entity_key,'name',name,'mime',mime,'size',size) ORDER BY id),'[]') FROM academy_media_assets WHERE program_id=$1 AND submission_id IS NULL AND deleted_at IS NULL`, program).Scan(&raw)
 			if e != nil {
 				problem(w, e)
 				return
@@ -101,48 +101,13 @@ func (h *Handler) assets(w http.ResponseWriter, r *http.Request, course, user in
 			fail(w, 400, "Сначала сохраните модуль или урок")
 			return
 		}
-		f, header, e := r.FormFile("file")
+		upload, e := h.storeUpload(r)
 		if e != nil {
-			fail(w, 400, "Выберите файл")
-			return
-		}
-		defer f.Close()
-		body, e := io.ReadAll(io.LimitReader(f, maxAssetSize+1))
-		if e != nil || len(body) == 0 || len(body) > maxAssetSize {
-			fail(w, 400, "Файл пустой или больше 20 МБ")
-			return
-		}
-		typ, e := fileType(header.Filename, body)
-		if e != nil {
-			fail(w, 400, e.Error())
-			return
-		}
-		name := filepath.Base(strings.ReplaceAll(header.Filename, "\\", "/"))
-		name = strings.Map(func(r rune) rune {
-			if r < 32 || r == 127 {
-				return -1
-			}
-			return r
-		}, name)
-		runes := []rune(name)
-		if len(runes) > 240 {
-			name = string(runes[:240])
-		}
-		token := make([]byte, 24)
-		if _, e = rand.Read(token); e != nil {
 			problem(w, e)
 			return
 		}
-		storage := hex.EncodeToString(token)
-		if e = os.MkdirAll(h.root, 0700); e != nil {
-			problem(w, e)
-			return
-		}
+		storage, name, typ := upload.storage, upload.name, upload.mime
 		file := filepath.Join(h.root, storage)
-		if e = os.WriteFile(file, body, 0600); e != nil {
-			problem(w, e)
-			return
-		}
 		tx, e := h.db.BeginTx(r.Context(), nil)
 		if e != nil {
 			_ = os.Remove(file)
@@ -151,7 +116,7 @@ func (h *Handler) assets(w http.ResponseWriter, r *http.Request, course, user in
 		}
 		defer tx.Rollback()
 		var id int64
-		e = tx.QueryRowContext(r.Context(), `INSERT INTO academy_media_assets(program_id,entity_key,storage_key,name,mime,size,created_by) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id`, program, key, storage, name, typ, len(body), user).Scan(&id)
+		e = tx.QueryRowContext(r.Context(), `INSERT INTO academy_media_assets(program_id,entity_key,storage_key,name,mime,size,created_by) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id`, program, key, storage, name, typ, upload.size, user).Scan(&id)
 		if e == nil {
 			_, e = tx.ExecContext(r.Context(), `INSERT INTO academy_asset_links(asset_id,program_id,entity_key) VALUES($1,$2,$3)`, id, program, key)
 		}
@@ -163,7 +128,7 @@ func (h *Handler) assets(w http.ResponseWriter, r *http.Request, course, user in
 			problem(w, e)
 			return
 		}
-		respond(w, 201, map[string]any{"id": id, "entity_key": key, "name": name, "mime": typ, "size": len(body)})
+		respond(w, 201, map[string]any{"id": id, "entity_key": key, "name": name, "mime": typ, "size": upload.size})
 		return
 	}
 	id, e := strconv.ParseInt(parts[0], 10, 64)
@@ -172,7 +137,7 @@ func (h *Handler) assets(w http.ResponseWriter, r *http.Request, course, user in
 		return
 	}
 	var storage, name, typ string
-	e = h.db.QueryRowContext(r.Context(), `SELECT storage_key,name,mime FROM academy_media_assets WHERE id=$1 AND program_id=$2 AND deleted_at IS NULL`, id, program).Scan(&storage, &name, &typ)
+	e = h.db.QueryRowContext(r.Context(), `SELECT storage_key,name,mime FROM academy_media_assets WHERE id=$1 AND program_id=$2 AND submission_id IS NULL AND deleted_at IS NULL`, id, program).Scan(&storage, &name, &typ)
 	if e != nil {
 		problem(w, e)
 		return
@@ -245,4 +210,57 @@ func regexpStorage(s string) bool {
 	}
 	_, e := hex.DecodeString(s)
 	return e == nil
+}
+
+type storedUpload struct {
+	storage, name, mime, path string
+	size                      int
+}
+
+func (u storedUpload) remove() { _ = os.Remove(u.path) }
+func parseUpload(w http.ResponseWriter, r *http.Request) error {
+	r.Body = http.MaxBytesReader(w, r.Body, maxAssetSize+(1<<20))
+	if r.ParseMultipartForm(1<<20) != nil {
+		return fmt.Errorf("Не удалось загрузить файл. Максимум 20 МБ")
+	}
+	return nil
+}
+func (h *Handler) storeUpload(r *http.Request) (storedUpload, error) {
+	f, header, e := r.FormFile("file")
+	if e != nil {
+		return storedUpload{}, inputError{"Выберите файл"}
+	}
+	defer f.Close()
+	body, e := io.ReadAll(io.LimitReader(f, maxAssetSize+1))
+	if e != nil || len(body) == 0 || len(body) > maxAssetSize {
+		return storedUpload{}, inputError{"Файл пустой или больше 20 МБ"}
+	}
+	typ, e := fileType(header.Filename, body)
+	if e != nil {
+		return storedUpload{}, inputError{e.Error()}
+	}
+	name := filepath.Base(strings.ReplaceAll(header.Filename, "\\", "/"))
+	name = strings.Map(func(r rune) rune {
+		if r < 32 || r == 127 {
+			return -1
+		}
+		return r
+	}, name)
+	runes := []rune(name)
+	if len(runes) > 240 {
+		name = string(runes[:240])
+	}
+	token := make([]byte, 24)
+	if _, e = rand.Read(token); e != nil {
+		return storedUpload{}, e
+	}
+	storage := hex.EncodeToString(token)
+	if e = os.MkdirAll(h.root, 0700); e != nil {
+		return storedUpload{}, e
+	}
+	file := filepath.Join(h.root, storage)
+	if e = os.WriteFile(file, body, 0600); e != nil {
+		return storedUpload{}, e
+	}
+	return storedUpload{storage, name, typ, file, len(body)}, nil
 }

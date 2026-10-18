@@ -35,6 +35,7 @@ func TestCoursesIsolatedPostgres(t *testing.T) {
 	admin := stdlib.OpenDB(*config)
 	defer admin.Close()
 	schema := fmt.Sprintf("courses_audit_%d", time.Now().UnixNano())
+	t.Logf("isolated schema: %s", schema)
 	quoted := pgx.Identifier{schema}.Sanitize()
 	if _, e = admin.Exec("CREATE SCHEMA " + quoted); e != nil {
 		t.Fatal(e)

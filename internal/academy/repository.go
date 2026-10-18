@@ -266,5 +266,12 @@ func (h *Handler) snapshot(ctx context.Context, course, user, revision int64) (a
 	if e != nil {
 		return nil, e
 	}
+	var versionID int64
+	if e = tx.QueryRowContext(ctx, `SELECT id FROM academy_program_versions WHERE program_id=$1 AND source_revision=$2`, id, rev).Scan(&versionID); e != nil {
+		return nil, e
+	}
+	if e = freezeAssessments(ctx, tx, versionID, *p, user); e != nil {
+		return nil, e
+	}
 	return map[string]any{"number": version, "revision": rev}, tx.Commit()
 }

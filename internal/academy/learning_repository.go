@@ -11,30 +11,31 @@ import (
 var ErrAccess = errors.New("Доступ к обучению приостановлен, отозван или закончился")
 
 type Enrollment struct {
-	ID              int64           `json:"id"`
-	CourseID        int64           `json:"course_id"`
-	UserID          int64           `json:"user_id"`
-	VersionID       int64           `json:"program_version_id"`
-	VersionNumber   int             `json:"version_number"`
-	AccessStatus    string          `json:"access_status"`
-	EffectiveStatus string          `json:"effective_status"`
-	EnrolledAt      time.Time       `json:"enrolled_at"`
-	StartedAt       *time.Time      `json:"started_at"`
-	ExpiresAt       *time.Time      `json:"expires_at"`
-	CompletedAt     *time.Time      `json:"completed_at"`
-	LastActivityAt  *time.Time      `json:"last_activity_at"`
-	LastLessonKey   string          `json:"last_lesson_key"`
-	Title           string          `json:"title"`
-	Cover           string          `json:"cover_image"`
-	Author          string          `json:"author_name"`
-	UserName        string          `json:"user_name"`
-	Avatar          string          `json:"avatar"`
-	Program         Program         `json:"-"`
-	Tests           json.RawMessage `json:"-"`
-	ProgramID       int64           `json:"-"`
-	Unavailable     bool            `json:"-"`
-	Summary         Summary         `json:"summary"`
-	Progress        []Progress      `json:"progress,omitempty"`
+	AssessmentStates map[string]bool `json:"-"`
+	ID               int64           `json:"id"`
+	CourseID         int64           `json:"course_id"`
+	UserID           int64           `json:"user_id"`
+	VersionID        int64           `json:"program_version_id"`
+	VersionNumber    int             `json:"version_number"`
+	AccessStatus     string          `json:"access_status"`
+	EffectiveStatus  string          `json:"effective_status"`
+	EnrolledAt       time.Time       `json:"enrolled_at"`
+	StartedAt        *time.Time      `json:"started_at"`
+	ExpiresAt        *time.Time      `json:"expires_at"`
+	CompletedAt      *time.Time      `json:"completed_at"`
+	LastActivityAt   *time.Time      `json:"last_activity_at"`
+	LastLessonKey    string          `json:"last_lesson_key"`
+	Title            string          `json:"title"`
+	Cover            string          `json:"cover_image"`
+	Author           string          `json:"author_name"`
+	UserName         string          `json:"user_name"`
+	Avatar           string          `json:"avatar"`
+	Program          Program         `json:"-"`
+	Tests            json.RawMessage `json:"-"`
+	ProgramID        int64           `json:"-"`
+	Unavailable      bool            `json:"-"`
+	Summary          Summary         `json:"summary"`
+	Progress         []Progress      `json:"progress,omitempty"`
 }
 
 const enrollmentSQL = `SELECT e.id,e.course_id,e.user_id,e.program_version_id,v.number,e.access_status,e.enrolled_at,e.started_at,e.expires_at,e.completed_at,e.last_activity_at,e.last_lesson_key,c.title,c.cover_image,author.full_name,student.full_name,COALESCE(student.avatar_url,''),v.content,r.test_metadata,v.program_id,(author.is_blocked OR student.is_blocked OR student.is_system) FROM academy_enrollments e JOIN courses c ON c.id=e.course_id JOIN users author ON author.id=c.owner_id JOIN users student ON student.id=e.user_id JOIN academy_program_versions v ON v.id=e.program_version_id JOIN academy_version_releases r ON r.version_id=v.id WHERE e.id=$1 AND (($3 AND c.owner_id=$2) OR (NOT $3 AND e.user_id=$2))`
@@ -62,25 +63,9 @@ func loadEnrollment(ctx context.Context, q queryer, id, user int64, owner, locke
 	return &e, nil
 }
 func (h *Handler) progress(ctx context.Context, e *Enrollment) error {
-	rows, err := h.db.QueryContext(ctx, `SELECT lesson_key,status,completed_at FROM academy_lesson_progress WHERE enrollment_id=$1 AND program_version_id=$2 ORDER BY lesson_key`, e.ID, e.VersionID)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-	e.Progress = []Progress{}
-	for rows.Next() {
-		var p Progress
-		if err = rows.Scan(&p.LessonKey, &p.Status, &p.CompletedAt); err != nil {
-			return err
-		}
-		e.Progress = append(e.Progress, p)
-	}
-	if err = rows.Err(); err != nil {
-		return err
-	}
-	e.Summary = SummaryFor(e.Program, e.Progress, e.StartedAt != nil)
-	return nil
+	return readProgress(ctx, h.db, e)
 }
+
 func event(ctx context.Context, tx *sql.Tx, e *Enrollment, actor int64, typ, key, lesson string, data any) error {
 	if key == "" {
 		key = Key()
@@ -129,7 +114,11 @@ func (h *Handler) recordProgress(ctx context.Context, id, user int64, key, opera
 		return nil, err
 	}
 	if operation == "complete" {
-		if reason := CompletionBlock(lesson); reason != "" {
+		states, err := assessmentOutcomes(ctx, tx, e)
+		if err != nil {
+			return nil, err
+		}
+		if reason := requirementsReason(lesson, states); reason != "" {
 			return nil, inputError{reason}
 		}
 		if previous != "completed" && lesson.CompletionRule == "materials" && !ack {
@@ -174,32 +163,8 @@ func (h *Handler) recordProgress(ctx context.Context, id, user int64, key, opera
 	if err != nil {
 		return nil, err
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT lesson_key,status,completed_at FROM academy_lesson_progress WHERE enrollment_id=$1`, id)
-	if err != nil {
+	if err = syncCourseTx(ctx, tx, e, user); err != nil {
 		return nil, err
-	}
-	states := []Progress{}
-	for rows.Next() {
-		var p Progress
-		if err = rows.Scan(&p.LessonKey, &p.Status, &p.CompletedAt); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		states = append(states, p)
-	}
-	err = rows.Err()
-	rows.Close()
-	if err != nil {
-		return nil, err
-	}
-	summary := SummaryFor(e.Program, states, true)
-	if summary.Status == "completed" && e.CompletedAt == nil {
-		if _, err = tx.ExecContext(ctx, `UPDATE academy_enrollments SET completed_at=NOW() WHERE id=$1`, id); err != nil {
-			return nil, err
-		}
-		if err = event(ctx, tx, e, user, "course_completed", "course_completed", "", map[string]int{"required": summary.Required}); err != nil {
-			return nil, err
-		}
 	}
 	if err = tx.Commit(); err != nil {
 		return nil, err

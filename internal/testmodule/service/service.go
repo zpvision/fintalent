@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"strings"
 	"time"
 
@@ -147,68 +146,12 @@ func (s *Service) Finish(ctx context.Context, id, user int64) (*domain.Attempt, 
 	if err != nil {
 		return nil, err
 	}
-	byQuestion := map[int64][]domain.AttemptAnswer{}
-	for _, a := range attempt.Answers {
-		byQuestion[a.QuestionID] = append(byQuestion[a.QuestionID], a)
-	}
-	score, max := 0.0, 0.0
-	grades := []domain.AttemptAnswer{}
-	for _, q := range test.Questions {
-		max += q.Points
-		submitted := byQuestion[q.ID]
-		correct := false
-		switch q.Type {
-		case domain.QuestionText:
-			expected := ""
-			for _, a := range q.Answers {
-				if a.IsCorrect {
-					expected = strings.TrimSpace(strings.ToLower(a.Answer))
-					break
-				}
-			}
-			actual := ""
-			if len(submitted) > 0 {
-				actual = strings.TrimSpace(strings.ToLower(submitted[0].TextAnswer))
-			}
-			correct = expected != "" && actual == expected
-		default:
-			expected := map[int64]bool{}
-			for _, a := range q.Answers {
-				if a.IsCorrect {
-					expected[a.ID] = true
-				}
-			}
-			selected := map[int64]bool{}
-			for _, a := range submitted {
-				if a.SelectedAnswerID != nil {
-					selected[*a.SelectedAnswerID] = true
-				}
-			}
-			correct = len(expected) == len(selected) && len(expected) > 0
-			for x := range selected {
-				if !expected[x] {
-					correct = false
-				}
-			}
-		}
-		earned := 0.0
-		if correct {
-			earned = q.Points
-			score += earned
-		}
-		c := correct
-		grades = append(grades, domain.AttemptAnswer{QuestionID: q.ID, IsCorrect: &c, EarnedPoints: earned})
-	}
-	percent := 0.0
-	if max > 0 {
-		percent = math.Round(score/max*10000) / 100
-	}
 	passing := test.PassingPercent
 	if attempt.PassingPercent != nil {
 		passing = *attempt.PassingPercent
 	}
-	passed := percent >= passing
-	if err = s.repo.FinishAttempt(ctx, id, attempt.AnswerRevision, score, max, percent, passed, grades); err != nil {
+	result := domain.Grade(test.Questions, attempt.Answers, passing)
+	if err = s.repo.FinishAttempt(ctx, id, attempt.AnswerRevision, result.Score, result.MaxScore, result.Percent, result.Passed, result.Answers); err != nil {
 		return nil, err
 	}
 	return s.repo.GetAttempt(ctx, id)

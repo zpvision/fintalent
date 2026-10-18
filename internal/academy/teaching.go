@@ -38,6 +38,33 @@ func (h *Handler) teaching(w http.ResponseWriter, r *http.Request, course, user 
 	}
 }
 func (h *Handler) releases(w http.ResponseWriter, r *http.Request, course, user int64, path []string) {
+	if len(path) == 2 && path[1] == "assessments" && r.Method == "POST" {
+		version, _ := strconv.ParseInt(path[0], 10, 64)
+		p, err := h.version(r.Context(), course, version)
+		if err != nil {
+			problem(w, err)
+			return
+		}
+		tx, err := h.db.BeginTx(r.Context(), nil)
+		if err != nil {
+			problem(w, err)
+			return
+		}
+		defer tx.Rollback()
+		var locked int64
+		if err = tx.QueryRowContext(r.Context(), `SELECT id FROM courses WHERE id=$1 AND owner_id=$2 FOR UPDATE`, course, user).Scan(&locked); err == nil {
+			err = freezeAssessments(r.Context(), tx, version, p, user)
+		}
+		if err == nil {
+			err = tx.Commit()
+		}
+		if err != nil {
+			problem(w, err)
+			return
+		}
+		respond(w, 200, map[string]bool{"ready": true})
+		return
+	}
 	if len(path) > 1 && path[1] == "preview" && r.Method == "GET" {
 		version, _ := strconv.ParseInt(path[0], 10, 64)
 		p, err := h.version(r.Context(), course, version)
@@ -118,7 +145,19 @@ func (h *Handler) releases(w http.ResponseWriter, r *http.Request, course, user 
 		problem(w, err)
 		return
 	}
-	_, err = h.db.ExecContext(r.Context(), `INSERT INTO academy_version_releases(version_id,course_id,published_by,test_metadata) VALUES($1,$2,$3,$4) ON CONFLICT(version_id) DO NOTHING`, v.VersionID, course, user, string(tests))
+	tx, err := h.db.BeginTx(r.Context(), nil)
+	if err != nil {
+		problem(w, err)
+		return
+	}
+	defer tx.Rollback()
+	err = freezeAssessments(r.Context(), tx, v.VersionID, p, user)
+	if err == nil {
+		_, err = tx.ExecContext(r.Context(), `INSERT INTO academy_version_releases(version_id,course_id,published_by,test_metadata) VALUES($1,$2,$3,$4) ON CONFLICT(version_id) DO NOTHING`, v.VersionID, course, user, string(tests))
+	}
+	if err == nil {
+		err = tx.Commit()
+	}
 	if err != nil {
 		problem(w, err)
 		return
@@ -245,7 +284,12 @@ func (h *Handler) students(w http.ResponseWriter, r *http.Request, course, user 
 				lessons = append(lessons, map[string]any{"key": l.Key, "title": l.Title, "required": l.Required, "status": states[l.Key]})
 			}
 		}
-		respond(w, 200, map[string]any{"enrollment": e, "history": json.RawMessage(history), "lessons": lessons})
+		metrics, err := h.studentAssessmentSummary(r.Context(), e)
+		if err != nil {
+			problem(w, err)
+			return
+		}
+		respond(w, 200, map[string]any{"enrollment": e, "history": json.RawMessage(history), "lessons": lessons, "assessment_summary": metrics})
 		return
 	}
 	if r.Method != "PUT" {

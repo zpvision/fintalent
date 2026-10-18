@@ -37,6 +37,8 @@ func fail(w http.ResponseWriter, status int, message string) {
 func problem(w http.ResponseWriter, e error) {
 	var in inputError
 	switch {
+	case errors.Is(e, ErrAssessmentUnprepared):
+		fail(w, 409, e.Error())
 	case errors.Is(e, ErrAccess):
 		fail(w, 403, e.Error())
 	case errors.Is(e, ErrConflict):
@@ -64,6 +66,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/academy/learning", h.learner)
 	mux.HandleFunc("/api/academy/learning/", h.learner)
 	mux.HandleFunc("/api/academy/enrollments/", h.learner)
+	mux.HandleFunc("/api/academy/notifications", h.learner)
 }
 func (h *Handler) route(w http.ResponseWriter, r *http.Request) {
 	user, e := h.user(r)
@@ -86,6 +89,14 @@ func (h *Handler) route(w http.ResponseWriter, r *http.Request) {
 	action := ""
 	if len(parts) > 1 {
 		action = parts[1]
+	}
+	if action == "reviews" {
+		h.reviewQueue(w, r, course, user, parts[2:])
+		return
+	}
+	if action == "assessment-results" {
+		h.assessmentResults(w, r, course, user)
+		return
 	}
 	if oneOf(action, "releases", "students", "user-search") {
 		h.teaching(w, r, course, user, parts[1:])

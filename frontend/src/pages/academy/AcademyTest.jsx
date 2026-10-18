@@ -1,0 +1,59 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { assessmentAPI } from '../../api/assessments'
+import { Review } from '../tests/TestTakePage'
+import usePageStyles from '../../hooks/usePageStyles'
+
+export function useAssessment(context) {
+  const [data, setData] = useState(null), [busy, setBusy] = useState(false), [error, setError] = useState('')
+  const current = useRef(null), live = useRef(true), locked = useRef(false)
+  function accept(value) { if (!value?.assessment) throw new Error('Проверка этой версии пока не подготовлена автором'); const fresh = (value.attempts || value.submissions || [])[0], old = (current.current?.attempts || current.current?.submissions || [])[0]; if (fresh && old && (fresh.id < old.id || fresh.id === old.id && (fresh.revision < old.revision || old.status === 'finished' && fresh.status !== 'finished'))) return current.current; current.current = value; if (live.current) setData(value); return value }
+  async function run(action) { if (locked.current) return; locked.current = true; setBusy(true); setError(''); try { return accept(await action()) } catch (e) { if (live.current) setError(e.message); if (e.status === 403) context.denied?.(); throw e } finally { locked.current = false; if (live.current) setBusy(false) } }
+  const load = attempt => run(() => assessmentAPI.get(context, attempt))
+  useEffect(() => { live.current = true; load().catch(() => {}); return () => { live.current = false } }, [context.enrollmentId, context.lessonKey, context.blockKey])
+  useEffect(() => { const refresh = () => load().then(value => value && context.updated?.()).catch(() => {}); window.addEventListener('focus', refresh); return () => window.removeEventListener('focus', refresh) }, [context.enrollmentId, context.lessonKey, context.blockKey])
+  return { data, current, accept, live, busy, error, setError, run, load }
+}
+export default function AcademyTest({ context }) {
+  usePageStyles(['/static/test-answer-review.css','/static/test-user-answer.css'])
+  const state = useAssessment(context), { data, current, busy, error, setError, run, load } = state
+  const [index, setIndex] = useState(0), [draft, setDraft] = useState(null), [saveStatus, setSaveStatus] = useState('Сохранено'), [seconds, setSeconds] = useState(0)
+  const requestKey = useRef(crypto.randomUUID()), pending = useRef(null), queue = useRef(Promise.resolve()), timer = useRef(null), dirty = useRef(false), version = useRef(0), finishing = useRef(false), finishRef = useRef(null), saveRef = useRef(null)
+  const attempt = data?.attempts?.find(a => a.id === data.selected_attempt_id), active = attempt?.status === 'started', q = data?.questions?.[index]
+  const answerFor = (question, a) => ({ question_id: question.id, selected_answer_ids: a?.selected_answer_ids || [], text_answer: a?.text_answer || '' })
+  useEffect(() => { if (!q || !active) { setDraft(null); return } const v = answerFor(q, attempt.answers.find(a => a.question_id === q.id)); pending.current = v; setDraft(v); dirty.current = false; setSaveStatus('Сохранено') }, [q?.id, attempt?.id, active])
+  const save = useCallback(() => {
+    clearTimeout(timer.current)
+    if (!dirty.current || !pending.current) return queue.current
+    const body = { ...pending.current }, stamp = version.current
+    const task = queue.current.catch(() => {}).then(async () => {
+      const a = current.current?.attempts?.find(a => a.status === 'started')
+      if (!a) return
+      if (state.live.current) setSaveStatus('Сохраняем…')
+      try { const value = await assessmentAPI.answer(context, a.id, { ...body, revision: a.revision }); state.accept(value); if (state.live.current) setError(''); if (version.current === stamp) { dirty.current = false; if (state.live.current) setSaveStatus('Сохранено') } }
+      catch (e) { if (state.live.current) { setSaveStatus('Не сохранено'); setError(e.message) } if (e.status === 403) context.denied?.(); throw e }
+    })
+    queue.current = task; return task
+  }, [context.enrollmentId, context.lessonKey, context.blockKey])
+  saveRef.current = save
+  useEffect(() => context.register?.(context.blockKey, () => saveRef.current()), [context.enrollmentId, context.lessonKey, context.blockKey])
+  useEffect(() => { const guard = e => { if (dirty.current) { e.preventDefault(); e.returnValue = '' } }; window.addEventListener('beforeunload', guard); return () => { clearTimeout(timer.current); window.removeEventListener('beforeunload', guard) } }, [])
+  function edit(patch) { const value = { ...pending.current, ...patch }; pending.current = value; setDraft(value); dirty.current = true; version.current++; setSaveStatus('Есть изменения'); clearTimeout(timer.current); timer.current = setTimeout(() => saveRef.current().catch(() => {}), 650) }
+  async function finish(expired = false) { if (finishing.current) return; finishing.current = true; try { try { await save() } catch (e) { if (!expired) throw e } const id = current.current?.attempts?.find(a => a.status === 'started')?.id || attempt?.id; if (id) { await run(() => assessmentAPI.finish(context, id)); await context.updated?.() } } catch { /* Unsaved answers and the server error stay visible. */ } finally { finishing.current = false } }
+  finishRef.current = finish
+  useEffect(() => { if (!active || !attempt.deadline_at) return; const start = performance.now(), remaining = attempt.remaining_seconds; setSeconds(remaining); const interval = setInterval(() => { const left = Math.max(0, Math.ceil(remaining - (performance.now() - start) / 1000)); setSeconds(left); if (!left) { clearInterval(interval); finishRef.current(true) } }, 300); return () => clearInterval(interval) }, [attempt?.id, active, attempt?.deadline_at])
+  async function move(next) { try { await save(); setIndex(next) } catch {} }
+  const policy = data?.assessment.policy
+  return <section className="academy-interactive-test assessment-panel"><header><span className="assessment-symbol">✓</span><div><small>ПРОВЕРКА ЗНАНИЙ</small><h3>{data?.assessment.title || 'Тест FinTalent'}</h3></div>{policy && <b>{policy.required === false ? 'Необязательно' : 'Обязательно'}</b>}</header>
+    {error && <div className="course-error" role="alert">{error}<button className="course-secondary" onClick={() => load().catch(() => {})}>Обновить тест</button></div>}
+    {!data && !error && <p role="status">Открываем проверку…</p>}
+    {policy && <><div className="assessment-metrics"><span><b>{data.question_count}</b> вопросов</span><span><b>{policy.passing_percent}%</b> для зачёта</span><span><b>{data.remaining_attempts}</b> попыток осталось</span><span>{policy.time_limit_seconds ? `${Math.ceil(policy.time_limit_seconds / 60)} мин.` : 'Без таймера'}</span></div>
+      {!attempt && <><p>Результат сохранится в обучении по этому курсу. Профессиональный рейтинг не изменится.</p><button className="course-primary" disabled={busy || !data.remaining_attempts} onClick={() => run(() => assessmentAPI.start(context, requestKey.current)).then(() => { requestKey.current = crypto.randomUUID(); setIndex(0) }).catch(() => {})}>Начать тест</button></>}
+      {active && q && draft && <div className="assessment-quiz"><div className="assessment-quiz-heading"><b>Вопрос {index + 1} из {data.questions.length}</b>{attempt.deadline_at && <strong role="timer">{Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}</strong>}<small role="status">{saveStatus}</small></div><progress value={attempt.answers.length} max={data.questions.length} aria-label="Сохранено ответов" /><div className="assessment-question-nav">{data.questions.map((question, i) => <button type="button" key={question.id} className={`${i === index ? 'current' : ''} ${attempt.answers.some(a => a.question_id === question.id) ? 'answered' : ''}`} onClick={() => move(i)} disabled={busy} aria-label={`Вопрос ${i + 1}`}>{i + 1}</button>)}</div><h4>{q.question}</h4><small>{q.points} балл(а){q.question_type === 'multiple_choice' ? ' · выберите все подходящие варианты' : ''}</small>
+        {q.question_type === 'text' ? <label className="course-field">Ваш ответ<textarea maxLength={20000} rows="4" value={draft.text_answer} onChange={e => edit({ text_answer: e.target.value })} /></label> : <div className="assessment-options">{q.answers.map(a => <label key={a.id} className={draft.selected_answer_ids.includes(a.id) ? 'selected' : ''}><input type={q.question_type === 'multiple_choice' ? 'checkbox' : 'radio'} name={`academy-question-${attempt.id}-${q.id}`} checked={draft.selected_answer_ids.includes(a.id)} onChange={e => edit({ selected_answer_ids: q.question_type === 'multiple_choice' ? e.target.checked ? [...draft.selected_answer_ids, a.id] : draft.selected_answer_ids.filter(id => id !== a.id) : [a.id] })} /><span>{a.answer}</span></label>)}</div>}
+        <div className="assessment-actions"><button className="course-secondary" disabled={busy || !index} onClick={() => move(index - 1)}>← Назад</button><button className="course-secondary" disabled={busy} onClick={() => save().catch(() => {})}>Сохранить ответ</button>{index < data.questions.length - 1 ? <button className="course-primary" disabled={busy} onClick={() => move(index + 1)}>Далее →</button> : <button className="course-primary" disabled={busy} onClick={() => finish()}>Завершить тест</button>}</div>
+      </div>}
+      {attempt?.status === 'finished' && <><div className={`assessment-test-result ${attempt.passed ? 'passed' : ''}`}>{attempt.passed && <img src="/static/academy/learning-success.png" alt="" />}<div><small>ПОПЫТКА {attempt.number} · РЕЗУЛЬТАТ СОХРАНЁН</small><strong>{attempt.percent}%</strong><h4>{attempt.passed ? 'Тест успешно пройден' : 'Проходной балл пока не набран'}</h4><p>{attempt.score} из {attempt.max_score} баллов</p></div></div>{policy.show_correct && <Review result={{ questions: data.questions, answers: attempt.answers.flatMap(a => ((a.selected_answer_ids || []).length ? a.selected_answer_ids.map(id => ({ question_id: a.question_id, selected_answer_id: id })) : [{ question_id: a.question_id, text_answer: a.text_answer }]).map(v => ({ ...v, ...(attempt.grades || []).find(g => g.question_id === a.question_id) }))) }} />}{policy.show_correct && data.questions.some(q => q.question_type === 'text') && <div className="assessment-explanations">{data.questions.filter(q => q.question_type === 'text').map(q => <article key={q.id}><b>{q.question}</b><p>Правильный ответ: {(q.answers || []).filter(a => a.is_correct).map(a => a.answer).join(' · ')}</p></article>)}</div>}{!policy.show_correct && policy.show_explanations && <div className="assessment-explanations">{data.questions.filter(q => q.explanation).map(q => <article key={q.id}><b>{q.question}</b><p>{q.explanation}</p></article>)}</div>}{policy.use_best === false && <p className="academy-honest-note">Учитывается последняя завершённая попытка. Неудачная пересдача может изменить прогресс урока.</p>}{(policy.allow_retry === false || data.remaining_attempts === 0) && <p className="academy-honest-note">{data.remaining_attempts === 0 ? 'Все попытки использованы.' : 'Повторное прохождение не разрешено автором.'}</p>}{policy.allow_retry !== false && data.remaining_attempts > 0 && <button className="course-primary" disabled={busy} onClick={() => run(() => assessmentAPI.start(context, requestKey.current)).then(() => { requestKey.current = crypto.randomUUID(); setIndex(0) }).catch(() => {})}>Повторить тест</button>}</>}
+      {data.attempts.length > 0 && <details className="assessment-history"><summary>История попыток · {data.attempts.length}</summary>{data.attempts.map(a => <button className="course-secondary" key={a.id} disabled={busy || active} onClick={() => load(a.id).then(() => setIndex(0)).catch(() => {})}>Попытка {a.number} · {a.status === 'finished' ? `${a.percent}% · ${a.passed ? 'Пройден' : 'Не пройден'}` : 'В процессе'}</button>)}</details>}
+    </>}
+  </section>
+}

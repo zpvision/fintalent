@@ -16,12 +16,19 @@ var academySchema string
 //go:embed migrations/079_academy_learning.sql
 var academyLearningSchema string
 
+//go:embed migrations/080_academy_assessments.sql
+var academyAssessmentSchema string
+
 func prepareAcademyDatabase(ctx context.Context) error {
 	_, err := db.ExecContext(ctx, academySchema)
 	if err != nil {
 		return err
 	}
 	_, err = db.ExecContext(ctx, academyLearningSchema)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, academyAssessmentSchema)
 	return err
 }
 func registerAcademyRoutes(gate func(http.HandlerFunc) http.HandlerFunc) {

@@ -30,6 +30,10 @@ func (h *Handler) learner(w http.ResponseWriter, r *http.Request) {
 		fail(w, 401, "Войдите в аккаунт")
 		return
 	}
+	if r.URL.Path == "/api/academy/notifications" {
+		h.academyNotifications(w, r, user)
+		return
+	}
 	if accessPath && r.Method == "GET" {
 		var allowed bool
 		err = h.db.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_enrollments WHERE user_id=$1)`, user).Scan(&allowed)
@@ -94,6 +98,10 @@ func (h *Handler) learner(w http.ResponseWriter, r *http.Request) {
 		l, ok := findLesson(e.Program, key)
 		if !ok {
 			problem(w, sql.ErrNoRows)
+			return
+		}
+		if len(parts) >= 5 && parts[3] == "assessments" {
+			h.learningAssessment(w, r, e, user, key, parts[4], parts[5:])
 			return
 		}
 		if r.Method == "GET" && len(parts) == 3 {
@@ -196,7 +204,7 @@ func (h *Handler) room(w http.ResponseWriter, r *http.Request, e *Enrollment) {
 	for i := range p.Modules {
 		for j := range p.Modules[i].Lessons {
 			l := &p.Modules[i].Lessons[j]
-			blocks[l.Key] = CompletionBlock(*l)
+			blocks[l.Key] = requirementsReason(*l, e.AssessmentStates)
 			if !l.SelfPaced {
 				l.Blocks = []Block{}
 				l.Description = ""

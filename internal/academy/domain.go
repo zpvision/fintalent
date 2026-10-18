@@ -49,18 +49,19 @@ type Block struct {
 	Data BlockData `json:"data"`
 }
 type BlockData struct {
-	Title         string      `json:"title,omitempty"`
-	Text          string      `json:"text,omitempty"`
-	URL           string      `json:"url,omitempty"`
-	Caption       string      `json:"caption,omitempty"`
-	Variant       string      `json:"variant,omitempty"`
-	AnswerFormat  string      `json:"answer_format,omitempty"`
-	Duration      int         `json:"duration_minutes,omitempty"`
-	AssetID       int64       `json:"asset_id,omitempty"`
-	PosterID      int64       `json:"poster_id,omitempty"`
-	MaterialIDs   []int64     `json:"material_ids,omitempty"`
-	TestVersionID int64       `json:"test_version_id,omitempty"`
-	Rich          []RichBlock `json:"rich,omitempty"`
+	Assessment    *AssessmentPolicy `json:"assessment,omitempty"`
+	Title         string            `json:"title,omitempty"`
+	Text          string            `json:"text,omitempty"`
+	URL           string            `json:"url,omitempty"`
+	Caption       string            `json:"caption,omitempty"`
+	Variant       string            `json:"variant,omitempty"`
+	AnswerFormat  string            `json:"answer_format,omitempty"`
+	Duration      int               `json:"duration_minutes,omitempty"`
+	AssetID       int64             `json:"asset_id,omitempty"`
+	PosterID      int64             `json:"poster_id,omitempty"`
+	MaterialIDs   []int64           `json:"material_ids,omitempty"`
+	TestVersionID int64             `json:"test_version_id,omitempty"`
+	Rich          []RichBlock       `json:"rich,omitempty"`
 }
 type RichBlock struct {
 	Type  string     `json:"type"`
@@ -193,6 +194,11 @@ func validateBlock(b *Block) error {
 		return fmt.Errorf("Неизвестный тип блока")
 	}
 	d := &b.Data
+	if oneOf(b.Type, "test", "assignment") {
+		if err := validateAssessment(b); err != nil {
+			return err
+		}
+	}
 	if utf8.RuneCountInString(d.Title) > 240 || utf8.RuneCountInString(d.Text) > 20000 || utf8.RuneCountInString(d.Caption) > 500 || d.Duration < 0 || d.Duration > 100000 || len(d.MaterialIDs) > 20 || d.AssetID < 0 || d.PosterID < 0 || d.TestVersionID < 0 {
 		return fmt.Errorf("Слишком большой блок или некорректные параметры")
 	}

@@ -16,16 +16,20 @@ func CompletionBlock(l Lesson) string {
 	if !l.SelfPaced {
 		return "Урок не предназначен для самостоятельного прохождения"
 	}
-	if l.CompletionRule == "test" || l.CompletionRule == "assignment" {
-		return "Завершение по тесту или принятому заданию появится на Этапе C"
-	}
+	matching := l.CompletionRule != "test" && l.CompletionRule != "assignment"
 	for _, b := range l.Blocks {
-		if b.Type == "test" || b.Type == "assignment" {
-			return "Интерактивный тест или задание пока нельзя выполнить. Урок не будет засчитан фиктивно"
+		if b.Type == l.CompletionRule {
+			matching = true
+		}
+		if b.Type == "test" && b.Data.TestVersionID == 0 && requiredBlock(l, b) {
+			return "Тест ещё не выбран автором"
 		}
 		if l.CompletionRule == "materials" && b.Type == "video" {
-			return "Автоматическая проверка просмотра видео пока не поддерживается. Урок не будет завершён по факту открытия"
+			return "Автоматическая проверка просмотра видео пока не поддерживается"
 		}
+	}
+	if !matching {
+		return "Добавьте блок, соответствующий правилу завершения"
 	}
 	return ""
 }
