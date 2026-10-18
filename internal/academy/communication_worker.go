@@ -193,7 +193,7 @@ func ProcessCommunications(ctx context.Context, db *sql.DB, base string, send Co
 		if a != nil && oneOf(a.Trigger, "deadline_approaching", "deadline_missed") {
 			if key, ok := data["block_key"].(string); ok {
 				var submitted bool
-				if er := tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM academy_assignment_submissions s JOIN academy_assessment_versions av ON av.id=s.assessment_id WHERE s.enrollment_id=$1 AND av.block_key=$2 AND s.status IN('submitted','in_review','accepted'))", e.ID, key).Scan(&submitted); er != nil {
+				if er := tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM academy_effective_assignment_submissions s JOIN academy_assessment_versions av ON av.id=s.assessment_id WHERE s.enrollment_id=$1 AND av.block_key=$2 AND s.status IN('submitted','in_review','accepted'))", e.ID, key).Scan(&submitted); er != nil {
 					return er
 				}
 				if submitted {
@@ -243,7 +243,17 @@ func ProcessCommunications(ctx context.Context, db *sql.DB, base string, send Co
 	if err != nil {
 		return err
 	}
-	if d.Channel == "email" && global >= 30 {
+	settings, settingErr := academySettings(ctx, tx)
+	if settingErr != nil {
+		return settingErr
+	}
+	if d.Run != nil && !settings.AutomationsEnabled {
+		return postpone(60, "academy_automations_paused")
+	}
+	if d.Channel == "email" && !settings.EmailEnabled {
+		return postpone(60, "academy_email_paused")
+	}
+	if d.Channel == "email" && global >= settings.EmailPerMinute {
 		return postpone(60, "rate_limited")
 	}
 	hourLimit, dayLimit := 3, 10
@@ -376,6 +386,13 @@ func ObserveAutomations(ctx context.Context, db *sql.DB, base string) error {
 	return nil
 }
 func observeAutomation(ctx context.Context, db *sql.DB, id int64, base string) error {
+	settings, err := academySettings(ctx, db)
+	if err != nil {
+		return err
+	}
+	if !settings.AutomationsEnabled {
+		return nil
+	}
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err

@@ -45,18 +45,18 @@ func (h *Handler) releases(w http.ResponseWriter, r *http.Request, course, user 
 			problem(w, err)
 			return
 		}
-		tx, err := h.db.BeginTx(r.Context(), nil)
+		tx, err := h.beginTx(r.Context(), nil)
 		if err != nil {
 			problem(w, err)
 			return
 		}
 		defer tx.Rollback()
 		var locked int64
-		if err = tx.QueryRowContext(r.Context(), `SELECT id FROM courses WHERE id=$1 AND owner_id=$2 FOR UPDATE`, course, user).Scan(&locked); err == nil {
+		if err = tx.QueryRowContext(r.Context(), `SELECT id FROM courses WHERE id=$1 AND(owner_id=$2 OR $3) FOR UPDATE`, course, user, adminPrincipal(r.Context()).Can("cohorts")).Scan(&locked); err == nil {
 			err = freezeAssessments(r.Context(), tx, version, p, user)
 		}
 		if err == nil {
-			err = tx.Commit()
+			err = commitAcademy(r.Context(), tx)
 		}
 		if err != nil {
 			problem(w, err)
@@ -145,7 +145,7 @@ func (h *Handler) releases(w http.ResponseWriter, r *http.Request, course, user 
 		problem(w, err)
 		return
 	}
-	tx, err := h.db.BeginTx(r.Context(), nil)
+	tx, err := h.beginTx(r.Context(), nil)
 	if err != nil {
 		problem(w, err)
 		return
@@ -156,7 +156,7 @@ func (h *Handler) releases(w http.ResponseWriter, r *http.Request, course, user 
 		_, err = tx.ExecContext(r.Context(), `INSERT INTO academy_version_releases(version_id,course_id,published_by,test_metadata) VALUES($1,$2,$3,$4) ON CONFLICT(version_id) DO NOTHING`, v.VersionID, course, user, string(tests))
 	}
 	if err == nil {
-		err = tx.Commit()
+		err = commitAcademy(r.Context(), tx)
 	}
 	if err != nil {
 		problem(w, err)
@@ -206,14 +206,14 @@ func (h *Handler) students(w http.ResponseWriter, r *http.Request, course, user 
 			fail(w, 400, "Проверьте срок доступа и ключ запроса")
 			return
 		}
-		tx, err := h.db.BeginTx(r.Context(), nil)
+		tx, err := h.beginTx(r.Context(), nil)
 		if err != nil {
 			problem(w, err)
 			return
 		}
 		defer tx.Rollback()
 		var lock int64
-		if err = tx.QueryRowContext(r.Context(), `SELECT id FROM courses WHERE id=$1 AND owner_id=$2 FOR UPDATE`, course, user).Scan(&lock); err != nil {
+		if err = tx.QueryRowContext(r.Context(), `SELECT id FROM courses WHERE id=$1 AND(owner_id=$2 OR $3) FOR UPDATE`, course, user, adminPrincipal(r.Context()).Can("cohorts")).Scan(&lock); err != nil {
 			problem(w, err)
 			return
 		}
@@ -231,7 +231,7 @@ func (h *Handler) students(w http.ResponseWriter, r *http.Request, course, user 
 		err = tx.QueryRowContext(r.Context(), `SELECT id FROM academy_enrollments WHERE course_id=$1 AND user_id=$2 AND program_version_id=$3 AND cohort_id IS NULL AND access_status IN ('active','suspended') ORDER BY id DESC LIMIT 1`, course, student, version).Scan(&id)
 		existing := err == nil
 		if errorsNoRows(err) {
-			err = tx.QueryRowContext(r.Context(), `INSERT INTO academy_enrollments(course_id,user_id,program_version_id,expires_at,request_key,enrolled_by) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(request_key) DO NOTHING RETURNING id`, course, student, version, v.ExpiresAt, v.RequestKey, user).Scan(&id)
+			err = tx.QueryRowContext(r.Context(), `INSERT INTO academy_enrollments(course_id,user_id,program_version_id,expires_at,request_key,enrolled_by) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(request_key) DO NOTHING RETURNING id`, course, student, version, v.ExpiresAt, v.RequestKey, nullable(user)).Scan(&id)
 			if errorsNoRows(err) {
 				err = tx.QueryRowContext(r.Context(), `SELECT id FROM academy_enrollments WHERE request_key=$1 AND course_id=$2 AND user_id=$3 AND program_version_id=$4`, v.RequestKey, course, student, version).Scan(&id)
 			}
@@ -243,7 +243,7 @@ func (h *Handler) students(w http.ResponseWriter, r *http.Request, course, user 
 			problem(w, err)
 			return
 		}
-		if err = tx.Commit(); err != nil {
+		if err = commitAcademy(r.Context(), tx); err != nil {
 			problem(w, err)
 			return
 		}
@@ -304,7 +304,7 @@ func (h *Handler) students(w http.ResponseWriter, r *http.Request, course, user 
 	if !decode(w, r, &v) {
 		return
 	}
-	if !h.courseOwner(r, course, user) {
+	if !h.courseOwner(r, course, user) && !adminPrincipal(r.Context()).Can("access") {
 		fail(w, 403, "Только владелец управляет доступом")
 		return
 	}
@@ -312,7 +312,7 @@ func (h *Handler) students(w http.ResponseWriter, r *http.Request, course, user 
 		fail(w, 400, "Проверьте статус и срок доступа")
 		return
 	}
-	tx, err := h.db.BeginTx(r.Context(), nil)
+	tx, err := h.beginTx(r.Context(), nil)
 	if err != nil {
 		problem(w, err)
 		return
@@ -378,7 +378,7 @@ func (h *Handler) students(w http.ResponseWriter, r *http.Request, course, user 
 		problem(w, err)
 		return
 	}
-	if err = tx.Commit(); err != nil {
+	if err = commitAcademy(r.Context(), tx); err != nil {
 		problem(w, err)
 		return
 	}

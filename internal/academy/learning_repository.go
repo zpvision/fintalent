@@ -42,7 +42,7 @@ type Enrollment struct {
 	Progress         []Progress      `json:"progress,omitempty"`
 }
 
-const enrollmentSQL = `SELECT e.id,e.course_id,e.user_id,e.program_version_id,v.number,e.access_status,e.enrolled_at,e.started_at,e.expires_at,e.completed_at,e.last_activity_at,e.last_lesson_key,c.title,c.cover_image,author.full_name,student.full_name,COALESCE(student.avatar_url,''),v.content,r.test_metadata,v.program_id,(author.is_blocked OR student.is_blocked OR student.is_system),e.cohort_id,(SELECT to_jsonb(ch) FROM academy_cohorts ch WHERE ch.id=e.cohort_id),COALESCE((SELECT u.full_name FROM academy_student_curators sc JOIN users u ON u.id=sc.user_id JOIN academy_cohort_staff st ON st.cohort_id=e.cohort_id AND st.user_id=sc.user_id WHERE sc.enrollment_id=e.id AND NOT u.is_blocked),''),COALESCE((SELECT sc.user_id FROM academy_student_curators sc JOIN academy_cohort_staff st ON st.user_id=sc.user_id AND st.cohort_id=e.cohort_id WHERE sc.enrollment_id=e.id),0) FROM academy_enrollments e JOIN courses c ON c.id=e.course_id JOIN users author ON author.id=c.owner_id JOIN users student ON student.id=e.user_id JOIN academy_program_versions v ON v.id=e.program_version_id JOIN academy_version_releases r ON r.version_id=v.id WHERE e.id=$1 AND (($3 AND academy_can_manage_enrollment(e.id,$2,false)) OR (NOT $3 AND e.user_id=$2))`
+const enrollmentSQL = `SELECT e.id,e.course_id,e.user_id,e.program_version_id,v.number,e.access_status,e.enrolled_at,e.started_at,e.expires_at,e.completed_at,e.last_activity_at,e.last_lesson_key,c.title,c.cover_image,author.full_name,student.full_name,COALESCE(student.avatar_url,''),v.content,r.test_metadata,v.program_id,(author.is_blocked OR student.is_blocked OR student.is_system),e.cohort_id,(SELECT to_jsonb(ch) FROM academy_cohorts ch WHERE ch.id=e.cohort_id),COALESCE((SELECT u.full_name FROM academy_student_curators sc JOIN users u ON u.id=sc.user_id JOIN academy_cohort_staff st ON st.cohort_id=e.cohort_id AND st.user_id=sc.user_id WHERE sc.enrollment_id=e.id AND NOT u.is_blocked),''),COALESCE((SELECT sc.user_id FROM academy_student_curators sc JOIN academy_cohort_staff st ON st.user_id=sc.user_id AND st.cohort_id=e.cohort_id WHERE sc.enrollment_id=e.id),0) FROM academy_enrollments e JOIN courses c ON c.id=e.course_id JOIN users author ON author.id=c.owner_id JOIN users student ON student.id=e.user_id JOIN academy_program_versions v ON v.id=e.program_version_id JOIN academy_version_releases r ON r.version_id=v.id WHERE e.id=$1 AND (($3 AND academy_can_manage_enrollment(e.id,$2,false)) OR (NOT $3 AND e.user_id=$2) OR $4)`
 
 func loadEnrollment(ctx context.Context, q queryer, id, user int64, owner, locked bool) (*Enrollment, error) {
 	sqlText := enrollmentSQL
@@ -52,7 +52,7 @@ func loadEnrollment(ctx context.Context, q queryer, id, user int64, owner, locke
 	var e Enrollment
 	var raw []byte
 	var cohortRaw []byte
-	err := q.QueryRowContext(ctx, sqlText, id, user, owner).Scan(&e.ID, &e.CourseID, &e.UserID, &e.VersionID, &e.VersionNumber, &e.AccessStatus, &e.EnrolledAt, &e.StartedAt, &e.ExpiresAt, &e.CompletedAt, &e.LastActivityAt, &e.LastLessonKey, &e.Title, &e.Cover, &e.Author, &e.UserName, &e.Avatar, &raw, &e.Tests, &e.ProgramID, &e.Unavailable, &e.CohortID, &cohortRaw, &e.CuratorName, &e.CuratorID)
+	err := q.QueryRowContext(ctx, sqlText, id, user, owner, administrative(ctx)).Scan(&e.ID, &e.CourseID, &e.UserID, &e.VersionID, &e.VersionNumber, &e.AccessStatus, &e.EnrolledAt, &e.StartedAt, &e.ExpiresAt, &e.CompletedAt, &e.LastActivityAt, &e.LastLessonKey, &e.Title, &e.Cover, &e.Author, &e.UserName, &e.Avatar, &raw, &e.Tests, &e.ProgramID, &e.Unavailable, &e.CohortID, &cohortRaw, &e.CuratorName, &e.CuratorID)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func event(ctx context.Context, tx *sql.Tx, e *Enrollment, actor int64, typ, key
 		key = Key()
 	}
 	raw, _ := json.Marshal(data)
-	_, err := tx.ExecContext(ctx, `INSERT INTO academy_learning_events(enrollment_id,actor_id,type,event_key,lesson_key,data) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(enrollment_id,event_key) DO NOTHING`, e.ID, actor, typ, key, lesson, string(raw))
+	_, err := tx.ExecContext(ctx, `INSERT INTO academy_learning_events(enrollment_id,actor_id,type,event_key,lesson_key,data) VALUES($1,NULLIF($2,0),$3,$4,$5,$6) ON CONFLICT(enrollment_id,event_key) DO NOTHING`, e.ID, actor, typ, key, lesson, string(raw))
 	return err
 }
 func (h *Handler) recordProgress(ctx context.Context, id, user int64, key, operation, eventKey string, ack bool) (*Enrollment, error) {

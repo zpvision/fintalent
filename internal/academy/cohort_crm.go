@@ -227,7 +227,7 @@ func (h *Handler) crmRoute(w http.ResponseWriter, r *http.Request, course, user 
 			fail(w, 400, "Куратор назначается ученику конкретного потока")
 			return
 		}
-		tx, er := h.db.BeginTx(r.Context(), nil)
+		tx, er := h.beginTx(r.Context(), nil)
 		if er != nil {
 			problem(w, er)
 			return
@@ -238,7 +238,7 @@ func (h *Handler) crmRoute(w http.ResponseWriter, r *http.Request, course, user 
 			var staff int64
 			err = tx.QueryRowContext(r.Context(), `SELECT s.user_id FROM academy_cohort_staff s JOIN users u ON u.id=s.user_id WHERE s.cohort_id=$1 AND s.user_id=$2 AND NOT u.is_blocked`, e.CohortID, *body.User).Scan(&staff)
 			if err == nil {
-				_, err = tx.ExecContext(r.Context(), `INSERT INTO academy_student_curators(enrollment_id,user_id,assigned_by) VALUES($1,$2,$3) ON CONFLICT(enrollment_id) DO UPDATE SET user_id=excluded.user_id,assigned_by=excluded.assigned_by,assigned_at=now()`, id, *body.User, user)
+				_, err = tx.ExecContext(r.Context(), `INSERT INTO academy_student_curators(enrollment_id,user_id,assigned_by) VALUES($1,$2,$3) ON CONFLICT(enrollment_id) DO UPDATE SET user_id=excluded.user_id,assigned_by=excluded.assigned_by,assigned_at=now()`, id, *body.User, nullable(user))
 			}
 		} else if err == nil {
 			_, err = tx.ExecContext(r.Context(), `DELETE FROM academy_student_curators WHERE enrollment_id=$1`, id)
@@ -248,7 +248,7 @@ func (h *Handler) crmRoute(w http.ResponseWriter, r *http.Request, course, user 
 			err = cohortEvent(r.Context(), tx, course, e.CohortID, &id, user, "curator_assigned", "", body, &e.UserID, &now)
 		}
 		if err == nil {
-			err = tx.Commit()
+			err = commitAcademy(r.Context(), tx)
 		}
 		if err != nil {
 			problem(w, err)
@@ -268,7 +268,7 @@ func (h *Handler) crmRoute(w http.ResponseWriter, r *http.Request, course, user 
 			problem(w, ErrInvalid)
 			return
 		}
-		tx, er := h.db.BeginTx(r.Context(), nil)
+		tx, er := h.beginTx(r.Context(), nil)
 		if er != nil {
 			problem(w, er)
 			return
@@ -289,7 +289,7 @@ func (h *Handler) crmRoute(w http.ResponseWriter, r *http.Request, course, user 
 			err = cohortEvent(r.Context(), tx, course, e.CohortID, &id, user, "student_tags_updated", "", body, nil, nil)
 		}
 		if err == nil {
-			err = tx.Commit()
+			err = commitAcademy(r.Context(), tx)
 		}
 		if err != nil {
 			problem(w, err)
@@ -313,8 +313,8 @@ func (h *Handler) crmCard(w http.ResponseWriter, r *http.Request, e *Enrollment,
 		{&notes, `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.id DESC),'[]') FROM(SELECT n.id,n.text,n.revision,n.author_id,n.created_at,n.updated_at,u.full_name author_name FROM academy_student_notes n JOIN users u ON u.id=n.author_id WHERE n.enrollment_id=$1 AND n.deleted_at IS NULL)x`},
 		{&history, `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.created_at DESC,x.id DESC),'[]') FROM(SELECT id,type,data,created_at FROM academy_learning_events WHERE enrollment_id=$1 UNION ALL SELECT -id,type,data,created_at FROM academy_cohort_events WHERE enrollment_id=$1)x`},
 		{&tags, `SELECT COALESCE(jsonb_agg(to_jsonb(t) ORDER BY t.name),'[]') FROM academy_student_tags t JOIN academy_student_tag_assignments a ON a.tag_id=t.id WHERE a.enrollment_id=$1`},
-		{&tests, `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.id DESC),'[]') FROM(SELECT t.id,a.title,t.number,t.status,t.percent,t.passed,t.started_at,t.finished_at FROM academy_test_attempts t JOIN academy_assessment_versions a ON a.id=t.assessment_id WHERE t.enrollment_id=$1)x`},
-		{&assignments, `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.id DESC),'[]') FROM(SELECT s.id,a.title,s.number,s.status,s.score,s.comment,s.submitted_at,s.reviewed_at FROM academy_assignment_submissions s JOIN academy_assessment_versions a ON a.id=s.assessment_id WHERE s.enrollment_id=$1 AND s.submitted_at IS NOT NULL)x`},
+		{&tests, `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.id DESC),'[]') FROM(SELECT t.id,a.title,t.number,t.status,t.percent,t.passed,t.started_at,t.finished_at FROM academy_effective_test_attempts t JOIN academy_assessment_versions a ON a.id=t.assessment_id WHERE t.enrollment_id=$1)x`},
+		{&assignments, `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.id DESC),'[]') FROM(SELECT s.id,a.title,s.number,s.status,s.score,s.comment,s.submitted_at,s.reviewed_at FROM academy_effective_assignment_submissions s JOIN academy_assessment_versions a ON a.id=s.assessment_id WHERE s.enrollment_id=$1 AND s.submitted_at IS NOT NULL)x`},
 	}
 	for _, q := range queries {
 		if err := h.db.QueryRowContext(r.Context(), q.sql, e.ID).Scan(q.dst); err != nil {
@@ -358,7 +358,7 @@ func (h *Handler) crmNotes(w http.ResponseWriter, r *http.Request, e *Enrollment
 		problem(w, ErrInvalid)
 		return
 	}
-	tx, err := h.db.BeginTx(r.Context(), nil)
+	tx, err := h.beginTx(r.Context(), nil)
 	if err != nil {
 		problem(w, err)
 		return
@@ -406,7 +406,7 @@ func (h *Handler) crmNotes(w http.ResponseWriter, r *http.Request, e *Enrollment
 		err = cohortEvent(r.Context(), tx, e.CourseID, e.CohortID, &e.ID, user, typ, "", map[string]any{"note_id": id, "text": body.Text}, nil, nil)
 	}
 	if err == nil {
-		err = tx.Commit()
+		err = commitAcademy(r.Context(), tx)
 	}
 	if err != nil {
 		problem(w, err)
@@ -444,7 +444,7 @@ func (h *Handler) crmTags(w http.ResponseWriter, r *http.Request, course, user i
 		problem(w, ErrInvalid)
 		return
 	}
-	tx, err := h.db.BeginTx(r.Context(), nil)
+	tx, err := h.beginTx(r.Context(), nil)
 	if err != nil {
 		problem(w, err)
 		return
@@ -472,7 +472,7 @@ func (h *Handler) crmTags(w http.ResponseWriter, r *http.Request, course, user i
 		err = cohortEvent(r.Context(), tx, course, nil, nil, user, "tag_updated", "", map[string]any{"tag_id": id, "method": r.Method, "name": b.Name}, nil, nil)
 	}
 	if err == nil {
-		err = tx.Commit()
+		err = commitAcademy(r.Context(), tx)
 	}
 	if err != nil {
 		problem(w, err)

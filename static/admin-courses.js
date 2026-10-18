@@ -29,7 +29,7 @@
         const actions = node('td'), preview = node('a', 'Предпросмотр'); preview.href = `/admin/courses/${c.id}/preview`; preview.target = '_blank'; preview.rel = 'noopener'; actions.append(preview)
         for (const [action, label] of c.status === 'moderation' ? [['approve', 'Опубликовать'], ['reject', 'Вернуть в черновики']] : c.status === 'published' ? [['hide', 'Скрыть']] : []) {
           const actionButton = node('button', label, 'secondary'); actionButton.style.margin = '5px'
-          actionButton.onclick = async () => { if (!confirm(`${label} курс «${c.title}»?`)) return; actionButton.disabled = true; try { await request(`/api/admin/courses/${c.id}/${action}`, {}); await load() } catch (e) { notify(e.message, true); actionButton.disabled = false } }
+          actionButton.onclick = async () => { if (!confirm(`${label} курс «${c.title}»?`)) return; const reason=prompt('Причина изменения (не менее 5 символов)');if(!reason||reason.trim().length<5){notify('Укажите причину от 5 символов',true);return;} actionButton.disabled = true; try { await request(`/api/admin/courses/${c.id}/${action}`, {reason:reason.trim(),confirm:true,revision:c.revision}); await load() } catch (e) { notify(e.message, true); actionButton.disabled = false } }
           actions.append(actionButton)
         }
         row.append(actions); body.append(row)

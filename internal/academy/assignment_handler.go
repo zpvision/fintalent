@@ -34,7 +34,7 @@ func (h *Handler) assignmentAction(w http.ResponseWriter, r *http.Request, tx *s
 			}
 		}
 		var exists bool
-		if err = tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_assignment_submissions WHERE enrollment_id=$1 AND assessment_id=$2 AND request_key=$3)`, e.ID, a.ID, body.Key).Scan(&exists); err != nil {
+		if err = tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_effective_assignment_submissions WHERE enrollment_id=$1 AND assessment_id=$2 AND request_key=$3)`, e.ID, a.ID, body.Key).Scan(&exists); err != nil {
 			problem(w, err)
 			return
 		}

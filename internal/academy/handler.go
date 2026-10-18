@@ -18,6 +18,7 @@ type Handler struct {
 	root           string
 	base           string
 	analyticsSlots chan struct{}
+	admin          func(*http.Request) (AdminPrincipal, error)
 }
 
 func New(db *sql.DB, user func(*http.Request) (int64, error), gate func(http.HandlerFunc) http.HandlerFunc, root string) *Handler {
@@ -39,6 +40,8 @@ func fail(w http.ResponseWriter, status int, message string) {
 func problem(w http.ResponseWriter, e error) {
 	var in inputError
 	switch {
+	case errors.Is(e, errAdminReplay):
+		respond(w, 200, map[string]bool{"replayed": true})
 	case errors.Is(e, ErrAssessmentUnprepared):
 		fail(w, 409, e.Error())
 	case errors.Is(e, ErrAccess):
@@ -65,6 +68,8 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 }
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/academy/courses/", h.authorOrStaff)
+	mux.HandleFunc("/api/admin/academy", h.administration)
+	mux.HandleFunc("/api/admin/academy/", h.administration)
 	mux.HandleFunc("/api/academy/learning", h.learner)
 	mux.HandleFunc("/api/academy/learning/", h.learner)
 	mux.HandleFunc("/api/academy/enrollments/", h.learner)

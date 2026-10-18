@@ -196,6 +196,24 @@ func (h *Handler) automations(w http.ResponseWriter, r *http.Request, course, us
 			problem(w, ErrInvalid)
 			return
 		}
+		var count int
+		if _, err = tx.ExecContext(r.Context(), "SELECT id FROM courses WHERE id=$1 FOR UPDATE", course); err != nil {
+			problem(w, err)
+			return
+		}
+		settings, er := academySettings(r.Context(), tx)
+		if er != nil {
+			problem(w, er)
+			return
+		}
+		if er = tx.QueryRowContext(r.Context(), "SELECT count(*) FROM academy_automations WHERE course_id=$1 AND status<>'archived' AND request_key<>$2", course, a.RequestKey).Scan(&count); er != nil {
+			problem(w, er)
+			return
+		}
+		if count >= settings.AutomationsPerCourse {
+			fail(w, 409, "Достигнут лимит сценариев Академии")
+			return
+		}
 		a.Status = "draft"
 		err = tx.QueryRowContext(r.Context(), `INSERT INTO academy_automations(course_id,created_by,name,trigger,config,request_key) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(request_key) DO NOTHING RETURNING id`, course, user, a.Name, a.Trigger, jsonValue(a.Config), a.RequestKey).Scan(&a.ID)
 		if err == sql.ErrNoRows {

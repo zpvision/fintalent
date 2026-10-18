@@ -79,7 +79,7 @@ func segmentSQL(s Segment, course, actor int64) (string, []any, error) {
 				expr = "m.pending>0"
 			}
 			if c.Field == "pending_assignment" {
-				expr = `EXISTS(SELECT 1 FROM academy_assessment_versions a WHERE a.program_version_id=m.program_version_id AND a.kind='assignment' AND NOT EXISTS(SELECT 1 FROM academy_assignment_submissions sub WHERE sub.enrollment_id=m.enrollment_id AND sub.assessment_id=a.id AND sub.status='accepted'))`
+				expr = `EXISTS(SELECT 1 FROM academy_assessment_versions a WHERE a.program_version_id=m.program_version_id AND a.kind='assignment' AND NOT EXISTS(SELECT 1 FROM academy_effective_assignment_submissions sub WHERE sub.enrollment_id=m.enrollment_id AND sub.assessment_id=a.id AND sub.status='accepted'))`
 			}
 			negate := c.Value == "false"
 			if c.Op == "ne" {
@@ -174,6 +174,12 @@ func matchesSegment(ctx context.Context, q queryer, s Segment, course, actor, ei
 	return yes, err
 }
 func communicationAudit(ctx context.Context, tx *sql.Tx, course, actor int64, entity string, id int64, action string, data any) error {
+	if entity == "report" && administrative(ctx) {
+		m := &adminMutation{Principal: adminPrincipal(ctx), Entity: entity, ID: id, Course: course, Action: action, Reason: "Административный отчёт: " + action, Key: Key(), Fingerprint: adminHash(data), Before: json.RawMessage(`{}`)}
+		if _, err := adminAudit(ctx, tx, m, data); err != nil {
+			return err
+		}
+	}
 	_, err := tx.ExecContext(ctx, `INSERT INTO academy_communication_audit(course_id,actor_id,entity,entity_id,action,data) VALUES(NULLIF($1,0),NULLIF($2,0),$3,NULLIF($4,0),$5,$6)`, course, actor, entity, id, action, jsonValue(data))
 	return err
 }

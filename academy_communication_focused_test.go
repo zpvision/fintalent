@@ -21,6 +21,7 @@ type academyFocusedFixture struct {
 	DB                                                *sql.DB
 	Mux                                               *http.ServeMux
 	Owner, Student, Teacher, Course, Program, Version int64
+	Handler                                           *academy.Handler
 	Root                                              string
 }
 
@@ -103,7 +104,7 @@ func newAcademyFocusedFixture(t *testing.T) academyFocusedFixture {
 	mux := http.NewServeMux()
 	h := academy.New(db, func(r *http.Request) (int64, error) { return strconv.ParseInt(r.Header.Get("X-Test-User"), 10, 64) }, func(h http.HandlerFunc) http.HandlerFunc { return h }, root)
 	h.Register(mux)
-	return academyFocusedFixture{DB: db, Mux: mux, Owner: owner, Student: student, Teacher: teacher, Course: course, Program: program, Version: version, Root: root}
+	return academyFocusedFixture{DB: db, Mux: mux, Owner: owner, Student: student, Teacher: teacher, Course: course, Program: program, Version: version, Root: root, Handler: h}
 }
 
 func TestAcademyCommunicationsIsolatedPostgres(t *testing.T) {

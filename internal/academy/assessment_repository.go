@@ -118,22 +118,24 @@ func assessment(ctx context.Context, q queryer, e *Enrollment, lesson, block str
 }
 
 type AcademyTestAttempt struct {
-	ID         int64                `json:"id"`
-	Number     int                  `json:"number"`
-	Status     string               `json:"status"`
-	Revision   int64                `json:"revision"`
-	Answers    []TestAnswer         `json:"answers"`
-	Grades     []test.AttemptAnswer `json:"grades,omitempty"`
-	Score      float64              `json:"score"`
-	MaxScore   float64              `json:"max_score"`
-	Percent    float64              `json:"percent"`
-	Passed     bool                 `json:"passed"`
-	StartedAt  time.Time            `json:"started_at"`
-	DeadlineAt *time.Time           `json:"deadline_at"`
-	FinishedAt *time.Time           `json:"finished_at"`
-	Remaining  int                  `json:"remaining_seconds"`
+	CorrectionID int64                `json:"correction_id,omitempty"`
+	ID           int64                `json:"id"`
+	Number       int                  `json:"number"`
+	Status       string               `json:"status"`
+	Revision     int64                `json:"revision"`
+	Answers      []TestAnswer         `json:"answers"`
+	Grades       []test.AttemptAnswer `json:"grades,omitempty"`
+	Score        float64              `json:"score"`
+	MaxScore     float64              `json:"max_score"`
+	Percent      float64              `json:"percent"`
+	Passed       bool                 `json:"passed"`
+	StartedAt    time.Time            `json:"started_at"`
+	DeadlineAt   *time.Time           `json:"deadline_at"`
+	FinishedAt   *time.Time           `json:"finished_at"`
+	Remaining    int                  `json:"remaining_seconds"`
 }
 type Submission struct {
+	CorrectionID    int64            `json:"correction_id,omitempty"`
 	ID              int64            `json:"id"`
 	Number          int              `json:"number"`
 	Status          string           `json:"status"`
@@ -153,7 +155,7 @@ type Submission struct {
 func testAttempts(ctx context.Context, db interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }, eid, aid int64) ([]AcademyTestAttempt, error) {
-	rows, err := db.QueryContext(ctx, `SELECT id,number,status,answer_revision,answers,grades,score,max_score,percent,passed,started_at,deadline_at,finished_at FROM academy_test_attempts WHERE enrollment_id=$1 AND assessment_id=$2 ORDER BY number DESC`, eid, aid)
+	rows, err := db.QueryContext(ctx, `SELECT id,number,status,answer_revision,answers,grades,score,max_score,percent,passed,started_at,deadline_at,finished_at,correction_id FROM academy_effective_test_attempts WHERE enrollment_id=$1 AND assessment_id=$2 ORDER BY number DESC`, eid, aid)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +164,7 @@ func testAttempts(ctx context.Context, db interface {
 	for rows.Next() {
 		var a AcademyTestAttempt
 		var answers, grades []byte
-		if err = rows.Scan(&a.ID, &a.Number, &a.Status, &a.Revision, &answers, &grades, &a.Score, &a.MaxScore, &a.Percent, &a.Passed, &a.StartedAt, &a.DeadlineAt, &a.FinishedAt); err != nil {
+		if err = rows.Scan(&a.ID, &a.Number, &a.Status, &a.Revision, &answers, &grades, &a.Score, &a.MaxScore, &a.Percent, &a.Passed, &a.StartedAt, &a.DeadlineAt, &a.FinishedAt, &a.CorrectionID); err != nil {
 			return nil, err
 		}
 		if err = json.Unmarshal(answers, &a.Answers); err != nil {
@@ -181,7 +183,7 @@ func testAttempts(ctx context.Context, db interface {
 func submissions(ctx context.Context, db interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }, eid, aid int64) ([]Submission, error) {
-	rows, err := db.QueryContext(ctx, `SELECT s.id,s.number,s.status,s.revision,s.answer,s.created_at,s.submitted_at,s.score,s.comment,s.reviewed_at,s.reviewed_by,COALESCE(u.full_name,''),COALESCE((SELECT criterion_scores FROM academy_submission_reviews WHERE submission_id=s.id ORDER BY id DESC LIMIT 1),'{}'),COALESCE((SELECT source FROM academy_submission_reviews WHERE submission_id=s.id ORDER BY id DESC LIMIT 1),'') FROM academy_assignment_submissions s LEFT JOIN users u ON u.id=COALESCE(s.reviewed_by,s.assigned_to) WHERE s.enrollment_id=$1 AND s.assessment_id=$2 ORDER BY s.number DESC`, eid, aid)
+	rows, err := db.QueryContext(ctx, `SELECT s.id,s.number,s.status,s.revision,s.answer,s.created_at,s.submitted_at,s.score,s.comment,s.reviewed_at,s.reviewed_by,COALESCE(u.full_name,''),COALESCE((SELECT payload->'criteria' FROM academy_admin_corrections WHERE submission_id=s.id ORDER BY id DESC LIMIT 1),(SELECT criterion_scores FROM academy_submission_reviews WHERE submission_id=s.id ORDER BY id DESC LIMIT 1),'{}'),CASE WHEN s.correction_id>0 THEN 'administrative' ELSE COALESCE((SELECT source FROM academy_submission_reviews WHERE submission_id=s.id ORDER BY id DESC LIMIT 1),'') END,s.correction_id FROM academy_effective_assignment_submissions s LEFT JOIN users u ON u.id=COALESCE(s.reviewed_by,s.assigned_to) WHERE s.enrollment_id=$1 AND s.assessment_id=$2 ORDER BY s.number DESC`, eid, aid)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +192,7 @@ func submissions(ctx context.Context, db interface {
 	for rows.Next() {
 		var s Submission
 		var answer []byte
-		if err = rows.Scan(&s.ID, &s.Number, &s.Status, &s.Revision, &answer, &s.CreatedAt, &s.SubmittedAt, &s.Score, &s.Comment, &s.ReviewedAt, &s.ReviewerID, &s.ReviewerName, &s.CriterionScores, &s.ReviewSource); err != nil {
+		if err = rows.Scan(&s.ID, &s.Number, &s.Status, &s.Revision, &answer, &s.CreatedAt, &s.SubmittedAt, &s.Score, &s.Comment, &s.ReviewedAt, &s.ReviewerID, &s.ReviewerName, &s.CriterionScores, &s.ReviewSource, &s.CorrectionID); err != nil {
 			return nil, err
 		}
 		if err = json.Unmarshal(answer, &s.Answer); err != nil {

@@ -173,6 +173,35 @@ func (h *Handler) save(ctx context.Context, id, user int64, v *Input) error {
 	if revision != v.Revision {
 		return ErrConflict
 	}
+	if e = saveCourseFields(ctx, tx, id, v); e != nil {
+		return e
+	}
+	return tx.Commit()
+}
+
+// Administrative editing shares validation, children and draft transitions with the author's editor.
+func AdministrativeCourse(ctx context.Context, q interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}, id int64) (json.RawMessage, error) {
+	var raw json.RawMessage
+	err := q.QueryRowContext(ctx, strings.Replace(detailSQL, "SELECT to_jsonb(c)||jsonb_build_object(", "SELECT to_jsonb(c)||jsonb_build_object('author_name',owner.full_name,", 1)+"c.id=$1", id).Scan(&raw)
+	return raw, err
+}
+func SaveAdministrative(ctx context.Context, tx *sql.Tx, id int64, v *Input) error {
+	if err := Validate(v, false); err != nil {
+		return TransitionError{400, err.Error()}
+	}
+	var revision int64
+	if err := tx.QueryRowContext(ctx, "SELECT revision FROM courses WHERE id=$1 FOR UPDATE", id).Scan(&revision); err != nil {
+		return err
+	}
+	if revision != v.Revision {
+		return ErrConflict
+	}
+	return saveCourseFields(ctx, tx, id, v)
+}
+func saveCourseFields(ctx context.Context, tx *sql.Tx, id int64, v *Input) error {
+	var e error
 	if v.CategoryID != nil {
 		var ok bool
 		e = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM dictionary_items i JOIN dictionaries d ON d.id=i.dictionary_id WHERE i.id=$1 AND d.alias='course_categories' AND i.active AND i.deleted_at IS NULL)`, *v.CategoryID).Scan(&ok)
@@ -199,5 +228,5 @@ func (h *Handler) save(ctx context.Context, id, user int64, v *Input) error {
 	if e = saveChildren(ctx, tx, id, v); e != nil {
 		return e
 	}
-	return tx.Commit()
+	return nil
 }

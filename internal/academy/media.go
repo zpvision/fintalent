@@ -84,7 +84,13 @@ func (h *Handler) assets(w http.ResponseWriter, r *http.Request, course, user in
 			fail(w, 405, "Метод не поддерживается")
 			return
 		}
-		r.Body = http.MaxBytesReader(w, r.Body, maxAssetSize+(1<<20))
+		settings, settingErr := academySettings(r.Context(), h.db)
+		if settingErr != nil {
+			problem(w, settingErr)
+			return
+		}
+		limit := int64(settings.UploadMB) << 20
+		r.Body = http.MaxBytesReader(w, r.Body, limit+(1<<20))
 		if e := r.ParseMultipartForm(1 << 20); e != nil {
 			fail(w, 400, "Не удалось загрузить файл. Максимум 20 МБ")
 			return
@@ -226,13 +232,18 @@ func parseUpload(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 func (h *Handler) storeUpload(r *http.Request) (storedUpload, error) {
+	settings, err := academySettings(r.Context(), h.db)
+	if err != nil {
+		return storedUpload{}, err
+	}
+	limit := int64(settings.UploadMB) << 20
 	f, header, e := r.FormFile("file")
 	if e != nil {
 		return storedUpload{}, inputError{"Выберите файл"}
 	}
 	defer f.Close()
-	body, e := io.ReadAll(io.LimitReader(f, maxAssetSize+1))
-	if e != nil || len(body) == 0 || len(body) > maxAssetSize {
+	body, e := io.ReadAll(io.LimitReader(f, limit+1))
+	if e != nil || len(body) == 0 || int64(len(body)) > limit {
 		return storedUpload{}, inputError{"Файл пустой или больше 20 МБ"}
 	}
 	typ, e := fileType(header.Filename, body)

@@ -432,7 +432,13 @@ func TestCoursesIsolatedPostgres(t *testing.T) {
 	publicPath := "/api/courses/view/" + doc.Slug
 	request("GET", publicPath, 0, false, nil, 404)
 	request("POST", fmt.Sprintf("/api/admin/courses/%d/approve", id), author, false, nil, 401)
-	request("POST", fmt.Sprintf("/api/admin/courses/%d/approve", id), 0, true, nil, 200)
+	request("POST", fmt.Sprintf("/api/admin/courses/%d/approve", id), 0, true, map[string]any{"reason": "Publication reviewed in integration test", "confirm": true, "revision": func() int64 {
+		var rev int64
+		if e := db.QueryRow("SELECT revision FROM courses WHERE id=$1", id).Scan(&rev); e != nil {
+			t.Fatal(e)
+		}
+		return rev
+	}()}, 200)
 	publicView := request("GET", publicPath, 0, false, nil, 200)
 	if !bytes.Contains(publicView, []byte(saved.CustomFeatures[0].Title)) {
 		t.Fatal("custom features missing from published course")

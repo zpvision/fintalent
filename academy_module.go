@@ -31,6 +31,9 @@ var academyCommunicationSchema string
 //go:embed migrations/083_academy_analytics.sql
 var academyAnalyticsSchema string
 
+//go:embed migrations/084_academy_admin.sql
+var academyAdminSchema string
+
 func prepareAcademyDatabase(ctx context.Context) error {
 	_, err := db.ExecContext(ctx, academySchema)
 	if err != nil {
@@ -53,6 +56,10 @@ func prepareAcademyDatabase(ctx context.Context) error {
 		return err
 	}
 	_, err = db.ExecContext(ctx, academyAnalyticsSchema)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, academyAdminSchema)
 	return err
 }
 func academyStorageRoot() string {
@@ -82,6 +89,7 @@ func registerAcademyRoutes(gate func(http.HandlerFunc) http.HandlerFunc) func(ht
 		return u.ID, nil
 	}, gate, absolute)
 	h.SetCommunicationBase(applicationBaseURL())
+	h.SetAdminResolver(resolveAcademyAdministrator)
 	h.Register(http.DefaultServeMux)
 	http.HandleFunc("/academy/unsubscribe/", serveFrontendPage("static/courses-unavailable.html"))
 	http.HandleFunc("/profile/academy/notifications", serveFrontendPage("static/courses-unavailable.html"))

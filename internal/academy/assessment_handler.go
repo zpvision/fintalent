@@ -94,7 +94,7 @@ func (h *Handler) learningAssessment(w http.ResponseWriter, r *http.Request, e *
 			}
 		}
 		var existing bool
-		if err = tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_test_attempts WHERE enrollment_id=$1 AND assessment_id=$2 AND request_key=$3)`, e.ID, a.ID, body.Key).Scan(&existing); err != nil {
+		if err = tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_effective_test_attempts WHERE enrollment_id=$1 AND assessment_id=$2 AND request_key=$3)`, e.ID, a.ID, body.Key).Scan(&existing); err != nil {
 			problem(w, err)
 			return
 		}

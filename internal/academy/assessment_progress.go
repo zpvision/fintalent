@@ -12,7 +12,7 @@ type sqlReader interface {
 }
 
 func assessmentOutcomes(ctx context.Context, q sqlReader, e *Enrollment) (map[string]bool, error) {
-	rows, err := q.QueryContext(ctx, `SELECT a.block_key,CASE WHEN a.kind='test' THEN COALESCE((SELECT t.passed FROM academy_test_attempts t WHERE t.enrollment_id=$1 AND t.assessment_id=a.id AND t.status='finished' ORDER BY CASE WHEN COALESCE((a.config->'assessment'->>'use_best')::boolean,true) THEN t.percent END DESC,t.number DESC LIMIT 1),false) ELSE EXISTS(SELECT 1 FROM academy_assignment_submissions s WHERE s.enrollment_id=$1 AND s.assessment_id=a.id AND s.status='accepted') END FROM academy_assessment_versions a WHERE a.program_version_id=$2`, e.ID, e.VersionID)
+	rows, err := q.QueryContext(ctx, `SELECT a.block_key,CASE WHEN a.kind='test' THEN COALESCE((SELECT t.passed FROM academy_effective_test_attempts t WHERE t.enrollment_id=$1 AND t.assessment_id=a.id AND t.status='finished' ORDER BY CASE WHEN COALESCE((a.config->'assessment'->>'use_best')::boolean,true) THEN t.percent END DESC,t.number DESC LIMIT 1),false) ELSE EXISTS(SELECT 1 FROM academy_effective_assignment_submissions s WHERE s.enrollment_id=$1 AND s.assessment_id=a.id AND s.status='accepted') END FROM academy_assessment_versions a WHERE a.program_version_id=$2`, e.ID, e.VersionID)
 	if err != nil {
 		return nil, err
 	}

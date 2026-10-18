@@ -10,6 +10,9 @@ import (
 )
 
 func (h *Handler) courseOwner(r *http.Request, course, user int64) bool {
+	if adminPrincipal(r.Context()).Can("edit") {
+		return true
+	}
 	var yes bool
 	_ = h.db.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM courses c JOIN users u ON u.id=c.owner_id WHERE c.id=$1 AND c.owner_id=$2 AND NOT u.is_blocked)`, course, user).Scan(&yes)
 	return yes
@@ -149,14 +152,14 @@ func (h *Handler) saveCohort(w http.ResponseWriter, r *http.Request, course, use
 	if c.Deadlines == nil {
 		c.Deadlines = []CohortRule{}
 	}
-	tx, err := h.db.BeginTx(r.Context(), nil)
+	tx, err := h.beginTx(r.Context(), nil)
 	if err != nil {
 		problem(w, err)
 		return
 	}
 	defer tx.Rollback()
 	var lock int64
-	err = tx.QueryRowContext(r.Context(), `SELECT id FROM courses WHERE id=$1 AND owner_id=$2 FOR UPDATE`, course, user).Scan(&lock)
+	err = tx.QueryRowContext(r.Context(), `SELECT id FROM courses WHERE id=$1 AND(owner_id=$2 OR $3) FOR UPDATE`, course, user, adminPrincipal(r.Context()).Can("cohorts")).Scan(&lock)
 	var published bool
 	if err == nil {
 		err = tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_version_releases WHERE course_id=$1 AND version_id=$2)`, course, c.VersionID).Scan(&published)
@@ -260,7 +263,7 @@ func (h *Handler) saveCohort(w http.ResponseWriter, r *http.Request, course, use
 		}
 	}
 	if err == nil {
-		err = tx.Commit()
+		err = commitAcademy(r.Context(), tx)
 	}
 	if err != nil {
 		problem(w, err)
@@ -288,7 +291,7 @@ func (h *Handler) cohortEnroll(w http.ResponseWriter, r *http.Request, c *Cohort
 		problem(w, ErrInvalid)
 		return
 	}
-	tx, err := h.db.BeginTx(r.Context(), nil)
+	tx, err := h.beginTx(r.Context(), nil)
 	if err != nil {
 		problem(w, err)
 		return
@@ -296,7 +299,7 @@ func (h *Handler) cohortEnroll(w http.ResponseWriter, r *http.Request, c *Cohort
 	defer tx.Rollback()
 	// Course first, cohort second: all grants/transfers/settings share this lock order.
 	var locked int64
-	err = tx.QueryRowContext(r.Context(), `SELECT id FROM courses WHERE id=$1 AND owner_id=$2 FOR UPDATE`, c.CourseID, user).Scan(&locked)
+	err = tx.QueryRowContext(r.Context(), `SELECT id FROM courses WHERE id=$1 AND(owner_id=$2 OR $3) FOR UPDATE`, c.CourseID, user, adminPrincipal(r.Context()).Can("transfer")).Scan(&locked)
 	if err == nil {
 		c, err = loadCohort(r.Context(), tx, c.ID, c.CourseID, true)
 	}
@@ -351,7 +354,7 @@ func (h *Handler) cohortEnroll(w http.ResponseWriter, r *http.Request, c *Cohort
 				fail(w, 409, "В потоке нет свободных мест. Никто из выбранной группы не был зачислен")
 				return
 			}
-			err = tx.QueryRowContext(r.Context(), `INSERT INTO academy_enrollments(course_id,user_id,program_version_id,cohort_id,expires_at,source,request_key,enrolled_by) VALUES($1,$2,$3,$4,$5,'cohort_manual',$6,$7) RETURNING id`, c.CourseID, student, c.VersionID, c.ID, body.Expires, "cohort:"+body.Key+":"+strconv.FormatInt(student, 10), user).Scan(&id)
+			err = tx.QueryRowContext(r.Context(), `INSERT INTO academy_enrollments(course_id,user_id,program_version_id,cohort_id,expires_at,source,request_key,enrolled_by) VALUES($1,$2,$3,$4,$5,'cohort_manual',$6,$7) RETURNING id`, c.CourseID, student, c.VersionID, c.ID, body.Expires, "cohort:"+body.Key+":"+strconv.FormatInt(student, 10), nullable(user)).Scan(&id)
 			if err == nil {
 				now := time.Now()
 				err = event(r.Context(), tx, &Enrollment{ID: id}, user, "student_enrolled", "enrolled", "", map[string]any{"cohort_id": c.ID, "version_id": c.VersionID})
@@ -393,7 +396,7 @@ func (h *Handler) cohortEnroll(w http.ResponseWriter, r *http.Request, c *Cohort
 			return
 		}
 	}
-	if err = tx.Commit(); err != nil {
+	if err = commitAcademy(r.Context(), tx); err != nil {
 		problem(w, err)
 		return
 	}
@@ -413,7 +416,7 @@ func (h *Handler) cohortStaff(w http.ResponseWriter, r *http.Request, c *Cohort,
 		problem(w, ErrInvalid)
 		return
 	}
-	tx, err := h.db.BeginTx(r.Context(), nil)
+	tx, err := h.beginTx(r.Context(), nil)
 	if err != nil {
 		problem(w, err)
 		return
@@ -427,7 +430,7 @@ func (h *Handler) cohortStaff(w http.ResponseWriter, r *http.Request, c *Cohort,
 			err = ErrInvalid
 		}
 		if err == nil {
-			_, err = tx.ExecContext(r.Context(), `INSERT INTO academy_cohort_staff(cohort_id,user_id,role,can_review,assigned_by,can_communicate) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(cohort_id,user_id) DO UPDATE SET role=excluded.role,can_review=excluded.can_review,can_communicate=excluded.can_communicate,assigned_by=excluded.assigned_by,assigned_at=now()`, c.ID, body.User, body.Role, body.Review, user, body.Communicate)
+			_, err = tx.ExecContext(r.Context(), `INSERT INTO academy_cohort_staff(cohort_id,user_id,role,can_review,assigned_by,can_communicate) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(cohort_id,user_id) DO UPDATE SET role=excluded.role,can_review=excluded.can_review,can_communicate=excluded.can_communicate,assigned_by=excluded.assigned_by,assigned_at=now()`, c.ID, body.User, body.Role, body.Review, nullable(user), body.Communicate)
 		}
 	}
 	if err == nil && r.Method == "DELETE" {
@@ -440,7 +443,7 @@ func (h *Handler) cohortStaff(w http.ResponseWriter, r *http.Request, c *Cohort,
 		err = cohortEvent(r.Context(), tx, c.CourseID, &c.ID, nil, user, "staff_updated", "", body, nil, nil)
 	}
 	if err == nil {
-		err = tx.Commit()
+		err = commitAcademy(r.Context(), tx)
 	}
 	if err != nil {
 		problem(w, err)

@@ -84,8 +84,8 @@ func (h *Handler) analyticsRoute(w http.ResponseWriter, r *http.Request, course,
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 	start := time.Now()
-	communications := section == "communications"
-	if section == "context" {
+	communications := section == "communications" || section == "context" && administrative(ctx)
+	if section == "context" && !administrative(ctx) {
 		err = h.db.QueryRowContext(ctx, `SELECT academy_can_communicate($1,$2)`, f.Enrollment, actor).Scan(&communications)
 		if err != nil {
 			analyticsProblem(w, err)
@@ -249,14 +249,19 @@ func (h *Handler) analyticsRoute(w http.ResponseWriter, r *http.Request, course,
 		}
 	}
 	var courses []analyticsRow
-	err = analyticsJSON(ctx, h.db, `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',c.id,'title',c.title) ORDER BY c.title),'[]') FROM courses c JOIN users owner ON owner.id=c.owner_id WHERE NOT owner.is_blocked AND(c.owner_id=$1 OR EXISTS(SELECT 1 FROM academy_cohort_staff s JOIN academy_cohorts ch ON ch.id=s.cohort_id WHERE ch.course_id=c.id AND s.user_id=$1))`, &courses, actor)
+	err = analyticsJSON(ctx, h.db, `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',c.id,'title',c.title) ORDER BY c.title),'[]') FROM courses c JOIN users owner ON owner.id=c.owner_id WHERE($2 OR NOT owner.is_blocked) AND($2 OR c.owner_id=$1 OR EXISTS(SELECT 1 FROM academy_cohort_staff s JOIN academy_cohorts ch ON ch.id=s.cohort_id WHERE ch.course_id=c.id AND s.user_id=$1))`, &courses, actor, administrative(ctx))
+	if err != nil {
+		analyticsProblem(w, err)
+		return
+	}
+	retention, err := academySettings(ctx, h.db)
 	if err != nil {
 		analyticsProblem(w, err)
 		return
 	}
 	elapsed := time.Since(start).Milliseconds()
 	w.Header().Set("Server-Timing", fmt.Sprintf("analytics;dur=%d", elapsed))
-	respond(w, 200, map[string]any{"section": section, "data": data, "rows": rows, "total": total, "page": f.Page, "size": f.Size, "filters": f, "settings": d.Settings, "generated_at": d.Now, "elapsed_ms": elapsed, "meta": map[string]any{"versions": versions, "cohorts": cohorts, "curators": curators, "courses": courses, "owner": d.Owner, "communications": d.Communications}, "notes": []string{"Период выбирает дату зачисления аудитории. Активность, попытки, проверки и сообщения считаются за этот период. Прогресс, доступ и риск — текущее состояние выбранной аудитории.", "Закрытые по расписанию уроки не считаются остановкой. Проценты без знаменателя не рассчитываются.", "Риск — сигнал для помощи, а не оценка способностей; доступ автоматически не изменяется."}})
+	respond(w, 200, map[string]any{"section": section, "data": data, "rows": rows, "total": total, "page": f.Page, "size": f.Size, "filters": f, "settings": d.Settings, "generated_at": d.Now, "elapsed_ms": elapsed, "meta": map[string]any{"versions": versions, "cohorts": cohorts, "curators": curators, "courses": courses, "owner": d.Owner, "communications": d.Communications, "report_days": retention.ReportDays}, "notes": []string{"Период выбирает дату зачисления аудитории. Активность, попытки, проверки и сообщения считаются за этот период. Прогресс, доступ и риск — текущее состояние выбранной аудитории.", "Закрытые по расписанию уроки не считаются остановкой. Проценты без знаменателя не рассчитываются.", "Риск — сигнал для помощи, а не оценка способностей; доступ автоматически не изменяется."}})
 }
 func firstRows(rows []analyticsRow, n int) []analyticsRow {
 	if len(rows) > n {

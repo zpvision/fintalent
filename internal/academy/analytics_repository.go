@@ -43,6 +43,13 @@ func (h *Handler) loadAnalytics(ctx context.Context, course, actor int64, f Anal
 	if err != nil {
 		return nil, err
 	}
+	if adminPrincipal(ctx).Can("analytics") {
+		if err = tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM courses WHERE id=$1)", course).Scan(&allowed); err != nil {
+			return nil, err
+		}
+		d.Owner = true
+		d.Communications = true
+	}
 	if !allowed {
 		return nil, sql.ErrNoRows
 	}
@@ -82,7 +89,7 @@ func (h *Handler) loadAnalytics(ctx context.Context, course, actor int64, f Anal
 		d.Programs[v.ID] = v.Program
 		d.VersionNumbers[v.ID] = v.Number
 	}
-	err = analyticsJSON(ctx, tx, `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.enrollment_id),'[]') FROM(SELECT e.id enrollment_id,e.user_id,u.full_name name,COALESCE(u.avatar_url,'') avatar,e.program_version_id version_id,v.number version_number,COALESCE(e.cohort_id,0) cohort_id,COALESCE(ch.name,'') cohort_name,COALESCE(sc.user_id,0) curator_id,COALESCE(curator.full_name,'') curator_name,e.enrolled_at,e.started_at,e.completed_at,e.last_activity_at,e.last_lesson_key,CASE WHEN u.is_blocked OR u.is_system THEN 'suspended' WHEN e.access_status='active' AND e.expires_at<=now() THEN 'expired' ELSE e.access_status END access_status FROM academy_enrollments e JOIN users u ON u.id=e.user_id JOIN academy_program_versions v ON v.id=e.program_version_id LEFT JOIN academy_cohorts ch ON ch.id=e.cohort_id LEFT JOIN academy_student_curators sc ON sc.enrollment_id=e.id LEFT JOIN users curator ON curator.id=sc.user_id WHERE e.course_id=$1 AND academy_can_manage_enrollment(e.id,$2,false) AND($3=0 OR e.cohort_id=$3 OR $3=-1 AND e.cohort_id IS NULL) AND($4=0 OR e.program_version_id=$4) AND($5=0 OR sc.user_id=$5) AND e.enrolled_at>=$6 AND e.enrolled_at<$7 AND($8=0 OR e.id=$8) ORDER BY e.id LIMIT 20001)x`, &d.Students, course, actor, f.Cohort, f.Version, f.Curator, f.from, f.until, f.Enrollment)
+	err = analyticsJSON(ctx, tx, `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.enrollment_id),'[]') FROM(SELECT e.id enrollment_id,e.user_id,u.full_name name,COALESCE(u.avatar_url,'') avatar,e.program_version_id version_id,v.number version_number,COALESCE(e.cohort_id,0) cohort_id,COALESCE(ch.name,'') cohort_name,COALESCE(sc.user_id,0) curator_id,COALESCE(curator.full_name,'') curator_name,e.enrolled_at,e.started_at,e.completed_at,e.last_activity_at,e.last_lesson_key,CASE WHEN u.is_blocked OR u.is_system THEN 'suspended' WHEN e.access_status='active' AND e.expires_at<=now() THEN 'expired' ELSE e.access_status END access_status FROM academy_enrollments e JOIN users u ON u.id=e.user_id JOIN academy_program_versions v ON v.id=e.program_version_id LEFT JOIN academy_cohorts ch ON ch.id=e.cohort_id LEFT JOIN academy_student_curators sc ON sc.enrollment_id=e.id LEFT JOIN users curator ON curator.id=sc.user_id WHERE e.course_id=$1 AND($9 OR academy_can_manage_enrollment(e.id,$2,false)) AND($3=0 OR e.cohort_id=$3 OR $3=-1 AND e.cohort_id IS NULL) AND($4=0 OR e.program_version_id=$4) AND($5=0 OR sc.user_id=$5) AND e.enrolled_at>=$6 AND e.enrolled_at<$7 AND($8=0 OR e.id=$8) ORDER BY e.id LIMIT 20001)x`, &d.Students, course, actor, f.Cohort, f.Version, f.Curator, f.from, f.until, f.Enrollment, adminPrincipal(ctx).Can("analytics"))
 	if err != nil {
 		return nil, err
 	}
@@ -111,10 +118,17 @@ func (h *Handler) loadAnalytics(ctx context.Context, course, actor int64, f Anal
 	}
 	if d.Owner {
 		var name string
-		if err = tx.QueryRowContext(ctx, "SELECT full_name FROM users WHERE id=$1", actor).Scan(&name); err != nil {
+		ownerID := actor
+		query := "SELECT full_name FROM users WHERE id=$1"
+		if administrative(ctx) {
+			if err = tx.QueryRowContext(ctx, "SELECT owner_id FROM courses WHERE id=$1", course).Scan(&ownerID); err != nil {
+				return nil, err
+			}
+		}
+		if err = tx.QueryRowContext(ctx, query, ownerID).Scan(&name); err != nil {
 			return nil, err
 		}
-		d.Staff = append(d.Staff, analyticsStaff{ID: actor, Name: name, Role: "owner", CanReview: true})
+		d.Staff = append(d.Staff, analyticsStaff{ID: ownerID, Name: name, Role: "owner", CanReview: true})
 	}
 	if len(ids) > 0 {
 		queries := []struct {
@@ -123,9 +137,9 @@ func (h *Handler) loadAnalytics(ctx context.Context, course, actor int64, f Anal
 			limit  int
 		}{
 			{`SELECT COALESCE(jsonb_agg(to_jsonb(x)),'[]') FROM(SELECT p.* FROM academy_lesson_progress p WHERE p.enrollment_id IN(SELECT value::bigint FROM jsonb_array_elements_text($1::jsonb)) LIMIT 500001)x`, &d.Progress, 500000},
-			{`SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.created_at),'[]') FROM(SELECT enrollment_id,actor_id user_id,type,lesson_key,created_at FROM academy_learning_events WHERE enrollment_id IN(SELECT value::bigint FROM jsonb_array_elements_text($1::jsonb)) AND type IN('lesson_opened','lesson_completed','course_started','course_completed','test_started','test_finished','assignment_submitted','materials_acknowledged') ORDER BY id LIMIT 500001)x`, &d.Events, 500000},
-			{`SELECT COALESCE(jsonb_agg(to_jsonb(x)),'[]') FROM(SELECT t.id,t.enrollment_id,t.assessment_id,t.number,t.status,t.percent,t.score,t.passed,t.started_at,t.finished_at,t.grades,COALESCE((SELECT jsonb_agg(DISTINCT(a->>'question_id')::bigint) FROM jsonb_array_elements(t.answers) a),'[]') answered FROM academy_test_attempts t WHERE t.enrollment_id IN(SELECT value::bigint FROM jsonb_array_elements_text($1::jsonb)) ORDER BY t.id LIMIT 200001)x`, &d.Tests, 200000},
-			{`SELECT COALESCE(jsonb_agg(to_jsonb(x)),'[]') FROM(SELECT id,enrollment_id,assessment_id,number,status,submitted_at,score,COALESCE(reviewed_by,0) reviewed_by,reviewed_at,COALESCE(assigned_to,0) assigned_to FROM academy_assignment_submissions WHERE submitted_at IS NOT NULL AND enrollment_id IN(SELECT value::bigint FROM jsonb_array_elements_text($1::jsonb)) ORDER BY id LIMIT 200001)x`, &d.Submissions, 200000},
+			{`SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.created_at),'[]') FROM(SELECT enrollment_id,COALESCE(actor_id,0) user_id,type,lesson_key,created_at FROM academy_learning_events WHERE enrollment_id IN(SELECT value::bigint FROM jsonb_array_elements_text($1::jsonb)) AND type IN('lesson_opened','lesson_completed','course_started','course_completed','test_started','test_finished','assignment_submitted','materials_acknowledged') ORDER BY id LIMIT 500001)x`, &d.Events, 500000},
+			{`SELECT COALESCE(jsonb_agg(to_jsonb(x)),'[]') FROM(SELECT t.id,t.enrollment_id,t.assessment_id,t.number,t.status,t.percent,t.score,t.passed,t.started_at,t.finished_at,t.grades,COALESCE((SELECT jsonb_agg(DISTINCT(a->>'question_id')::bigint) FROM jsonb_array_elements(t.answers) a),'[]') answered FROM academy_effective_test_attempts t WHERE t.enrollment_id IN(SELECT value::bigint FROM jsonb_array_elements_text($1::jsonb)) ORDER BY t.id LIMIT 200001)x`, &d.Tests, 200000},
+			{`SELECT COALESCE(jsonb_agg(to_jsonb(x)),'[]') FROM(SELECT id,enrollment_id,assessment_id,number,status,submitted_at,score,COALESCE(reviewed_by,0) reviewed_by,reviewed_at,COALESCE(assigned_to,0) assigned_to FROM academy_effective_assignment_submissions WHERE submitted_at IS NOT NULL AND enrollment_id IN(SELECT value::bigint FROM jsonb_array_elements_text($1::jsonb)) ORDER BY id LIMIT 200001)x`, &d.Submissions, 200000},
 			{`SELECT COALESCE(jsonb_agg(to_jsonb(x)),'[]') FROM(SELECT r.id,r.submission_id,COALESCE(r.reviewer_id,0) reviewer_id,COALESCE(u.full_name,'Автоматическая проверка') name,r.action,r.created_at,r.score,r.criterion_scores FROM academy_submission_reviews r JOIN academy_assignment_submissions sub ON sub.id=r.submission_id LEFT JOIN users u ON u.id=r.reviewer_id WHERE sub.enrollment_id IN(SELECT value::bigint FROM jsonb_array_elements_text($1::jsonb)) ORDER BY r.id LIMIT 300001)x`, &d.Reviews, 300000},
 		}
 		for _, q := range queries {
@@ -150,14 +164,14 @@ func (h *Handler) loadAnalytics(ctx context.Context, course, actor int64, f Anal
 		Count      int   `json:"count"`
 	}
 	if communications && len(ids) > 0 {
-		err = analyticsJSON(ctx, tx, `SELECT COALESCE(jsonb_agg(to_jsonb(x)),'[]') FROM(SELECT d.id,d.enrollment_id,d.recipient_id,COALESCE(d.campaign_id,0) campaign_id,COALESCE(r.automation_id,0) automation_id,COALESCE(c.name,a.name,'Сообщение') name,d.channel,d.status,d.queued_at,d.sent_at,d.error_code,COALESCE(d.run_id,0) run_id FROM academy_message_deliveries d JOIN academy_enrollments e ON e.id=d.enrollment_id LEFT JOIN academy_campaigns c ON c.id=d.campaign_id LEFT JOIN academy_automation_runs r ON r.id=d.run_id LEFT JOIN academy_automations a ON a.id=r.automation_id WHERE d.enrollment_id IN(SELECT value::bigint FROM jsonb_array_elements_text($1::jsonb)) AND NOT d.test AND academy_can_communicate(e.id,$2) ORDER BY d.id LIMIT 200001)x`, &d.Deliveries, idJSON, actor)
+		err = analyticsJSON(ctx, tx, `SELECT COALESCE(jsonb_agg(to_jsonb(x)),'[]') FROM(SELECT d.id,d.enrollment_id,d.recipient_id,COALESCE(d.campaign_id,0) campaign_id,COALESCE(r.automation_id,0) automation_id,COALESCE(c.name,a.name,'Сообщение') name,d.channel,d.status,d.queued_at,d.sent_at,d.error_code,COALESCE(d.run_id,0) run_id FROM academy_message_deliveries d JOIN academy_enrollments e ON e.id=d.enrollment_id LEFT JOIN academy_campaigns c ON c.id=d.campaign_id LEFT JOIN academy_automation_runs r ON r.id=d.run_id LEFT JOIN academy_automations a ON a.id=r.automation_id WHERE d.enrollment_id IN(SELECT value::bigint FROM jsonb_array_elements_text($1::jsonb)) AND NOT d.test AND($3 OR academy_can_communicate(e.id,$2)) ORDER BY d.id LIMIT 200001)x`, &d.Deliveries, idJSON, actor, administrative(ctx))
 		if err != nil {
 			return nil, err
 		}
 		if len(d.Deliveries) > 200000 {
 			return nil, inputError{"Слишком много сообщений: выберите меньшую аудиторию"}
 		}
-		err = analyticsJSON(ctx, tx, `SELECT COALESCE(jsonb_agg(to_jsonb(x)),'[]') FROM(SELECT r.enrollment_id,count(*) count FROM academy_automation_runs r WHERE r.enrollment_id IN(SELECT value::bigint FROM jsonb_array_elements_text($1::jsonb)) AND academy_can_communicate(r.enrollment_id,$2) AND r.created_at>=$3 AND r.created_at<$4 AND r.skipped_reason='' GROUP BY r.enrollment_id)x`, &runs, idJSON, actor, f.from, f.until)
+		err = analyticsJSON(ctx, tx, `SELECT COALESCE(jsonb_agg(to_jsonb(x)),'[]') FROM(SELECT r.enrollment_id,count(*) count FROM academy_automation_runs r WHERE r.enrollment_id IN(SELECT value::bigint FROM jsonb_array_elements_text($1::jsonb)) AND($5 OR academy_can_communicate(r.enrollment_id,$2)) AND r.created_at>=$3 AND r.created_at<$4 AND r.skipped_reason='' GROUP BY r.enrollment_id)x`, &runs, idJSON, actor, f.from, f.until, administrative(ctx))
 		if err != nil {
 			return nil, err
 		}

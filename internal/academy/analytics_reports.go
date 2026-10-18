@@ -25,6 +25,7 @@ func reportKind(kind string) bool {
 }
 
 type analyticsReportJob struct {
+	AdminKey   string            `json:"admin_actor_key"`
 	ID         int64             `json:"id"`
 	Course     int64             `json:"course_id"`
 	Actor      int64             `json:"created_by"`
@@ -50,7 +51,7 @@ func (h *Handler) analyticsReports(w http.ResponseWriter, r *http.Request, cours
 	owner := h.courseOwner(r, course, actor)
 	if len(path) == 0 && r.Method == "GET" {
 		var raw json.RawMessage
-		err := h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.id DESC),'[]') FROM(SELECT id,kind,format,filters,settings,created_at,finished_at,expires_at,rows_count,size_bytes,error_code,CASE WHEN expires_at<=now() THEN 'expired' ELSE status END status FROM academy_report_jobs WHERE course_id=$1 AND created_by=$2 AND deleted_at IS NULL ORDER BY id DESC LIMIT 100)x`, course, actor).Scan(&raw)
+		err := h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.id DESC),'[]') FROM(SELECT id,kind,format,filters,settings,created_at,finished_at,expires_at,rows_count,size_bytes,error_code,CASE WHEN expires_at<=now() THEN 'expired' ELSE status END status FROM academy_report_jobs WHERE course_id=$1 AND created_by IS NOT DISTINCT FROM NULLIF($2,0) AND admin_actor_key=$3 AND deleted_at IS NULL ORDER BY id DESC LIMIT 100)x`, course, actor, adminKey(r.Context())).Scan(&raw)
 		if err != nil {
 			analyticsProblem(w, err)
 			return
@@ -96,7 +97,7 @@ func (h *Handler) analyticsReports(w http.ResponseWriter, r *http.Request, cours
 		}
 		var id int64
 		var same bool
-		e = tx.QueryRowContext(r.Context(), `SELECT id,kind=$4 AND format=$5 AND filters=$6::jsonb AND deleted_at IS NULL FROM academy_report_jobs WHERE request_key=$1 AND course_id=$2 AND created_by=$3`, b.Key, course, actor, b.Kind, b.Format, jsonValue(f)).Scan(&id, &same)
+		e = tx.QueryRowContext(r.Context(), `SELECT id,kind=$4 AND format=$5 AND filters=$6::jsonb AND deleted_at IS NULL FROM academy_report_jobs WHERE request_key=$1 AND course_id=$2 AND created_by IS NOT DISTINCT FROM NULLIF($3,0) AND admin_actor_key=$7`, b.Key, course, actor, b.Kind, b.Format, jsonValue(f), adminKey(r.Context())).Scan(&id, &same)
 		if e == nil {
 			if !same {
 				fail(w, 409, "Этот ключ уже использован для другого отчёта")
@@ -110,7 +111,7 @@ func (h *Handler) analyticsReports(w http.ResponseWriter, r *http.Request, cours
 			return
 		}
 		var pending, hour int
-		e = tx.QueryRowContext(r.Context(), `SELECT count(*) FILTER(WHERE status IN('queued','running')),count(*) FILTER(WHERE created_at>now()-INTERVAL '1 hour') FROM academy_report_jobs WHERE created_by=$1`, actor).Scan(&pending, &hour)
+		e = tx.QueryRowContext(r.Context(), `SELECT count(*) FILTER(WHERE status IN('queued','running')),count(*) FILTER(WHERE created_at>now()-INTERVAL '1 hour') FROM academy_report_jobs WHERE created_by IS NOT DISTINCT FROM NULLIF($1,0) AND admin_actor_key=$2`, actor, adminKey(r.Context())).Scan(&pending, &hour)
 		if e != nil {
 			analyticsProblem(w, e)
 			return
@@ -119,12 +120,17 @@ func (h *Handler) analyticsReports(w http.ResponseWriter, r *http.Request, cours
 			fail(w, 429, "Не более трёх ожидающих отчётов и десяти формирований в час")
 			return
 		}
+		retention, e := academySettings(r.Context(), tx)
+		if e != nil {
+			analyticsProblem(w, e)
+			return
+		}
 		settings, e := analyticsSettings(r.Context(), tx, course)
 		if e != nil {
 			analyticsProblem(w, e)
 			return
 		}
-		e = tx.QueryRowContext(r.Context(), `INSERT INTO academy_report_jobs(course_id,created_by,kind,format,filters,settings,owner_scope,request_key) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`, course, actor, b.Kind, b.Format, jsonValue(f), jsonValue(settings), owner, b.Key).Scan(&id)
+		e = tx.QueryRowContext(r.Context(), `INSERT INTO academy_report_jobs(course_id,created_by,kind,format,filters,settings,owner_scope,request_key,admin_actor_key,expires_at) VALUES($1,NULLIF($2,0),$3,$4,$5,$6,$7,$8,$9,now()+make_interval(days=>$10)) RETURNING id`, course, actor, b.Kind, b.Format, jsonValue(f), jsonValue(settings), owner, b.Key, adminKey(r.Context()), retention.ReportDays).Scan(&id)
 		if e == nil {
 			e = communicationAudit(r.Context(), tx, course, actor, "report", id, "created", map[string]any{"kind": b.Kind, "format": b.Format, "filters": f})
 		}
@@ -149,7 +155,7 @@ func (h *Handler) analyticsReports(w http.ResponseWriter, r *http.Request, cours
 	}
 	var job analyticsReportJob
 	var raw []byte
-	e = h.db.QueryRowContext(r.Context(), `SELECT to_jsonb(j) FROM academy_report_jobs j WHERE id=$1 AND course_id=$2 AND created_by=$3 AND deleted_at IS NULL`, id, course, actor).Scan(&raw)
+	e = h.db.QueryRowContext(r.Context(), `SELECT to_jsonb(j) FROM academy_report_jobs j WHERE id=$1 AND course_id=$2 AND created_by IS NOT DISTINCT FROM NULLIF($3,0) AND admin_actor_key=$4 AND deleted_at IS NULL`, id, course, actor, adminKey(r.Context())).Scan(&raw)
 	if e != nil {
 		analyticsProblem(w, e)
 		return
@@ -204,7 +210,7 @@ func (h *Handler) analyticsReports(w http.ResponseWriter, r *http.Request, cours
 		return
 	}
 	var authorized bool
-	e = h.db.QueryRowContext(r.Context(), `SELECT NOT EXISTS(SELECT 1 FROM jsonb_array_elements_text($1::jsonb) x WHERE NOT academy_can_manage_enrollment(x.value::bigint,$2,false) OR($3 AND NOT academy_can_communicate(x.value::bigint,$2))) AND($4 OR NOT EXISTS(SELECT 1 FROM jsonb_array_elements_text($5::jsonb) x WHERE NOT EXISTS(SELECT 1 FROM academy_cohort_staff s WHERE s.cohort_id=x.value::bigint AND s.user_id=$2)))`, jsonValue(job.Scope), actor, reportCommunicationKind(job.Kind), owner, jsonValue(job.Cohorts)).Scan(&authorized)
+	e = h.db.QueryRowContext(r.Context(), `SELECT $6 OR (NOT EXISTS(SELECT 1 FROM jsonb_array_elements_text($1::jsonb) x WHERE NOT academy_can_manage_enrollment(x.value::bigint,$2,false) OR($3 AND NOT academy_can_communicate(x.value::bigint,$2))) AND($4 OR NOT EXISTS(SELECT 1 FROM jsonb_array_elements_text($5::jsonb) x WHERE NOT EXISTS(SELECT 1 FROM academy_cohort_staff s WHERE s.cohort_id=x.value::bigint AND s.user_id=$2))))`, jsonValue(job.Scope), actor, reportCommunicationKind(job.Kind), owner, jsonValue(job.Cohorts), administrative(r.Context())).Scan(&authorized)
 	if e != nil {
 		analyticsProblem(w, e)
 		return
@@ -325,6 +331,19 @@ func ProcessAnalyticsReports(ctx context.Context, db *sql.DB, root string) error
 		if p, er := reportPath(root, oldStorage); er == nil {
 			_ = os.Remove(p)
 		}
+	}
+	if job.AdminKey != "" {
+		var principal AdminPrincipal
+		if job.AdminKey == "platform_admin" {
+			principal = AdminPrincipal{Key: job.AdminKey, Role: "superadmin", Name: "Администратор FinTalent"}
+		} else {
+			principal, e = ResolveAdminGrant(ctx, db, job.Actor)
+		}
+		if e != nil || !principal.Can("analytics") {
+			_, er := db.ExecContext(ctx, "UPDATE academy_report_jobs SET status='failed',error_code='permission_changed',lease_key=NULL WHERE id=$1 AND lease_key=$2", job.ID, job.Lease)
+			return er
+		}
+		ctx = adminScope(ctx, principal)
 	}
 	h := New(db, nil, nil, root)
 	f, e := parseAnalyticsFilters(job.Filters.values(), job.Created)

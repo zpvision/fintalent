@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 type Handler struct {
@@ -188,7 +189,7 @@ func (h *Handler) owned(w http.ResponseWriter, r *http.Request) {
 			fail(w, 405, "Метод не поддерживается")
 			return
 		}
-		h.transition(w, r, id, uid, action, false)
+		h.transition(w, r, id, uid, action, false, "", 0)
 		return
 	}
 	switch r.Method {
@@ -241,71 +242,69 @@ func (h *Handler) public(w http.ResponseWriter, r *http.Request) {
 	}
 	respond(w, 200, b)
 }
-func (h *Handler) transition(w http.ResponseWriter, r *http.Request, id, uid int64, action string, admin bool) {
-	where := "c.id=$1 AND c.owner_id=$2"
-	args := []any{id, uid}
-	if admin {
-		where = "c.id=$1"
-		args = []any{id}
-	}
-	raw, e := h.detail(r.Context(), where, args...)
+func (h *Handler) transition(w http.ResponseWriter, r *http.Request, id, uid int64, action string, admin bool, reason string, expectedRevision int64) {
+	tx, e := h.db.BeginTx(r.Context(), nil)
 	if e != nil {
 		dbError(w, e)
 		return
 	}
-	var v Input
-	_ = json.Unmarshal(raw, &v)
-	var state struct {
-		Status      string  `json:"status"`
-		Slug        string  `json:"slug"`
-		PublishedAt *string `json:"published_at"`
-	}
-	_ = json.Unmarshal(raw, &state)
-	target := ""
-	switch {
-	case action == "submit" && !admin && (state.Status == "draft" || state.Status == "hidden"):
-		target = "moderation"
-	case action == "hide" && (state.Status == "published" || state.Status == "moderation"):
-		target = "hidden"
-	case action == "approve" && admin && state.Status == "moderation":
-		target = "published"
-	case action == "reject" && admin && state.Status == "moderation":
-		target = "draft"
-	default:
-		fail(w, 409, "Это действие недоступно для текущего статуса курса")
-		return
-	}
-	if target == "moderation" || target == "published" {
-		if e = Validate(&v, true); e != nil {
-			fail(w, 400, e.Error())
-			return
-		}
-		var active bool
-		if e = h.db.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM dictionary_items i JOIN dictionaries d ON d.id=i.dictionary_id WHERE i.id=$1 AND d.alias='course_categories' AND i.active AND i.deleted_at IS NULL)`, v.CategoryID).Scan(&active); e != nil {
+	defer tx.Rollback()
+	var before json.RawMessage
+	if admin {
+		if e = LockPublication(r.Context(), tx); e != nil {
 			dbError(w, e)
 			return
 		}
-		if !active {
-			fail(w, 400, ErrCategory.Error())
+		var locked int64
+		if e = tx.QueryRowContext(r.Context(), "SELECT id FROM courses WHERE id=$1 FOR UPDATE", id).Scan(&locked); e != nil {
+			dbError(w, e)
+			return
+		}
+		before, e = AdministrativeCourse(r.Context(), tx, id)
+		if e != nil {
+			dbError(w, e)
 			return
 		}
 	}
-	slug := state.Slug
-	if state.PublishedAt == nil {
-		slug = fmt.Sprintf("%s-%d", Slug(v.Title), id)
+	if admin {
+		var current struct{ Revision int64 }
+		_ = json.Unmarshal(before, &current)
+		if current.Revision != expectedRevision {
+			fail(w, 409, ErrConflict.Error())
+			return
+		}
 	}
-	result, e := h.db.ExecContext(r.Context(), `UPDATE courses SET status=$1::text,slug=$2,revision=revision+1,updated_at=NOW(),published_at=CASE WHEN $1::text='published' THEN COALESCE(published_at,NOW()) ELSE published_at END WHERE id=$3 AND revision=$4`, target, slug, id, v.Revision)
+	target, e := transitionCourse(r.Context(), tx, id, uid, action, admin)
+	if e == nil && admin {
+		// Preserve the legacy endpoint and identify its existing configured administrator explicitly.
+		var hasAudit bool
+		e = tx.QueryRowContext(r.Context(), "SELECT to_regclass('academy_admin_audit') IS NOT NULL").Scan(&hasAudit)
+		if e == nil && hasAudit {
+			var old struct {
+				Status   string
+				Revision int64
+			}
+			_ = json.Unmarshal(before, &old)
+			_, e = tx.ExecContext(r.Context(), `INSERT INTO academy_admin_audit(actor_key,actor_name,action,entity,entity_id,course_id,reason,result,before_value,after_value,request_key,fingerprint) VALUES('platform_admin','Администратор FinTalent',$1,'course',$2,$2,$6,'succeeded',$3,$4,$5,'legacy-course-moderation')`, action, id, string(mustJSON(map[string]any{"status": old.Status, "revision": old.Revision})), string(mustJSON(map[string]any{"status": target})), rand.Text(), reason)
+		}
+	}
+	if e == nil {
+		e = tx.Commit()
+	}
 	if e != nil {
-		dbError(w, e)
-		return
-	}
-	n, _ := result.RowsAffected()
-	if n != 1 {
-		fail(w, 409, ErrConflict.Error())
+		var validation TransitionError
+		if errors.As(e, &validation) {
+			fail(w, validation.Status, validation.Message)
+		} else if errors.Is(e, ErrConflict) {
+			fail(w, 409, e.Error())
+		} else {
+			dbError(w, e)
+		}
 		return
 	}
 	respond(w, 200, map[string]string{"status": target})
 }
+func mustJSON(value any) []byte { raw, _ := json.Marshal(value); return raw }
 func (h *Handler) adminList(w http.ResponseWriter, r *http.Request) {
 	if !h.admin(r) {
 		fail(w, 401, "Требуется вход администратора")
@@ -340,5 +339,22 @@ func (h *Handler) adminAction(w http.ResponseWriter, r *http.Request) {
 		fail(w, 405, "Метод не поддерживается")
 		return
 	}
-	h.transition(w, r, id, 0, action, true)
+	if e := http.NewCrossOriginProtection().Check(r); e != nil {
+		fail(w, 403, "Недопустимый источник запроса")
+		return
+	}
+	var command struct {
+		Reason   string `json:"reason"`
+		Confirm  bool   `json:"confirm"`
+		Revision int64  `json:"revision"`
+	}
+	if !decode(w, r, &command) {
+		return
+	}
+	command.Reason = strings.TrimSpace(command.Reason)
+	if !command.Confirm || utf8.RuneCountInString(command.Reason) < 5 || utf8.RuneCountInString(command.Reason) > 1000 || command.Revision <= 0 {
+		fail(w, 400, "Подтвердите действие, укажите причину и текущую ревизию курса")
+		return
+	}
+	h.transition(w, r, id, 0, action, true, command.Reason, command.Revision)
 }

@@ -159,7 +159,7 @@ func DeliverCohortNotifications(ctx context.Context, db *sql.DB) error {
 				Key string `json:"block_key"`
 			}
 			_ = json.Unmarshal(v.data, &d)
-			err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM academy_assignment_submissions s JOIN academy_assessment_versions a ON a.id=s.assessment_id WHERE s.enrollment_id=$1 AND a.block_key=$2 AND s.submitted_at IS NOT NULL AND s.status IN('submitted','in_review','accepted'))`, v.eid, d.Key).Scan(&skip)
+			err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM academy_effective_assignment_submissions s JOIN academy_assessment_versions a ON a.id=s.assessment_id WHERE s.enrollment_id=$1 AND a.block_key=$2 AND s.submitted_at IS NOT NULL AND s.status IN('submitted','in_review','accepted'))`, v.eid, d.Key).Scan(&skip)
 			if err != nil {
 				return err
 			}

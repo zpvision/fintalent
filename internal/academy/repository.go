@@ -29,7 +29,7 @@ func load(ctx context.Context, q queryer, course int64) (*Program, error) {
 }
 func lock(ctx context.Context, tx *sql.Tx, course, user int64) (int64, int64, error) {
 	var id, rev int64
-	e := tx.QueryRowContext(ctx, `SELECT p.id,p.revision FROM academy_course_programs p JOIN courses c ON c.id=p.course_id JOIN users u ON u.id=c.owner_id WHERE c.id=$1 AND c.owner_id=$2 AND NOT u.is_blocked FOR UPDATE OF p`, course, user).Scan(&id, &rev)
+	e := tx.QueryRowContext(ctx, `SELECT p.id,p.revision FROM academy_course_programs p JOIN courses c ON c.id=p.course_id JOIN users u ON u.id=c.owner_id WHERE c.id=$1 AND (c.owner_id=$2 AND NOT u.is_blocked OR $3) FOR UPDATE OF p`, course, user, adminPrincipal(ctx).Can("edit")).Scan(&id, &rev)
 	return id, rev, e
 }
 func sync(ctx context.Context, tx *sql.Tx, table string, program int64, id *int64, key string, columns []string, values []any) error {
