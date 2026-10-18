@@ -2,7 +2,7 @@
   const nav = document.querySelector('.sidebar nav'), workspace = document.querySelector('.workspace')
   if (!nav || !workspace) return
   const button = document.createElement('button')
-  button.id = 'courses-admin-nav'; button.textContent = '▤ Курсы'; nav.append(button)
+  button.id = 'courses-admin-nav'; const navLabel = document.createElement('span'); navLabel.textContent = 'Курсы'; button.append(document.createTextNode('▤ '), navLabel); nav.append(button)
   const section = document.createElement('section'); section.id = 'admin-courses'; section.className = 'hidden'; workspace.insertBefore(section, document.querySelector('#dictionary-editor'))
   const labels = { draft: 'Черновик', moderation: 'На модерации', published: 'Опубликован', hidden: 'Скрыт' }
   let selected = 'moderation'
