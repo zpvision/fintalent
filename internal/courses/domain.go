@@ -145,13 +145,22 @@ func Validate(v *Input, publishing bool) error {
 	check := func(text string, max int, required bool) bool {
 		return utf8.RuneCountInString(text) <= max && (!required || strings.TrimSpace(text) != "")
 	}
-	for _, b := range v.Benefits {
+	for i, b := range v.Benefits {
 		if !validBenefitColor(b.Color) {
-			return fmt.Errorf("Выберите цвет преимущества из палитры")
+			return fmt.Errorf("Преимущество №%d: выберите цвет из палитры", i+1)
 		}
 		filled := strings.TrimSpace(b.Title) != "" || strings.TrimSpace(b.Description) != ""
-		if !icons[b.Icon] || !check(b.Title, 120, publishing && filled) || !check(b.Description, 500, publishing && filled) {
-			return fmt.Errorf("Заполните заголовок и описание преимуществ и выберите иконку")
+		switch {
+		case !icons[b.Icon]:
+			return fmt.Errorf("Преимущество №%d: выберите иконку из списка", i+1)
+		case utf8.RuneCountInString(b.Title) > 120:
+			return fmt.Errorf("Преимущество №%d: заголовок должен быть не длиннее 120 символов", i+1)
+		case utf8.RuneCountInString(b.Description) > 500:
+			return fmt.Errorf("Преимущество №%d: описание должно быть не длиннее 500 символов", i+1)
+		case publishing && filled && strings.TrimSpace(b.Title) == "":
+			return fmt.Errorf("Преимущество №%d: заполните заголовок или полностью очистите карточку", i+1)
+		case publishing && filled && strings.TrimSpace(b.Description) == "":
+			return fmt.Errorf("Преимущество №%d: заполните описание или полностью очистите карточку", i+1)
 		}
 	}
 	for _, b := range v.Bonuses {

@@ -132,6 +132,38 @@ func TestOptionalBenefitSlots(t *testing.T) {
 	}
 }
 
+func TestBenefitValidationMessages(t *testing.T) {
+	cases := []struct {
+		name   string
+		change func(*Benefit)
+		want   string
+	}{
+		{"missing icon", func(b *Benefit) { b.Icon = "" }, "Преимущество №2: выберите иконку из списка"},
+		{"unknown icon", func(b *Benefit) { b.Icon = "unknown" }, "Преимущество №2: выберите иконку из списка"},
+		{"invalid color", func(b *Benefit) { b.Color = "unknown" }, "Преимущество №2: выберите цвет из палитры"},
+		{"long title", func(b *Benefit) { b.Title = strings.Repeat("я", 121) }, "Преимущество №2: заголовок должен быть не длиннее 120 символов"},
+		{"long description", func(b *Benefit) { b.Description = strings.Repeat("я", 501) }, "Преимущество №2: описание должно быть не длиннее 500 символов"},
+		{"missing title", func(b *Benefit) { b.Title = " \t" }, "Преимущество №2: заполните заголовок или полностью очистите карточку"},
+		{"missing description", func(b *Benefit) { b.Description = " \n" }, "Преимущество №2: заполните описание или полностью очистите карточку"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			v := validInput()
+			tc.change(&v.Benefits[1])
+			if err := Validate(&v, true); err == nil || err.Error() != tc.want {
+				t.Fatalf("got %v, want %q", err, tc.want)
+			}
+		})
+	}
+	for icon := range icons {
+		v := validInput()
+		v.Benefits[0] = Benefit{Icon: icon, Title: strings.Repeat("я", 120), Description: strings.Repeat("я", 500)}
+		if err := Validate(&v, true); err != nil {
+			t.Fatalf("valid benefit at character limits rejected for %s: %v", icon, err)
+		}
+	}
+}
+
 func TestCourseSlug(t *testing.T) {
 	for in, want := range map[string]string{"ИИ для бухгалтера": "ii-dlya-buhgaltera", "  Excel / 1С  ": "excel-1s", "!!!": "kurs"} {
 		if got := Slug(in); got != want {

@@ -236,6 +236,30 @@ func TestCoursesIsolatedPostgres(t *testing.T) {
 		t.Fatal("benefit colors or empty slots were not persisted")
 	}
 	request("PUT", path, author, false, v, 409)
+	t.Run("submission validates the saved benefits with an empty JSON body", func(t *testing.T) {
+		partial := saved
+		partial.Benefits = append([]courses.Benefit(nil), saved.Benefits...)
+		partial.Benefits[3].Title = "Незавершённая карточка"
+		if err := json.Unmarshal(request("PUT", path, author, false, partial, 200), &partial); err != nil {
+			t.Fatal(err)
+		}
+		response := request("POST", path+"/submit", author, false, map[string]any{}, 400)
+		if !bytes.Contains(response, []byte("Преимущество №4: заполните описание")) {
+			t.Fatalf("submission did not identify the saved incomplete card: %s", response)
+		}
+		var persisted courses.Input
+		if err := json.Unmarshal(request("GET", path, author, false, nil, 200), &persisted); err != nil {
+			t.Fatal(err)
+		}
+		if persisted.Revision != partial.Revision || persisted.Benefits[3].Title != partial.Benefits[3].Title {
+			t.Fatal("failed submission changed the saved draft")
+		}
+		// A completely empty fourth card is optional; retain the original three cards.
+		persisted.Benefits[3].Title = ""
+		if err := json.Unmarshal(request("PUT", path, author, false, persisted, 200), &saved); err != nil {
+			t.Fatal(err)
+		}
+	})
 	t.Run("custom course features", func(t *testing.T) {
 		saved.CustomFeatures = []courses.Bonus{{Title: "  Проверка домашних заданий автором  "}, {Title: "Индивидуальная консультация"}}
 		_ = json.Unmarshal(request("PUT", path, author, false, saved, 200), &saved)
@@ -427,7 +451,14 @@ func TestCoursesIsolatedPostgres(t *testing.T) {
 	_ = json.Unmarshal(raw, &doc)
 	request("GET", "/api/courses/view/"+doc.Slug, 0, false, nil, 404)
 	request("POST", path+"/submit", other, false, nil, 404)
-	request("POST", path+"/submit", author, false, nil, 200)
+	request("POST", path+"/submit", author, false, map[string]any{}, 200)
+	var submitted courses.Input
+	if err := json.Unmarshal(request("GET", path, author, false, nil, 200), &submitted); err != nil {
+		t.Fatal(err)
+	}
+	if len(submitted.Benefits) != 4 || submitted.Benefits[0] != saved.Benefits[0] || submitted.Benefits[3] != saved.Benefits[3] {
+		t.Fatal("empty submission payload changed the saved benefits")
+	}
 	_ = json.Unmarshal(request("GET", path, author, false, nil, 200), &doc)
 	publicPath := "/api/courses/view/" + doc.Slug
 	request("GET", publicPath, 0, false, nil, 404)
