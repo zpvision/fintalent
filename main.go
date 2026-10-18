@@ -285,6 +285,9 @@ func prepareDatabase() error {
 	if err := prepareCoursesDatabase(ctx); err != nil {
 		return fmt.Errorf("prepareCoursesDatabase: %w", err)
 	}
+	if err := prepareAcademyDatabase(ctx); err != nil {
+		return fmt.Errorf("prepareAcademyDatabase: %w", err)
+	}
 	if err := prepareClientExchangeDatabase(ctx); err != nil {
 		return fmt.Errorf("prepareClientExchangeDatabase: %w", err)
 	}

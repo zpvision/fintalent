@@ -353,6 +353,7 @@ func TestCoursesIsolatedPostgres(t *testing.T) {
 		}
 	})
 
+	t.Run("Academy Stage A", func(t *testing.T) { testAcademyStageA(t, db, mux, h.Gate, author, other, id) })
 	var customFeature int64
 	if err := db.QueryRow(`INSERT INTO dictionary_items(dictionary_id,value,sort_order) SELECT id,'Еженедельные встречи',100 FROM dictionaries WHERE alias='course_features' RETURNING id`).Scan(&customFeature); err != nil {
 		t.Fatal(err)

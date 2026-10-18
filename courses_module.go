@@ -72,6 +72,7 @@ func registerCoursesRoutes() {
 		return u.ID, nil
 	}, isAdmin)
 	h.Register(http.DefaultServeMux)
+	registerAcademyRoutes(h.Gate)
 	http.HandleFunc("/api/admin/course-access", adminCourseAccess)
 	http.HandleFunc("/courses", h.Gate(serveFrontendPage("static/courses-unavailable.html")))
 	http.HandleFunc("/courses/", h.Gate(serveFrontendPage("static/courses-unavailable.html")))

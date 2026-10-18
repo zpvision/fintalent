@@ -62,3 +62,5 @@
 .course-page.course-public{width:100%;max-width:none;padding-left:30px;padding-right:30px}
 @media(min-width:1441px){.course-page.course-public{padding-left:calc((100vw - 1380px)/2);padding-right:calc((100vw - 1380px)/2)}}
 @media(max-width:1000px){.course-page.course-public{padding-left:18px;padding-right:18px}}
+
+.course-dashboard .course-academy-entry { display:block; width:100%; padding:12px; text-align:center; border-radius:9px; background:linear-gradient(105deg,#edf4ff,#e8f8f4); border:1px solid #d4e5f7; font-weight:600; }

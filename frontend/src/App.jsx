@@ -40,9 +40,10 @@ import CourseAccessGate from './components/CourseAccessGate'
 import CoursesPage from './pages/courses/CoursesPage'
 import CourseEditor from './pages/courses/CourseEditor'
 import CourseView from './pages/courses/CourseView'
+import AcademyPage from './pages/academy/AcademyPage'
 
 const reactPaths = [
-  '/courses', '/courses/:slug', '/profile/courses', '/profile/courses/create', '/profile/courses/:id/edit', '/profile/courses/:id/preview',
+  '/profile/courses/:id/academy', '/courses', '/courses/:slug', '/profile/courses', '/profile/courses/create', '/profile/courses/:id/edit', '/profile/courses/:id/preview',
   '/', '/login', '/register', '/forgot-password', '/profile-purpose', '/vacancies', '/vacancies/view', '/vacancies/create',
   '/profiles', '/profiles/view/:id', '/profiles/create', '/resumes', '/resume/view/:id', '/resume/create', '/marketplace', '/marketplace/create-test',
   '/accounting-companies', '/accounting-companies/view', '/accounting-companies/passport', '/accounting-companies/create',
@@ -153,6 +154,7 @@ export default function App() {
       <Route path="/courses/:slug" element={<CourseAccessGate><CourseView /></CourseAccessGate>} />
       <Route path="/profile/courses" element={<CourseAccessGate><CoursesPage mine /></CourseAccessGate>} />
       <Route path="/profile/courses/create" element={<CourseAccessGate><CourseEditor /></CourseAccessGate>} />
+      <Route path="/profile/courses/:id/academy" element={<CourseAccessGate><AcademyPage /></CourseAccessGate>} />
       <Route path="/profile/courses/:id/edit" element={<CourseAccessGate><CourseEditor /></CourseAccessGate>} />
       <Route path="/profile/courses/:id/preview" element={<CourseAccessGate><CourseView preview /></CourseAccessGate>} />
       <Route path="/admin/courses/:id/preview" element={<CourseView admin />} />

@@ -12,3 +12,5 @@ static/react/
 .DS_Store
 vacancy-*-check*.png
 vacancy-view-revision.png
+
+.local-data/

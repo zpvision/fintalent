@@ -74,13 +74,13 @@ function toLegacy(output){
   }).filter(block=>block.type==='divider'||block.text||block.url||block.items?.length||block.rows?.length);
 }
 
-async function mount({holder,data,onChange}){
+async function mount({holder,data,onChange,academy=false}){
   const callout=(kind,title)=>({class:CalloutTool,inlineToolbar:true,config:{kind,title},toolbox:{title,icon:`<span>${icons[kind]}</span>`}});
   const editor=new EditorJS({
     holder,
     data:fromLegacy(data),
-    placeholder:'Начните писать экспертный материал…',
-    minHeight:320,
+    placeholder:academy?'Начните объяснение урока…':'Начните писать экспертный материал…',
+    minHeight:academy?160:320,
     inlineToolbar:['bold','italic','underline','marker','inlineCode','link'],
     tools:{
       header:{class:Header,inlineToolbar:true,config:{levels:[2,3],defaultLevel:2}},
@@ -88,8 +88,9 @@ async function mount({holder,data,onChange}){
       quote:{class:Quote,inlineToolbar:true,config:{quotePlaceholder:'Текст цитаты',captionPlaceholder:'Источник'}},
       code:CodeTool,table:{class:Table,inlineToolbar:true,config:{rows:2,cols:3}},delimiter:Delimiter,
       marker:Marker,underline:Underline,inlineCode:InlineCode,
-      avoid:callout('avoid','Как избежать'),note:callout('note','Обратите внимание'),example:callout('example','Практический пример'),conclusion:callout('conclusion','Вывод'),warning:callout('warning','Предупреждение'),info:callout('info','Информация'),
+      ...(academy?{}:{avoid:callout('avoid','Как избежать'),note:callout('note','Обратите внимание'),example:callout('example','Практический пример'),conclusion:callout('conclusion','Вывод'),warning:callout('warning','Предупреждение'),info:callout('info','Информация'),
       image:{class:MediaURLTool,config:{kind:'image'},toolbox:{title:'Изображение',icon:'<span>▧</span>'}},video:{class:MediaURLTool,config:{kind:'video'},toolbox:{title:'Видео',icon:'<span>▶</span>'}},
+      }),
     },
     i18n:{messages:{ui:{blockTunes:{toggler:{'Click to tune':'Настройки блока','or drag to move':'или перетащите'}}},toolNames:{Text:'Абзац',Heading:'Заголовок','Unordered List':'Список','Ordered List':'Нумерация',Checklist:'Чек-лист',Quote:'Цитата',Code:'Код',Table:'Таблица',Delimiter:'Разделитель'},blockTunes:{delete:{Delete:'Удалить'},moveUp:{'Move up':'Выше'},moveDown:{'Move down':'Ниже'}}}},
     onChange:()=>onChange?.(),
@@ -98,4 +99,4 @@ async function mount({holder,data,onChange}){
   return{editor,save:async()=>toLegacy(await editor.save())};
 }
 
-window.FinTalentEditorJS={mount,fromLegacy,toLegacy};
+window.FinTalentEditorJS={mount,fromLegacy,toLegacy,supportsAcademy:true};
