@@ -6,9 +6,9 @@ const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
 const course = { id: 42, owner_id: 1, title: 'Практический курс для финансовых специалистов', status: 'draft', slug: 'fixture', cover_image: '/static/academy/program-start.png', author_name: 'Автор курса' }
 const block = (type, data) => ({ key: type, type, data })
 const lesson = (key, title, required = true, completion_rule = 'manual', blocks = [block('text', { rich: [{ type: 'paragraph', text: 'Структурированные учебные материалы' }] })]) => ({ key, title, status: 'published', self_paced: true, required, completion_rule, duration_minutes: 15, description: 'Учебный материал опубликованной версии', blocks })
-const program = { id: 1, course_id: 42, modules: [{ key: 'module-one', title: 'Основы и применение', status: 'published', lessons: [lesson('lesson-one', 'Начало обучения', true, 'manual', [block('text', { rich: [{ type: 'h2', text: 'Материалы вашего курса' }, { type: 'paragraph', text: 'Текст <b>с форматированием</b> и безопасным отображением' }] }), block('image', { asset_id: 10, caption: 'Схема обучения' }), block('file', { asset_id: 11 }), block('link', { title: 'Дополнительный ресурс', url: 'https://example.invalid/resource' }), block('note', { title: 'Совет', variant: 'tip', text: 'Применяйте знания на практике' }), block('video', { url: 'https://www.youtube.com/watch?v=fixture', poster_id: 10, title: 'Видеоматериал' })]), lesson('lesson-optional', 'Дополнительная практика', false)] }, { key: 'module-two', title: 'Закрепление материала', status: 'published', lessons: [lesson('lesson-last', 'Итоговое чтение', true, 'materials')] }] }
+const program = { id: 1, course_id: 42, revision: 2, modules: [{ key: 'module-one', title: 'Основы и применение', status: 'published', lessons: [lesson('lesson-one', 'Начало обучения', true, 'manual', [block('text', { rich: [{ type: 'h2', text: 'Материалы вашего курса' }, { type: 'paragraph', text: 'Текст <b>с форматированием</b> и безопасным отображением' }] }), block('image', { asset_id: 10, caption: 'Схема обучения' }), block('file', { asset_id: 11 }), block('link', { title: 'Дополнительный ресурс', url: 'https://example.invalid/resource' }), block('note', { title: 'Совет', variant: 'tip', text: 'Применяйте знания на практике' }), block('video', { url: 'https://www.youtube.com/watch?v=fixture', poster_id: 10, title: 'Видеоматериал' })]), lesson('lesson-optional', 'Дополнительная практика', false)] }, { key: 'module-two', title: 'Закрепление материала', status: 'published', lessons: [lesson('lesson-last', 'Итоговое чтение', true, 'materials')] }] }
 const assets = [{ id: 10, name: 'Схема.png', mime: 'image/png', size: 1000 }, { id: 11, name: 'Материалы.pdf', mime: 'application/pdf', size: 2000 }]
-let actor = 2, enrollments = [], releases = [{ id: 1, number: 1, readiness: { lessons: 3, required: 2, blockers: [], warnings: [] } }], failComplete = false, failRoom = false, nextID = 100, opens = 0, paged = false
+let actor = 2, enrollments = [], releases = [{ id: 1, number: 1, revision: 1, readiness: { lessons: 0, required: 0, blockers: ['Обязательный урок «Новый урок» не опубликован', 'Опубликуйте хотя бы один модуль и урок в редакторе, затем зафиксируйте новую версию'], warnings: [] } }], failComplete = false, failRoom = false, nextID = 100, opens = 0, paged = false
 const now = () => new Date().toISOString()
 function summary(e) { const required = e.program.modules.flatMap(m => m.lessons).filter(l => l.required); const completed = required.filter(l => e.progress.some(p => p.lesson_key === l.key && p.status === 'completed')).length; return { required: required.length, completed, total_lessons: e.program.modules.flatMap(m => m.lessons).length, completed_lessons: e.progress.filter(p => p.status === 'completed').length, percent: Math.floor(completed * 100 / required.length), status: completed === required.length ? 'completed' : e.started_at ? 'in_progress' : 'not_started' } }
 const dto = e => ({ ...e, program: undefined, summary: summary(e) })
@@ -42,9 +42,16 @@ const server = http.createServer(async (req, res) => {
       return send(dto(e))
     }
     if (u.pathname.endsWith('/releases/1/preview')) return send({ ...room({ ...enrollments[0], id: 100, program, effective_status: 'active', progress: [] }), enrollment: undefined, course, preview: true })
+    if (u.pathname.endsWith('/versions') && req.method === 'POST') {
+      if (data.revision !== program.revision) return send({error: 'Конфликт ревизии'}, 409)
+      const existing = releases.find(v => v.revision === data.revision)
+      if (existing) return send({number: existing.number, revision: existing.revision})
+      const created = {id: 3, number: 2, revision: data.revision, readiness: {lessons: 3, required: 2, blockers: [], warnings: []}}
+      releases.unshift(created); return send({number: created.number, revision: created.revision})
+    }
     if (u.pathname.endsWith('/releases')) { if (req.method === 'POST') releases[0].published_at = now(); return send(req.method === 'POST' ? releases[0] : releases) }
     if (u.pathname.endsWith('/user-search')) return send([{ id: 2, name: 'Ученик FinTalent' }])
-    if (u.pathname.endsWith('/students')) { if (req.method === 'POST') return send({ id: grant().id }); return send(enrollments.map(dto)) }
+    if (u.pathname.endsWith('/students')) { if (req.method === 'POST') return send({ id: grant(data.version_id || 1).id }); return send(enrollments.map(dto)) }
     if (/\/students\/\d+$/.test(u.pathname)) { const e = enrollments.find(e => e.id === Number(u.pathname.split('/').at(-1))); if (req.method === 'PUT') { e.access_status = e.effective_status = data.status; e.expires_at = data.expires_at; return send(dto(e)) }; return send({ enrollment: dto(e), lessons: [{ key: 'lesson-one', title: 'Начало обучения', status: e.progress[0]?.status }], history: [{ type: 'enrolled', created_at: e.enrolled_at }] }) }
     if (u.pathname.endsWith('/workspace')) return send({ course, program, tests: [], versions: releases })
     return send({ course, program, tests: [], versions: releases })
@@ -82,6 +89,14 @@ const server = http.createServer(async (req, res) => {
     await cmd('Page.enable'); await cmd('Runtime.enable'); await navigate('/profile/learning')
     await wait('!!document.querySelector(".learning-empty")'); await assert('document.body.textContent.includes("Здесь пока нет курсов")', 'honest empty learning catalog'); await widths('empty', '.learning-page-heading')
     actor = 1; await desktop(); await navigate('/profile/courses/42/academy/students'); await wait('!!document.querySelector(".teaching-panel")')
+    await assert('document.querySelector(".teaching-version-current").textContent.includes("после фиксации версии 1")', 'outdated snapshot is distinguished from current published lessons')
+    await assert('[...document.querySelectorAll("button")].find(b=>b.textContent.trim()==="Опубликовать версию").disabled', 'unready immutable snapshot remains blocked')
+    const oldSnapshot = JSON.stringify(releases[0])
+    await widths('outdated-version', '.teaching-access-grid'); await desktop()
+    await click('Зафиксировать текущую программу'); await wait('document.querySelector(".teaching-panel select").value === "3"')
+    await assert('!document.querySelector(".teaching-version-current") && !document.querySelector(".teaching-blocker")', 'new current snapshot is selected and validated')
+    if (JSON.stringify(releases.find(v => v.id === 1)) !== oldSnapshot) throw Error('Old immutable version changed')
+    await reload(); await wait('document.querySelector(".teaching-panel select")?.value === "3"'); console.log('PASS current snapshot replaces stale selection without changing history')
     await assert('document.querySelector("fieldset").disabled', 'grant disabled before publication'); await click('Опубликовать версию'); await wait('!!document.querySelector(".teaching-published")')
     await input('input[placeholder^="Точный email"]', 'student@example.invalid'); await wait('!!document.querySelector(".teaching-user-results button")'); await evaluate('document.querySelector(".teaching-user-results button").click()'); await click('Предоставить доступ'); await wait('document.querySelectorAll(".teaching-students tbody tr").length===1'); console.log('PASS publish and manual enrollment')
     await widths('teacher', '.teaching-access-grid'); await desktop(); await click('Ученик FinTalent'); await wait('!!document.querySelector("dialog")'); await assert('document.querySelector("dialog").textContent.includes("Доступ предоставлен")', 'student card access history'); await widths('student-card', 'dialog'); await close()
