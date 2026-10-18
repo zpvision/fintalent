@@ -196,4 +196,5 @@ func testAcademyStageA(t *testing.T, db *sql.DB, mux *http.ServeMux, gate func(h
 	t.Run("Stage B learning", func(t *testing.T) { testAcademyStageB(t, db, mux, owner, other, course) })
 	t.Run("Stage C assessments", func(t *testing.T) { testAcademyStageC(t, db, mux, owner, other, course) })
 	t.Run("Stage D cohorts", func(t *testing.T) { testAcademyStageD(t, db, mux, owner, other, course) })
+	t.Run("Stage E communications", func(t *testing.T) { testAcademyStageE(t, db, mux, owner, other, course) })
 }

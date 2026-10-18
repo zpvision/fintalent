@@ -262,3 +262,4 @@
 .academy-section-nav > a.current { color:#3377de; background:#edf4ff; font-weight:600; }
 .academy-section-nav { padding:6px; gap:6px; flex-wrap:wrap; }
 .academy-section-nav p { margin-left:auto; padding-right:14px; font-size:10px; }
+.academy-notification-settings{display:inline-block;font-size:12px;color:#7187aa;margin:10px 0}

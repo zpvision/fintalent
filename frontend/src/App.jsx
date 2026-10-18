@@ -46,10 +46,14 @@ import AcademyReviews from './pages/academy/AcademyReviews'
 import AcademyCohorts from './pages/academy/AcademyCohorts'
 import AcademyCRM from './pages/academy/AcademyCRM'
 import AcademyTeaching from './pages/academy/AcademyTeaching'
+import AcademyCommunications from './pages/academy/AcademyCommunications'
+import AcademyAutomations from './pages/academy/AcademyAutomations'
+import CommunicationPreferences from './pages/academy/CommunicationPreferences'
 import MyLearningPage from './pages/academy/MyLearningPage'
 import LearningRoom from './pages/academy/LearningRoom'
 
 const reactPaths = [
+ '/profile/courses/:id/academy/communications', '/profile/courses/:id/academy/automations', '/profile/academy/notifications', '/academy/unsubscribe/:token',
  '/profile/courses/:id/academy/reviews',
  '/profile/learning', '/profile/learning/:enrollmentId', '/profile/courses/:id/academy/students', '/profile/courses/:id/academy/room/:versionId',
   '/profile/courses/:id/academy', '/courses', '/courses/:slug', '/profile/courses', '/profile/courses/create', '/profile/courses/:id/edit', '/profile/courses/:id/preview',
@@ -164,6 +168,10 @@ export default function App() {
       <Route path="/profile/courses" element={<CourseAccessGate><CoursesPage mine /></CourseAccessGate>} />
       <Route path="/profile/courses/create" element={<CourseAccessGate><CourseEditor /></CourseAccessGate>} />
       <Route path="/profile/learning" element={<MyLearningPage />} />
+      <Route path="/profile/courses/:id/academy/communications" element={<AcademyCommunications />} />
+      <Route path="/profile/courses/:id/academy/automations" element={<AcademyAutomations />} />
+      <Route path="/profile/academy/notifications" element={<CommunicationPreferences />} />
+      <Route path="/academy/unsubscribe/:token" element={<CommunicationPreferences />} />
       <Route path="/profile/academy" element={<AcademyTeaching />} />
       <Route path="/profile/courses/:id/academy/cohorts" element={<AcademyCohorts />} />
       <Route path="/profile/courses/:id/academy/cohorts/:cohortId/room" element={<LearningRoom preview />} />

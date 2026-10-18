@@ -15,7 +15,7 @@ import (
 func (h *Handler) CoursePage(page http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
-		if len(parts) >= 5 && parts[0] == "profile" && parts[1] == "courses" && parts[3] == "academy" && oneOf(parts[4], "cohorts", "crm", "reviews") {
+		if len(parts) >= 5 && parts[0] == "profile" && parts[1] == "courses" && parts[3] == "academy" && oneOf(parts[4], "cohorts", "crm", "reviews", "communications", "automations") {
 			course, _ := strconv.ParseInt(parts[2], 10, 64)
 			user, err := h.user(r)
 			if err == nil && user > 0 {
@@ -47,7 +47,7 @@ func (h *Handler) authorOrStaff(w http.ResponseWriter, r *http.Request) {
 }
 func (h *Handler) cohortWorkspace(w http.ResponseWriter, r *http.Request, course, user int64, owner bool) {
 	var raw json.RawMessage
-	err := h.db.QueryRowContext(r.Context(), `SELECT jsonb_build_object('id',id,'title',title,'cover_image',cover_image,'status',status,'can_manage',$2::boolean) FROM courses WHERE id=$1`, course, owner).Scan(&raw)
+	err := h.db.QueryRowContext(r.Context(), `SELECT jsonb_build_object('id',id,'title',title,'cover_image',cover_image,'status',status,'can_manage',$2::boolean,'can_communicate',($2::boolean OR EXISTS(SELECT 1 FROM academy_cohort_staff s JOIN academy_cohorts ch ON ch.id=s.cohort_id WHERE ch.course_id=$1 AND s.user_id=$3 AND s.can_communicate))) FROM courses WHERE id=$1`, course, owner, user).Scan(&raw)
 	if err != nil {
 		problem(w, err)
 		return
@@ -85,7 +85,7 @@ func (h *Handler) cohortDetail(w http.ResponseWriter, r *http.Request, c *Cohort
 	}
 	var staff, events json.RawMessage
 	// Curators see only their assigned students; no groupwide activity or individual grades leak.
-	err = h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(jsonb_build_object('user_id',s.user_id,'name',u.full_name,'avatar',COALESCE(u.avatar_url,''),'role',s.role,'can_review',s.can_review) ORDER BY u.full_name),'[]') FROM academy_cohort_staff s JOIN users u ON u.id=s.user_id WHERE s.cohort_id=$1`, c.ID).Scan(&staff)
+	err = h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(jsonb_build_object('user_id',s.user_id,'name',u.full_name,'avatar',COALESCE(u.avatar_url,''),'role',s.role,'can_review',s.can_review,'can_communicate',s.can_communicate) ORDER BY u.full_name),'[]') FROM academy_cohort_staff s JOIN users u ON u.id=s.user_id WHERE s.cohort_id=$1`, c.ID).Scan(&staff)
 	if err == nil {
 		err = h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.created_at DESC,x.id DESC),'[]') FROM(SELECT ev.id,ev.type,ev.created_at,ev.data,u.full_name actor_name FROM academy_cohort_events ev LEFT JOIN users u ON u.id=ev.actor_id WHERE ev.cohort_id=$1 AND($3 OR ev.enrollment_id IS NOT NULL AND academy_can_manage_enrollment(ev.enrollment_id,$2,false)) ORDER BY ev.id DESC LIMIT 30)x`, c.ID, user, owner).Scan(&events)
 	}

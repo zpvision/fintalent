@@ -401,9 +401,10 @@ func (h *Handler) cohortEnroll(w http.ResponseWriter, r *http.Request, c *Cohort
 }
 func (h *Handler) cohortStaff(w http.ResponseWriter, r *http.Request, c *Cohort, user int64) {
 	var body struct {
-		User   int64  `json:"user_id"`
-		Role   string `json:"role"`
-		Review bool   `json:"can_review"`
+		User        int64  `json:"user_id"`
+		Role        string `json:"role"`
+		Review      bool   `json:"can_review"`
+		Communicate bool   `json:"can_communicate"`
 	}
 	if !decode(w, r, &body) {
 		return
@@ -426,7 +427,7 @@ func (h *Handler) cohortStaff(w http.ResponseWriter, r *http.Request, c *Cohort,
 			err = ErrInvalid
 		}
 		if err == nil {
-			_, err = tx.ExecContext(r.Context(), `INSERT INTO academy_cohort_staff(cohort_id,user_id,role,can_review,assigned_by) VALUES($1,$2,$3,$4,$5) ON CONFLICT(cohort_id,user_id) DO UPDATE SET role=excluded.role,can_review=excluded.can_review,assigned_by=excluded.assigned_by,assigned_at=now()`, c.ID, body.User, body.Role, body.Review, user)
+			_, err = tx.ExecContext(r.Context(), `INSERT INTO academy_cohort_staff(cohort_id,user_id,role,can_review,assigned_by,can_communicate) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(cohort_id,user_id) DO UPDATE SET role=excluded.role,can_review=excluded.can_review,can_communicate=excluded.can_communicate,assigned_by=excluded.assigned_by,assigned_at=now()`, c.ID, body.User, body.Role, body.Review, user, body.Communicate)
 		}
 	}
 	if err == nil && r.Method == "DELETE" {

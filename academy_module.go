@@ -25,6 +25,9 @@ var academyAssessmentSchema string
 //go:embed migrations/081_academy_cohorts.sql
 var academyCohortSchema string
 
+//go:embed migrations/082_academy_communications.sql
+var academyCommunicationSchema string
+
 func prepareAcademyDatabase(ctx context.Context) error {
 	_, err := db.ExecContext(ctx, academySchema)
 	if err != nil {
@@ -39,6 +42,10 @@ func prepareAcademyDatabase(ctx context.Context) error {
 		return err
 	}
 	_, err = db.ExecContext(ctx, academyCohortSchema)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, academyCommunicationSchema)
 	return err
 }
 func registerAcademyRoutes(gate func(http.HandlerFunc) http.HandlerFunc) func(http.HandlerFunc) http.HandlerFunc {
@@ -63,7 +70,10 @@ func registerAcademyRoutes(gate func(http.HandlerFunc) http.HandlerFunc) func(ht
 		}
 		return u.ID, nil
 	}, gate, absolute)
+	h.SetCommunicationBase(applicationBaseURL())
 	h.Register(http.DefaultServeMux)
+	http.HandleFunc("/academy/unsubscribe/", serveFrontendPage("static/courses-unavailable.html"))
+	http.HandleFunc("/profile/academy/notifications", serveFrontendPage("static/courses-unavailable.html"))
 	http.HandleFunc("/profile/academy", serveFrontendPage("static/courses-unavailable.html"))
 	http.HandleFunc("/profile/learning", serveFrontendPage("static/courses-unavailable.html"))
 	http.HandleFunc("/profile/learning/", serveFrontendPage("static/courses-unavailable.html"))

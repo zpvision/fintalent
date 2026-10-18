@@ -34,6 +34,7 @@ func serveUntilShutdown(server *http.Server) error {
 	workerCtx, cancelWorkers := context.WithCancel(context.Background())
 	workers := startNotificationWorkers(workerCtx)
 	startAcademyWorker(workerCtx, workers)
+	startAcademyCommunicationWorker(workerCtx, workers)
 	serverErr := make(chan error, 1)
 	go func() { serverErr <- server.ListenAndServe() }()
 	var result error

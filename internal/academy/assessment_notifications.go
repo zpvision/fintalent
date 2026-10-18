@@ -69,7 +69,7 @@ func (h *Handler) academyNotifications(w http.ResponseWriter, r *http.Request, u
 		return
 	}
 	var raw json.RawMessage
-	err := h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'title',title,'body',body,'is_read',is_read,'created_at',created_at,'href',CASE WHEN entity_type='academy_course' THEN '/profile/courses/'||entity_id||'/academy/reviews' ELSE '/profile/learning/'||entity_id END) ORDER BY id DESC),'[]') FROM(SELECT * FROM notifications WHERE user_id=$1 AND type LIKE 'academy\_%' ESCAPE '\' ORDER BY id DESC LIMIT 30)x`, user).Scan(&raw)
+	err := h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'title',title,'body',body,'is_read',is_read,'created_at',created_at,'href',CASE WHEN entity_type='academy_course' AND type='academy_communication' THEN '/profile/courses/'||entity_id||'/academy/crm' WHEN entity_type='academy_course' THEN '/profile/courses/'||entity_id||'/academy/reviews' ELSE '/profile/learning/'||entity_id END) ORDER BY id DESC),'[]') FROM(SELECT * FROM notifications WHERE user_id=$1 AND type LIKE 'academy\_%' ESCAPE '\' ORDER BY id DESC LIMIT 30)x`, user).Scan(&raw)
 	if err != nil {
 		problem(w, err)
 		return
