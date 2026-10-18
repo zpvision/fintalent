@@ -53,6 +53,16 @@ func testAcademyStageA(t *testing.T, db *sql.DB, mux *http.ServeMux, gate func(h
 	if len(p.Modules) != 2 || len(p.Modules[0].Lessons) != 2 {
 		t.Fatal("landing not copied")
 	}
+	for _, m := range p.Modules {
+		if m.Status != "published" {
+			t.Fatal("copied module is not published by default")
+		}
+		for _, l := range m.Lessons {
+			if l.Status != "published" {
+				t.Fatal("copied lesson is not published by default")
+			}
+		}
+	}
 	again := program(request("POST", base+"/program", owner, map[string]string{"source": "empty"}, 200))
 	if again.ID != p.ID || len(again.Modules) != 2 {
 		t.Fatal("retry overwrote program")
@@ -63,6 +73,30 @@ func testAcademyStageA(t *testing.T, db *sql.DB, mux *http.ServeMux, gate func(h
 	request("GET", base+"/modules/unknown-key", owner, nil, 404)
 	p = program(request("POST", base+"/modules", owner, academy.Action{Revision: p.Revision, Module: &academy.Module{Title: "Временный модуль"}}, 200))
 	removeKey := p.Modules[len(p.Modules)-1].Key
+	if p.Modules[len(p.Modules)-1].Status != "published" {
+		t.Fatal("created module is not published by default")
+	}
+	p = program(request("POST", base+"/modules/"+removeKey+"/lessons", owner, academy.Action{Revision: p.Revision, Lesson: &academy.Lesson{Title: "Временный урок"}}, 200))
+	last := &p.Modules[len(p.Modules)-1]
+	if len(last.Lessons) != 1 || last.Lessons[0].Status != "published" {
+		t.Fatal("created lesson is not published by default")
+	}
+	last.Status, last.Lessons[0].Status = "draft", "draft"
+	p = program(request("PUT", base+"/program", owner, p, 200))
+	for i := 0; i < 2; i++ {
+		if _, err := db.ExecContext(context.Background(), academyPublicationDefaultsSchema); err != nil {
+			t.Fatal("publication defaults migration replay", err)
+		}
+	}
+	p = program(request("GET", base+"/program", owner, nil, 200))
+	last = &p.Modules[len(p.Modules)-1]
+	if last.Status != "draft" || last.Lessons[0].Status != "draft" {
+		t.Fatal("migration changed explicitly saved drafts")
+	}
+	var defaults int
+	if err := db.QueryRow(`SELECT count(*) FROM information_schema.columns WHERE table_schema=current_schema() AND table_name IN ('academy_modules','academy_lessons') AND column_name='status' AND column_default='''published''::text'`).Scan(&defaults); err != nil || defaults != 2 {
+		t.Fatal("database publication defaults not applied", defaults, err)
+	}
 	p = program(request("DELETE", base+"/modules/"+removeKey, owner, academy.Action{Revision: p.Revision}, 200))
 	savedCopy := p.Modules[0].Lessons[0].Key
 	action := func(typ, key, target string, index int) {
@@ -91,6 +125,14 @@ func testAcademyStageA(t *testing.T, db *sql.DB, mux *http.ServeMux, gate func(h
 			t.Fatal(e)
 		}
 		if e := db.QueryRow(`INSERT INTO test_versions(test_id,version,title,created_by) VALUES($1,1,'Academy test',$2) RETURNING id`, testID, uid).Scan(&versionID); e != nil {
+			t.Fatal(e)
+		}
+		// Newly created lessons are published, so snapshotting also freezes their tests.
+		var question int64
+		if e := db.QueryRow(`INSERT INTO test_questions(test_version_id,question,question_type,points) VALUES($1,'Выберите верный ответ','single_choice',1) RETURNING id`, versionID).Scan(&question); e != nil {
+			t.Fatal(e)
+		}
+		if _, e := db.Exec(`INSERT INTO test_answers(question_id,answer,is_correct) VALUES($1,'Верно',true),($1,'Неверно',false)`, question); e != nil {
 			t.Fatal(e)
 		}
 		if uid == owner {
@@ -147,9 +189,20 @@ func testAcademyStageA(t *testing.T, db *sql.DB, mux *http.ServeMux, gate func(h
 	if len(p.Modules[0].Lessons) != 3 {
 		t.Fatal("duplicate lesson failed")
 	}
+	if p.Modules[0].Lessons[1].Status != "published" {
+		t.Fatal("duplicated lesson is not published by default")
+	}
 	action("module.duplicate", p.Modules[0].Key, "", 0)
 	if len(p.Modules) != 3 {
 		t.Fatal("duplicate module failed")
+	}
+	if p.Modules[1].Status != "published" {
+		t.Fatal("duplicated module is not published by default")
+	}
+	for _, l := range p.Modules[1].Lessons {
+		if l.Status != "published" {
+			t.Fatal("lesson inside duplicated module is not published by default")
+		}
 	}
 	preview := request("GET", base+"/preview/"+savedCopy, owner, nil, 200)
 	if !bytes.Contains(preview, []byte("Независимый урок")) {

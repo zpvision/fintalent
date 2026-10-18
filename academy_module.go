@@ -34,6 +34,9 @@ var academyAnalyticsSchema string
 //go:embed migrations/084_academy_admin.sql
 var academyAdminSchema string
 
+//go:embed migrations/085_academy_publication_defaults.sql
+var academyPublicationDefaultsSchema string
+
 func prepareAcademyDatabase(ctx context.Context) error {
 	_, err := db.ExecContext(ctx, academySchema)
 	if err != nil {
@@ -60,6 +63,10 @@ func prepareAcademyDatabase(ctx context.Context) error {
 		return err
 	}
 	_, err = db.ExecContext(ctx, academyAdminSchema)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, academyPublicationDefaultsSchema)
 	return err
 }
 func academyStorageRoot() string {

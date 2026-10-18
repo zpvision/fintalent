@@ -216,14 +216,22 @@ func (h *Handler) initialize(ctx context.Context, course, user int64, source str
 		}
 		for i := range p.Modules {
 			m := &p.Modules[i]
+			defaults := NewModule()
 			m.ID = 0
-			m.Key = Key()
-			m.Status = "draft"
+			m.Key = defaults.Key
+			m.Status = defaults.Status
+			if strings.TrimSpace(m.Title) == "" {
+				m.Title = defaults.Title
+			}
 			for j := range m.Lessons {
 				l := &m.Lessons[j]
+				defaults := NewLesson()
 				l.ID = 0
-				l.Key = Key()
-				l.Status = "draft"
+				l.Key = defaults.Key
+				l.Status = defaults.Status
+				if strings.TrimSpace(l.Title) == "" {
+					l.Title = defaults.Title
+				}
 				l.Required = true
 				l.SelfPaced = true
 				l.CompletionRule = "manual"

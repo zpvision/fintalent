@@ -12,6 +12,27 @@ func fixture() Program {
 	m.Lessons = []Lesson{l}
 	return Program{Modules: []Module{m}}
 }
+
+func TestPublishedCreationDefaults(t *testing.T) {
+	p := fixture()
+	if p.Modules[0].Status != "published" || p.Modules[0].Lessons[0].Status != "published" {
+		t.Fatal("new modules and lessons must be published by default")
+	}
+	if err := Validate(&p); err != nil {
+		t.Fatal(err)
+	}
+	if ready := CheckReadiness(p); len(ready.Blockers) != 0 || ready.Lessons != 1 {
+		t.Fatalf("new lesson with materials requires manual publication: %+v", ready)
+	}
+	p.Modules[0].Lessons[0].Status = "draft"
+	if err := Validate(&p); err != nil || p.Modules[0].Lessons[0].Status != "draft" {
+		t.Fatalf("explicit draft status was not preserved: %v", err)
+	}
+	if len(CheckReadiness(p).Blockers) == 0 {
+		t.Fatal("explicit draft lesson became available for publication")
+	}
+}
+
 func TestValidateAndSanitize(t *testing.T) {
 	p := fixture()
 	if e := Validate(&p); e != nil {

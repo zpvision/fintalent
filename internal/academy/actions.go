@@ -18,10 +18,10 @@ type Action struct {
 }
 
 func NewModule() Module {
-	return Module{Key: Key(), Title: "Новый модуль", Status: "draft", Lessons: []Lesson{}}
+	return Module{Key: Key(), Title: "Новый модуль", Status: "published", Lessons: []Lesson{}}
 }
 func NewLesson() Lesson {
-	return Lesson{Key: Key(), Title: "Новый урок", Status: "draft", Required: true, SelfPaced: true, CompletionRule: "manual", Blocks: []Block{}}
+	return Lesson{Key: Key(), Title: "Новый урок", Status: "published", Required: true, SelfPaced: true, CompletionRule: "manual", Blocks: []Block{}}
 }
 func copyTitle(title string) string {
 	runes := []rune(title)
@@ -92,7 +92,7 @@ func (h *Handler) action(ctx context.Context, course, user int64, a Action) (*Pr
 		old := l.Key
 		l.ID = 0
 		l.Key = Key()
-		l.Status = "draft"
+		l.Status = "published"
 		l.Title = copyTitle(l.Title)
 		for i := range l.Blocks {
 			l.Blocks[i].ID = 0
@@ -138,7 +138,7 @@ func (h *Handler) action(ctx context.Context, course, user int64, a Action) (*Pr
 		m.ID = 0
 		m.Key = Key()
 		m.Title = copyTitle(m.Title)
-		m.Status = "draft"
+		m.Status = "published"
 		if e = copyAssets(old, m.Key); e != nil {
 			return nil, e
 		}
