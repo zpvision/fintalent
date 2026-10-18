@@ -193,4 +193,5 @@ func testAcademyStageA(t *testing.T, db *sql.DB, mux *http.ServeMux, gate func(h
 			t.Fatal("landing edit changed Academy")
 		}
 	}
+	t.Run("Stage B learning", func(t *testing.T) { testAcademyStageB(t, db, mux, owner, other, course) })
 }

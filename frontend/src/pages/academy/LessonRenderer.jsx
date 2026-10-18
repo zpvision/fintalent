@@ -38,30 +38,33 @@ export function videoSource(value) {
   } catch {}
   return null
 }
-export function Video({ data, courseID }) {
+export function Video({ data, courseID, assetURL }) {
+  const mediaURL = assetURL || ((id, download = false) => academyAPI.assetURL(courseID, id, download))
   const [playing, setPlaying] = useState(false)
   useEffect(() => setPlaying(false), [data.url, data.poster_id])
   const source = videoSource(data.url)
   if (!source) return <div className="academy-media-empty"><Icon name="video" /><span>Добавьте ссылку на YouTube, Vimeo, Rutube или MP4/WebM</span></div>
-  return <figure className="academy-video">{source[0] === 'video' ? <video controls preload="metadata" src={source[1]} poster={data.poster_id ? academyAPI.assetURL(courseID, data.poster_id) : undefined} /> : data.poster_id && !playing ? <button type="button" className="academy-video-poster" onClick={() => setPlaying(true)} aria-label="Показать видеоплеер"><img src={academyAPI.assetURL(courseID, data.poster_id)} alt="Постер видео" /><span>▶</span></button> : <iframe src={source[1]} title={data.title || 'Видео урока'} loading="lazy" allow="fullscreen; picture-in-picture" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />}{data.title && <figcaption>{data.title}{data.duration_minutes > 0 && ` · ${data.duration_minutes} мин`}</figcaption>}</figure>
+  return <figure className="academy-video">{source[0] === 'video' ? <video controls preload="metadata" src={source[1]} poster={data.poster_id ? mediaURL(data.poster_id) : undefined} /> : data.poster_id && !playing ? <button type="button" className="academy-video-poster" onClick={() => setPlaying(true)} aria-label="Показать видеоплеер"><img src={mediaURL(data.poster_id)} alt="Постер видео" /><span>▶</span></button> : <iframe src={source[1]} title={data.title || 'Видео урока'} loading="lazy" allow="fullscreen; picture-in-picture" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />}{data.title && <figcaption>{data.title}{data.duration_minutes > 0 && ` · ${data.duration_minutes} мин`}</figcaption>}</figure>
 }
 export const fileSize = size => size >= 1048576 ? `${(size / 1048576).toFixed(1)} МБ` : `${Math.ceil((size || 0) / 1024)} КБ`
-export function AssetLink({ id, courseID, assets = [] }) {
+export function AssetLink({ id, courseID, assets = [], assetURL }) {
+  const mediaURL = assetURL || ((id, download = false) => academyAPI.assetURL(courseID, id, download))
   const asset = assets.find(a => a.id === id)
-  return <a className="academy-asset" href={academyAPI.assetURL(courseID, id, true)}><Icon name="folder" /><span><b>{asset?.name || 'Учебный материал'}</b><small>{asset ? `${asset.mime.split('/').at(-1)} · ${fileSize(asset.size)}` : 'Скачать файл'}</small></span><span aria-hidden="true">↓</span></a>
+  return <a className="academy-asset" href={mediaURL(id, true)}><Icon name="folder" /><span><b>{asset?.name || 'Учебный материал'}</b><small>{asset ? `${asset.mime.split('/').at(-1)} · ${fileSize(asset.size)}` : 'Скачать файл'}</small></span><span aria-hidden="true">↓</span></a>
 }
-export default function LessonRenderer({ lesson, courseID, assets = [], tests = [] }) {
-  return <article className="academy-lesson-renderer"><header>{lesson.cover_asset_id > 0 && <img className="academy-lesson-cover" src={academyAPI.assetURL(courseID, lesson.cover_asset_id)} alt="" />}<small>ПРЕДПРОСМОТР УРОКА · {lesson.duration_minutes || 0} МИН</small><h1>{lesson.title || 'Новый урок'}</h1>{lesson.description && <p>{lesson.description}</p>}</header>
+export default function LessonRenderer({ lesson, courseID, assets = [], tests = [], assetURL, mode = 'preview' }) {
+  const mediaURL = assetURL || ((id, download = false) => academyAPI.assetURL(courseID, id, download))
+  return <article className="academy-lesson-renderer"><header>{lesson.cover_asset_id > 0 && <img className="academy-lesson-cover" src={mediaURL(lesson.cover_asset_id)} alt="" />}<small>{mode === 'learn' ? 'УРОК' : 'ПРЕДПРОСМОТР УРОКА'} · {lesson.duration_minutes || 0} МИН</small><h1>{lesson.title || 'Новый урок'}</h1>{lesson.description && <p>{lesson.description}</p>}</header>
     {lesson.blocks.map(b => { const d = b.data; return <section key={b.key} className={`academy-render-block type-${b.type}`}>
       {b.type === 'text' && <Rich blocks={d.rich} />}
-      {b.type === 'video' && <Video data={d} courseID={courseID} />}
-      {b.type === 'image' && (d.asset_id ? <figure><img src={academyAPI.assetURL(courseID, d.asset_id)} alt={d.caption || ''} />{d.caption && <figcaption>{d.caption}</figcaption>}</figure> : <p className="course-muted">Изображение ещё не добавлено</p>)}
-      {b.type === 'file' && (d.asset_id ? <AssetLink id={d.asset_id} {...{ courseID, assets }} /> : <p className="course-muted">Файл ещё не добавлен</p>)}
+      {b.type === 'video' && <Video data={d} courseID={courseID} assetURL={mediaURL} />}
+      {b.type === 'image' && (d.asset_id ? <figure><img src={mediaURL(d.asset_id)} alt={d.caption || ''} />{d.caption && <figcaption>{d.caption}</figcaption>}</figure> : <p className="course-muted">Изображение ещё не добавлено</p>)}
+      {b.type === 'file' && (d.asset_id ? <AssetLink id={d.asset_id} {...{ courseID, assets, assetURL: mediaURL }} /> : <p className="course-muted">Файл ещё не добавлен</p>)}
       {b.type === 'link' && <div className="academy-render-link"><Icon name="globe" /><a href={safeURL(d.url)} target="_blank" rel="noopener noreferrer">{d.title || d.url || 'Ссылка'}</a>{d.text && <p>{d.text}</p>}</div>}
       {b.type === 'note' && <aside className={`academy-callout ${d.variant}`}><Icon name={d.variant === 'warning' ? 'shield' : 'lightbulb'} /><div><b>{d.title || noteTypes[d.variant]}</b><p>{d.text}</p></div></aside>}
-      {b.type === 'test' && <div className="academy-future"><Icon name="check" /><h3>{tests.find(t => t.id === d.test_version_id)?.title || 'Тест FinTalent'}</h3><p>Тест прикреплён к уроку. Прохождение в учебной комнате появится на следующем этапе.</p></div>}
-      {b.type === 'assignment' && <div className="academy-assignment"><small>ПРАКТИКА</small><h3>{d.title || 'Практическое задание'}</h3><p>{d.text}</p><Rich blocks={d.rich} />{d.material_ids?.map(id => <AssetLink key={id} id={id} {...{ courseID, assets }} />)}<p className="course-muted">Формат ответа: {({ text: 'текст', file: 'файл', link: 'ссылка' })[d.answer_format]}. Сдача и проверка работ появятся на следующем этапе.</p></div>}
+      {b.type === 'test' && <div className="academy-future"><Icon name="check" /><h3>{tests.find(t => t.id === d.test_version_id)?.title || 'Тест FinTalent'}</h3><p>{tests.find(t => t.id === d.test_version_id)?.description}</p><p>{mode === 'learn' ? 'Интерактивное прохождение теста пока недоступно. Тест не будет засчитан как выполненный.' : 'Тест прикреплён к уроку. Прохождение появится на Этапе C.'}</p></div>}
+      {b.type === 'assignment' && <div className="academy-assignment"><small>ПРАКТИКА</small><h3>{d.title || 'Практическое задание'}</h3><p>{d.text}</p><Rich blocks={d.rich} />{d.material_ids?.map(id => <AssetLink key={id} id={id} {...{ courseID, assets, assetURL: mediaURL }} />)}<p className="course-muted">Формат ответа: {({ text: 'текст', file: 'файл', link: 'ссылка' })[d.answer_format]}. Сдача и проверка работ пока недоступны.</p></div>}
     </section> })}
-    {!lesson.blocks.length && <div className="academy-empty"><img src="/static/academy/program-start.png" alt="" /><h2>Содержимое урока ещё готовится</h2><p>Добавьте первый блок в редакторе.</p></div>}
+    {!lesson.blocks.length && <div className="academy-empty"><img src="/static/academy/program-start.png" alt="" /><h2>Содержимое урока ещё готовится</h2><p>{mode === 'learn' ? 'В этой версии урока ещё нет блоков.' : 'Добавьте первый блок в редакторе.'}</p></div>}
   </article>
 }

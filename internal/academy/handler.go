@@ -37,6 +37,8 @@ func fail(w http.ResponseWriter, status int, message string) {
 func problem(w http.ResponseWriter, e error) {
 	var in inputError
 	switch {
+	case errors.Is(e, ErrAccess):
+		fail(w, 403, e.Error())
 	case errors.Is(e, ErrConflict):
 		fail(w, 409, e.Error())
 	case errors.Is(e, sql.ErrNoRows):
@@ -59,6 +61,9 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 }
 func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/academy/courses/", h.gate(h.route))
+	mux.HandleFunc("/api/academy/learning", h.learner)
+	mux.HandleFunc("/api/academy/learning/", h.learner)
+	mux.HandleFunc("/api/academy/enrollments/", h.learner)
 }
 func (h *Handler) route(w http.ResponseWriter, r *http.Request) {
 	user, e := h.user(r)
@@ -81,6 +86,10 @@ func (h *Handler) route(w http.ResponseWriter, r *http.Request) {
 	action := ""
 	if len(parts) > 1 {
 		action = parts[1]
+	}
+	if oneOf(action, "releases", "students", "user-search") {
+		h.teaching(w, r, course, user, parts[1:])
+		return
 	}
 	if action == "assets" {
 		h.assets(w, r, course, user, parts[2:])

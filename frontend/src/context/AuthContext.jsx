@@ -31,6 +31,11 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const [coursesAccess, setCoursesAccess] = useState(false)
   const [coursesAccessLoading, setCoursesAccessLoading] = useState(true)
+  const [learningAccess, setLearningAccess] = useState(false)
+  const refreshLearningAccess = useCallback(async () => {
+    try { const result = await apiClient.get('/api/academy/learning/access', { redirectOnUnauthorized: false }); setLearningAccess(result.allowed === true) }
+    catch { setLearningAccess(false) }
+  }, [])
   const refreshCoursesAccess = useCallback(async () => {
     try {
       const access = await apiClient.get('/api/courses/access', { redirectOnUnauthorized: false })
@@ -62,8 +67,9 @@ export function AuthProvider({ children }) {
     window.addEventListener('focus', refreshCoursesAccess)
     return () => window.removeEventListener('focus', refreshCoursesAccess)
   }, [refreshCoursesAccess, user?.id])
+  useEffect(() => { refreshLearningAccess(); window.addEventListener('focus', refreshLearningAccess); return () => window.removeEventListener('focus', refreshLearningAccess) }, [refreshLearningAccess, user?.id])
 
-  const value = useMemo(() => ({ user, loading, refresh, coursesAccess, coursesAccessLoading }), [user, loading, refresh, coursesAccess, coursesAccessLoading])
+  const value = useMemo(() => ({ user, loading, refresh, coursesAccess, coursesAccessLoading, learningAccess }), [user, loading, refresh, coursesAccess, coursesAccessLoading, learningAccess])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 

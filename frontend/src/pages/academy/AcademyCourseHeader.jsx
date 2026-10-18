@@ -1,0 +1,6 @@
+import { Link } from 'react-router-dom'
+import Icon from '../../components/Icon'
+import { statuses } from '../courses/shared'
+export default function AcademyCourseHeader({ course, id, section = 'program' }) {
+  return <><header className="academy-course-header"><div className="academy-course-identity">{course.cover_image ? <img src={course.cover_image} alt="" /> : <i><Icon name="book" /></i>}<div><small>FINTALENT ACADEMY</small><h1>{course.title || 'Ваш новый курс'}</h1><span className={`course-badge ${course.status}`}>Лендинг: {statuses[course.status]}</span></div></div><div className="academy-header-actions"><Link className="course-secondary" to={`/profile/courses/${id}/preview`}>Посмотреть лендинг ↗</Link><Link className="course-primary" to={`/profile/courses/${id}/edit`}>Редактировать лендинг</Link></div></header><nav className="academy-section-nav" aria-label="Кабинет курса"><Link className={section === 'program' ? 'current' : ''} to={`/profile/courses/${id}/academy`}><Icon name="book" /> Программа и уроки</Link><Link className={section === 'students' ? 'current' : ''} to={`/profile/courses/${id}/academy/students`}><Icon name="users" /> Ученики</Link><p>{section === 'program' ? 'Учебные материалы независимы от программы лендинга' : 'Самостоятельное обучение · доступ и прогресс'}</p></nav></>
+}

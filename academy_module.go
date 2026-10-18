@@ -13,8 +13,15 @@ import (
 //go:embed migrations/078_academy.sql
 var academySchema string
 
+//go:embed migrations/079_academy_learning.sql
+var academyLearningSchema string
+
 func prepareAcademyDatabase(ctx context.Context) error {
 	_, err := db.ExecContext(ctx, academySchema)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, academyLearningSchema)
 	return err
 }
 func registerAcademyRoutes(gate func(http.HandlerFunc) http.HandlerFunc) {
@@ -40,4 +47,6 @@ func registerAcademyRoutes(gate func(http.HandlerFunc) http.HandlerFunc) {
 		return u.ID, nil
 	}, gate, absolute)
 	h.Register(http.DefaultServeMux)
+	http.HandleFunc("/profile/learning", serveFrontendPage("static/courses-unavailable.html"))
+	http.HandleFunc("/profile/learning/", serveFrontendPage("static/courses-unavailable.html"))
 }

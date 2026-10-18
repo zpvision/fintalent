@@ -41,8 +41,12 @@ import CoursesPage from './pages/courses/CoursesPage'
 import CourseEditor from './pages/courses/CourseEditor'
 import CourseView from './pages/courses/CourseView'
 import AcademyPage from './pages/academy/AcademyPage'
+import AcademyStudents from './pages/academy/AcademyStudents'
+import MyLearningPage from './pages/academy/MyLearningPage'
+import LearningRoom from './pages/academy/LearningRoom'
 
 const reactPaths = [
+ '/profile/learning', '/profile/learning/:enrollmentId', '/profile/courses/:id/academy/students', '/profile/courses/:id/academy/room/:versionId',
   '/profile/courses/:id/academy', '/courses', '/courses/:slug', '/profile/courses', '/profile/courses/create', '/profile/courses/:id/edit', '/profile/courses/:id/preview',
   '/', '/login', '/register', '/forgot-password', '/profile-purpose', '/vacancies', '/vacancies/view', '/vacancies/create',
   '/profiles', '/profiles/view/:id', '/profiles/create', '/resumes', '/resume/view/:id', '/resume/create', '/marketplace', '/marketplace/create-test',
@@ -154,6 +158,10 @@ export default function App() {
       <Route path="/courses/:slug" element={<CourseAccessGate><CourseView /></CourseAccessGate>} />
       <Route path="/profile/courses" element={<CourseAccessGate><CoursesPage mine /></CourseAccessGate>} />
       <Route path="/profile/courses/create" element={<CourseAccessGate><CourseEditor /></CourseAccessGate>} />
+      <Route path="/profile/learning" element={<MyLearningPage />} />
+      <Route path="/profile/learning/:enrollmentId" element={<LearningRoom />} />
+      <Route path="/profile/courses/:id/academy/students" element={<CourseAccessGate><AcademyStudents /></CourseAccessGate>} />
+      <Route path="/profile/courses/:id/academy/room/:versionId" element={<CourseAccessGate><LearningRoom preview /></CourseAccessGate>} />
       <Route path="/profile/courses/:id/academy" element={<CourseAccessGate><AcademyPage /></CourseAccessGate>} />
       <Route path="/profile/courses/:id/edit" element={<CourseAccessGate><CourseEditor /></CourseAccessGate>} />
       <Route path="/profile/courses/:id/preview" element={<CourseAccessGate><CourseView preview /></CourseAccessGate>} />

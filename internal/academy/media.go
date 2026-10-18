@@ -200,6 +200,18 @@ func (h *Handler) assets(w http.ResponseWriter, r *http.Request, course, user in
 		fail(w, 405, "Метод не поддерживается")
 		return
 	}
+	h.sendAssetFile(w, r, storage, name, typ)
+}
+func (h *Handler) serveAsset(w http.ResponseWriter, r *http.Request, program, id int64) {
+	var storage, name, typ string
+	err := h.db.QueryRowContext(r.Context(), `SELECT storage_key,name,mime FROM academy_media_assets WHERE program_id=$1 AND id=$2 AND deleted_at IS NULL`, program, id).Scan(&storage, &name, &typ)
+	if err != nil {
+		problem(w, err)
+		return
+	}
+	h.sendAssetFile(w, r, storage, name, typ)
+}
+func (h *Handler) sendAssetFile(w http.ResponseWriter, r *http.Request, storage, name, typ string) {
 	if !regexpStorage(storage) {
 		fail(w, 404, "Файл не найден")
 		return
