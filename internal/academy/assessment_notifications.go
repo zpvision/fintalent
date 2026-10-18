@@ -22,7 +22,7 @@ func (h *Handler) assessmentResults(w http.ResponseWriter, r *http.Request, cour
 		before = v
 	}
 	var raw json.RawMessage
-	err := h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(x.payload ORDER BY x.id DESC),'[]') FROM(SELECT t.id,jsonb_build_object('id',t.id,'enrollment_id',e.id,'user_name',u.full_name,'title',a.title,'number',t.number,'score',t.score,'max_score',t.max_score,'percent',t.percent,'passed',t.passed,'finished_at',t.finished_at,'version_number',v.number) payload FROM academy_test_attempts t JOIN academy_enrollments e ON e.id=t.enrollment_id JOIN courses c ON c.id=e.course_id JOIN users u ON u.id=e.user_id JOIN academy_assessment_versions a ON a.id=t.assessment_id JOIN academy_program_versions v ON v.id=e.program_version_id WHERE c.id=$1 AND c.owner_id=$2 AND t.status='finished' AND t.id<$3 ORDER BY t.id DESC LIMIT 200)x`, course, user, before).Scan(&raw)
+	err := h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(x.payload ORDER BY x.id DESC),'[]') FROM(SELECT t.id,jsonb_build_object('id',t.id,'enrollment_id',e.id,'user_name',u.full_name,'title',a.title,'number',t.number,'score',t.score,'max_score',t.max_score,'percent',t.percent,'passed',t.passed,'finished_at',t.finished_at,'version_number',v.number) payload FROM academy_test_attempts t JOIN academy_enrollments e ON e.id=t.enrollment_id JOIN courses c ON c.id=e.course_id JOIN users u ON u.id=e.user_id JOIN academy_assessment_versions a ON a.id=t.assessment_id JOIN academy_program_versions v ON v.id=e.program_version_id WHERE c.id=$1 AND academy_can_manage_enrollment(e.id,$2,true) AND t.status='finished' AND t.id<$3 ORDER BY t.id DESC LIMIT 200)x`, course, user, before).Scan(&raw)
 	if err != nil {
 		problem(w, err)
 		return

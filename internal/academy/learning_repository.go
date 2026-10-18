@@ -11,6 +11,10 @@ import (
 var ErrAccess = errors.New("Доступ к обучению приостановлен, отозван или закончился")
 
 type Enrollment struct {
+	CuratorID        int64           `json:"curator_id,omitempty"`
+	CohortID         *int64          `json:"cohort_id"`
+	Cohort           *Cohort         `json:"cohort,omitempty"`
+	CuratorName      string          `json:"curator_name,omitempty"`
 	AssessmentStates map[string]bool `json:"-"`
 	ID               int64           `json:"id"`
 	CourseID         int64           `json:"course_id"`
@@ -38,7 +42,7 @@ type Enrollment struct {
 	Progress         []Progress      `json:"progress,omitempty"`
 }
 
-const enrollmentSQL = `SELECT e.id,e.course_id,e.user_id,e.program_version_id,v.number,e.access_status,e.enrolled_at,e.started_at,e.expires_at,e.completed_at,e.last_activity_at,e.last_lesson_key,c.title,c.cover_image,author.full_name,student.full_name,COALESCE(student.avatar_url,''),v.content,r.test_metadata,v.program_id,(author.is_blocked OR student.is_blocked OR student.is_system) FROM academy_enrollments e JOIN courses c ON c.id=e.course_id JOIN users author ON author.id=c.owner_id JOIN users student ON student.id=e.user_id JOIN academy_program_versions v ON v.id=e.program_version_id JOIN academy_version_releases r ON r.version_id=v.id WHERE e.id=$1 AND (($3 AND c.owner_id=$2) OR (NOT $3 AND e.user_id=$2))`
+const enrollmentSQL = `SELECT e.id,e.course_id,e.user_id,e.program_version_id,v.number,e.access_status,e.enrolled_at,e.started_at,e.expires_at,e.completed_at,e.last_activity_at,e.last_lesson_key,c.title,c.cover_image,author.full_name,student.full_name,COALESCE(student.avatar_url,''),v.content,r.test_metadata,v.program_id,(author.is_blocked OR student.is_blocked OR student.is_system),e.cohort_id,(SELECT to_jsonb(ch) FROM academy_cohorts ch WHERE ch.id=e.cohort_id),COALESCE((SELECT u.full_name FROM academy_student_curators sc JOIN users u ON u.id=sc.user_id JOIN academy_cohort_staff st ON st.cohort_id=e.cohort_id AND st.user_id=sc.user_id WHERE sc.enrollment_id=e.id AND NOT u.is_blocked),''),COALESCE((SELECT sc.user_id FROM academy_student_curators sc JOIN academy_cohort_staff st ON st.user_id=sc.user_id AND st.cohort_id=e.cohort_id WHERE sc.enrollment_id=e.id),0) FROM academy_enrollments e JOIN courses c ON c.id=e.course_id JOIN users author ON author.id=c.owner_id JOIN users student ON student.id=e.user_id JOIN academy_program_versions v ON v.id=e.program_version_id JOIN academy_version_releases r ON r.version_id=v.id WHERE e.id=$1 AND (($3 AND academy_can_manage_enrollment(e.id,$2,false)) OR (NOT $3 AND e.user_id=$2))`
 
 func loadEnrollment(ctx context.Context, q queryer, id, user int64, owner, locked bool) (*Enrollment, error) {
 	sqlText := enrollmentSQL
@@ -47,13 +51,20 @@ func loadEnrollment(ctx context.Context, q queryer, id, user int64, owner, locke
 	}
 	var e Enrollment
 	var raw []byte
-	err := q.QueryRowContext(ctx, sqlText, id, user, owner).Scan(&e.ID, &e.CourseID, &e.UserID, &e.VersionID, &e.VersionNumber, &e.AccessStatus, &e.EnrolledAt, &e.StartedAt, &e.ExpiresAt, &e.CompletedAt, &e.LastActivityAt, &e.LastLessonKey, &e.Title, &e.Cover, &e.Author, &e.UserName, &e.Avatar, &raw, &e.Tests, &e.ProgramID, &e.Unavailable)
+	var cohortRaw []byte
+	err := q.QueryRowContext(ctx, sqlText, id, user, owner).Scan(&e.ID, &e.CourseID, &e.UserID, &e.VersionID, &e.VersionNumber, &e.AccessStatus, &e.EnrolledAt, &e.StartedAt, &e.ExpiresAt, &e.CompletedAt, &e.LastActivityAt, &e.LastLessonKey, &e.Title, &e.Cover, &e.Author, &e.UserName, &e.Avatar, &raw, &e.Tests, &e.ProgramID, &e.Unavailable, &e.CohortID, &cohortRaw, &e.CuratorName, &e.CuratorID)
 	if err != nil {
 		return nil, err
 	}
 	if err = json.Unmarshal(raw, &e.Program); err != nil {
 		return nil, err
 	}
+	if len(cohortRaw) > 0 {
+		if err = json.Unmarshal(cohortRaw, &e.Cohort); err != nil {
+			return nil, err
+		}
+	}
+	normalizeCohortProgram(&e)
 	e.EffectiveStatus = e.AccessStatus
 	if e.Unavailable {
 		e.EffectiveStatus = "suspended"
@@ -90,6 +101,9 @@ func (h *Handler) recordProgress(ctx context.Context, id, user int64, key, opera
 	}
 	if e.EffectiveStatus != "active" {
 		return nil, ErrAccess
+	}
+	if err = e.checkLesson(key); err != nil {
+		return nil, err
 	}
 	lesson, ok := findLesson(e.Program, key)
 	if !ok {

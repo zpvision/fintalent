@@ -19,6 +19,9 @@ func (h *Handler) assessmentTx(r *http.Request, id, user int64, lesson, block st
 	if err == nil && e.EffectiveStatus != "active" {
 		err = ErrAccess
 	}
+	if err == nil {
+		err = e.checkLesson(lesson)
+	}
 	var a *Assessment
 	if err == nil {
 		a, err = assessment(r.Context(), tx, e, lesson, block)
@@ -235,6 +238,10 @@ func (h *Handler) assessmentState(w http.ResponseWriter, r *http.Request, e *Enr
 		problem(w, ErrAccess)
 		return
 	}
+	if err = e.checkLesson(lesson); err != nil {
+		problem(w, err)
+		return
+	}
 	a, err := assessment(r.Context(), h.db, e, lesson, block)
 	if err != nil {
 		problem(w, err)
@@ -252,7 +259,7 @@ func (h *Handler) assessmentState(w http.ResponseWriter, r *http.Request, e *Enr
 			problem(w, err)
 			return
 		}
-		respond(w, 200, map[string]any{"assessment": a, "submissions": history, "files": files})
+		respond(w, 200, map[string]any{"assessment": a, "submissions": history, "files": files, "deadline_at": func() *time.Time { at, _ := assignmentDeadline(e.Cohort, block); return at }(), "allow_late": func() bool { _, allow := assignmentDeadline(e.Cohort, block); return allow }()})
 		return
 	}
 	attempts, err := testAttempts(r.Context(), h.db, e.ID, a.ID)

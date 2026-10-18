@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func (h *Handler) assignmentAction(w http.ResponseWriter, r *http.Request, tx *sql.Tx, e *Enrollment, a *Assessment, user int64, tail []string, finish func()) {
@@ -141,6 +142,11 @@ func (h *Handler) assignmentAction(w http.ResponseWriter, r *http.Request, tx *s
 			if !decode(w, r, &body) {
 				return
 			}
+			due, late := assignmentDeadline(e.Cohort, a.BlockKey)
+			if due != nil && !late && !due.After(time.Now()) {
+				fail(w, 403, "Срок сдачи задания истёк. Поздняя отправка отключена преподавателем")
+				return
+			}
 			if body.Revision != s.Revision {
 				fail(w, 409, "Черновик изменён. Обновите задание перед отправкой")
 				return
@@ -152,7 +158,7 @@ func (h *Handler) assignmentAction(w http.ResponseWriter, r *http.Request, tx *s
 				problem(w, err)
 				return
 			}
-			_, err = tx.ExecContext(r.Context(), `UPDATE academy_assignment_submissions SET status='submitted',submitted_at=NOW(),updated_at=NOW(),revision=revision+1 WHERE id=$1`, id)
+			_, err = tx.ExecContext(r.Context(), `UPDATE academy_assignment_submissions SET status='submitted',submitted_at=NOW(),updated_at=NOW(),revision=revision+1,submitted_deadline_at=$2,is_late=($2::timestamptz IS NOT NULL AND clock_timestamp()>$2) WHERE id=$1`, id, due)
 			if err == nil {
 				err = touchLearningTx(r.Context(), tx, e, user, a.LessonKey)
 			}

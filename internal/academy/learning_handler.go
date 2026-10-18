@@ -41,7 +41,13 @@ func (h *Handler) learner(w http.ResponseWriter, r *http.Request) {
 			problem(w, err)
 			return
 		}
-		respond(w, 200, map[string]bool{"allowed": allowed})
+		var teaching bool
+		err = h.db.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_cohort_staff s JOIN academy_cohorts ch ON ch.id=s.cohort_id JOIN courses c ON c.id=ch.course_id JOIN users u ON u.id=c.owner_id WHERE s.user_id=$1 AND NOT u.is_blocked)`, user).Scan(&teaching)
+		if err != nil {
+			problem(w, err)
+			return
+		}
+		respond(w, 200, map[string]bool{"allowed": allowed, "teaching": teaching})
 		return
 	}
 	if strings.TrimSuffix(r.URL.Path, "/") == "/api/academy/learning" && r.Method == "GET" {
@@ -90,11 +96,19 @@ func (h *Handler) learner(w http.ResponseWriter, r *http.Request) {
 			fail(w, 405, "Метод не поддерживается")
 			return
 		}
+		if err = e.checkLesson(lesson.Key); err != nil {
+			problem(w, err)
+			return
+		}
 		h.serveAsset(w, r, e.ProgramID, asset)
 		return
 	}
 	if len(parts) > 2 && parts[1] == "lessons" {
 		key := parts[2]
+		if err = e.checkLesson(key); err != nil {
+			problem(w, err)
+			return
+		}
 		l, ok := findLesson(e.Program, key)
 		if !ok {
 			problem(w, sql.ErrNoRows)
@@ -195,6 +209,20 @@ func (h *Handler) room(w http.ResponseWriter, r *http.Request, e *Enrollment) {
 		return
 	}
 	p := learningProgram(e.Program)
+	unlocks := map[string]LessonAvailability{}
+	for i := range p.Modules {
+		for j := range p.Modules[i].Lessons {
+			l := &p.Modules[i].Lessons[j]
+			a := e.lessonAvailability(l.Key)
+			unlocks[l.Key] = a
+			if !a.Available {
+				l.SelfPaced = false
+				l.Blocks = []Block{}
+				l.Description = ""
+				l.CoverAssetID = 0
+			}
+		}
+	}
 	assets, err := h.roomAssets(r, e.ProgramID, p)
 	if err != nil {
 		problem(w, err)
@@ -212,7 +240,19 @@ func (h *Handler) room(w http.ResponseWriter, r *http.Request, e *Enrollment) {
 			}
 		}
 	}
-	respond(w, 200, map[string]any{"enrollment": e, "program": p, "assets": assets, "tests": e.Tests, "completion_blocks": blocks, "resume_lesson_key": resumeLesson(e.Program, e.LastLessonKey, e.Progress)})
+	deadlines := map[string]any{}
+	for _, m := range e.Program.Modules {
+		for _, l := range m.Lessons {
+			for _, b := range l.Blocks {
+				if b.Type == "assignment" {
+					if at, late := assignmentDeadline(e.Cohort, b.Key); at != nil {
+						deadlines[b.Key] = map[string]any{"at": at, "allow_late": late, "title": b.Data.Title}
+					}
+				}
+			}
+		}
+	}
+	respond(w, 200, map[string]any{"deadlines": deadlines, "enrollment": e, "program": p, "assets": assets, "tests": e.Tests, "completion_blocks": blocks, "availability": unlocks, "resume_lesson_key": resumeLesson(p, e.LastLessonKey, e.Progress)})
 }
 func (h *Handler) roomAssets(r *http.Request, program int64, p Program) (json.RawMessage, error) {
 	ids := []int64{}
@@ -277,7 +317,7 @@ func (h *Handler) enrollmentList(w http.ResponseWriter, r *http.Request, user in
 	}
 	// One query for the collection, version contents and progress; no per-student DB round trips.
 	var raw []byte
-	err := h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(x.payload ORDER BY x.id DESC),'[]') FROM (SELECT e.id,COALESCE(e.last_activity_at,e.enrolled_at) activity,to_jsonb(e)||jsonb_build_object('title',c.title,'cover_image',c.cover_image,'author_name',author.full_name,'user_name',student.full_name,'avatar',COALESCE(student.avatar_url,''),'version_number',v.number,'program_content',v.content,'unavailable',author.is_blocked OR student.is_blocked OR student.is_system,'progress',COALESCE((SELECT jsonb_agg(jsonb_build_object('lesson_key',p.lesson_key,'status',p.status,'completed_at',p.completed_at) ORDER BY p.lesson_key) FROM academy_lesson_progress p WHERE p.enrollment_id=e.id AND p.program_version_id=e.program_version_id),'[]')) payload FROM academy_enrollments e JOIN courses c ON c.id=e.course_id JOIN users author ON author.id=c.owner_id JOIN users student ON student.id=e.user_id JOIN academy_program_versions v ON v.id=e.program_version_id WHERE e.id<$4 AND (($2 AND c.owner_id=$1 AND c.id=$3) OR (NOT $2 AND e.user_id=$1)) ORDER BY e.id DESC LIMIT 200) x`, user, owner, course, before).Scan(&raw)
+	err := h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(x.payload ORDER BY x.id DESC),'[]') FROM (SELECT e.id,COALESCE(e.last_activity_at,e.enrolled_at) activity,to_jsonb(e)||jsonb_build_object('title',c.title,'cover_image',c.cover_image,'author_name',author.full_name,'user_name',student.full_name,'avatar',COALESCE(student.avatar_url,''),'version_number',v.number,'cohort',(SELECT to_jsonb(ch) FROM academy_cohorts ch WHERE ch.id=e.cohort_id),'program_content',v.content,'unavailable',author.is_blocked OR student.is_blocked OR student.is_system,'progress',COALESCE((SELECT jsonb_agg(jsonb_build_object('lesson_key',p.lesson_key,'status',p.status,'completed_at',p.completed_at) ORDER BY p.lesson_key) FROM academy_lesson_progress p WHERE p.enrollment_id=e.id AND p.program_version_id=e.program_version_id),'[]')) payload FROM academy_enrollments e JOIN courses c ON c.id=e.course_id JOIN users author ON author.id=c.owner_id JOIN users student ON student.id=e.user_id JOIN academy_program_versions v ON v.id=e.program_version_id WHERE e.id<$4 AND (($2 AND academy_can_manage_enrollment(e.id,$1,false) AND c.id=$3) OR (NOT $2 AND e.user_id=$1)) ORDER BY e.id DESC LIMIT 200) x`, user, owner, course, before).Scan(&raw)
 	if err != nil {
 		problem(w, err)
 		return
@@ -294,6 +334,9 @@ func (h *Handler) enrollmentList(w http.ResponseWriter, r *http.Request, user in
 	items := []Enrollment{}
 	for _, row := range rows {
 		e := row.Enrollment
+		e.Program = row.Content
+		normalizeCohortProgram(&e)
+		row.Content = e.Program
 		e.EffectiveStatus = e.AccessStatus
 		if row.Unavailable {
 			e.EffectiveStatus = "suspended"

@@ -106,7 +106,7 @@ func (h *Handler) releases(w http.ResponseWriter, r *http.Request, course, user 
 				problem(w, err)
 				return
 			}
-			items = append(items, map[string]any{"id": id, "number": number, "revision": rev, "published_at": date, "readiness": CheckReadiness(p)})
+			items = append(items, map[string]any{"id": id, "number": number, "revision": rev, "published_at": date, "readiness": CheckReadiness(p), "modules": len(learningProgram(p).Modules), "tests": countBlocks(p, "test"), "assignments": countBlocks(p, "assignment")})
 		}
 		if err = rows.Err(); err != nil {
 			problem(w, err)
@@ -269,7 +269,7 @@ func (h *Handler) students(w http.ResponseWriter, r *http.Request, course, user 
 			return
 		}
 		var history []byte
-		err = h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(jsonb_build_object('type',type,'created_at',created_at,'data',data) ORDER BY created_at DESC,id DESC),'[]') FROM academy_learning_events WHERE enrollment_id=$1 AND type IN ('enrolled','access_suspended','access_restored','access_revoked','access_updated')`, id).Scan(&history)
+		err = h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(jsonb_build_object('type',type,'created_at',created_at,'data',data) ORDER BY created_at DESC,id DESC),'[]') FROM academy_learning_events WHERE enrollment_id=$1 AND type IN ('enrolled','access_suspended','access_restored','access_revoked','access_updated','student_enrolled','student_transferred','curator_assigned','course_completed')`, id).Scan(&history)
 		if err != nil {
 			problem(w, err)
 			return
@@ -304,6 +304,10 @@ func (h *Handler) students(w http.ResponseWriter, r *http.Request, course, user 
 	if !decode(w, r, &v) {
 		return
 	}
+	if !h.courseOwner(r, course, user) {
+		fail(w, 403, "Только владелец управляет доступом")
+		return
+	}
 	if !oneOf(v.Status, "active", "suspended", "revoked") || v.SetExpiration && v.ExpiresAt != nil && !v.ExpiresAt.After(time.Now()) {
 		fail(w, 400, "Проверьте статус и срок доступа")
 		return
@@ -314,6 +318,12 @@ func (h *Handler) students(w http.ResponseWriter, r *http.Request, course, user 
 		return
 	}
 	defer tx.Rollback()
+	if e.CohortID != nil {
+		if _, err = loadCohort(r.Context(), tx, *e.CohortID, course, true); err != nil {
+			problem(w, err)
+			return
+		}
+	}
 	e, err = loadEnrollment(r.Context(), tx, id, user, true, true)
 	if err != nil {
 		problem(w, err)
@@ -333,7 +343,7 @@ func (h *Handler) students(w http.ResponseWriter, r *http.Request, course, user 
 			return
 		}
 		var duplicate bool
-		err = tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_enrollments WHERE course_id=$1 AND user_id=$2 AND program_version_id=$3 AND id<>$4 AND cohort_id IS NULL AND access_status IN ('active','suspended'))`, course, e.UserID, e.VersionID, e.ID).Scan(&duplicate)
+		err = tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_enrollments WHERE course_id=$1 AND user_id=$2 AND program_version_id=$3 AND id<>$4 AND cohort_id IS NOT DISTINCT FROM $5 AND access_status IN ('active','suspended'))`, course, e.UserID, e.VersionID, e.ID, e.CohortID).Scan(&duplicate)
 		if err != nil {
 			problem(w, err)
 			return
@@ -349,12 +359,20 @@ func (h *Handler) students(w http.ResponseWriter, r *http.Request, course, user 
 		fail(w, 409, "Для этой версии уже есть другое действующее зачисление")
 		return
 	}
-	if err == nil && (v.Status != e.AccessStatus || v.SetExpiration) {
+	expirationChanged := v.SetExpiration && ((v.ExpiresAt == nil) != (e.ExpiresAt == nil) || v.ExpiresAt != nil && e.ExpiresAt != nil && !v.ExpiresAt.Equal(*e.ExpiresAt))
+	if err == nil && (v.Status != e.AccessStatus || expirationChanged) {
 		typ := map[string]string{"active": "access_restored", "suspended": "access_suspended", "revoked": "access_revoked"}[v.Status]
 		if v.Status == e.AccessStatus {
 			typ = "access_updated"
 		}
 		err = event(r.Context(), tx, e, user, typ, "", "", map[string]any{"previous_status": e.AccessStatus, "expires_at": v.ExpiresAt, "set_expiration": v.SetExpiration})
+		if err == nil {
+			if expirationChanged && v.Status == "active" {
+				typ = "access_extended"
+			}
+			now := time.Now()
+			err = cohortEvent(r.Context(), tx, course, e.CohortID, &e.ID, user, typ, "", map[string]any{"expires_at": v.ExpiresAt}, &e.UserID, &now)
+		}
 	}
 	if err != nil {
 		problem(w, err)

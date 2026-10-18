@@ -62,11 +62,12 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	return true
 }
 func (h *Handler) Register(mux *http.ServeMux) {
-	mux.HandleFunc("/api/academy/courses/", h.gate(h.route))
+	mux.HandleFunc("/api/academy/courses/", h.authorOrStaff)
 	mux.HandleFunc("/api/academy/learning", h.learner)
 	mux.HandleFunc("/api/academy/learning/", h.learner)
 	mux.HandleFunc("/api/academy/enrollments/", h.learner)
 	mux.HandleFunc("/api/academy/notifications", h.learner)
+	mux.HandleFunc("/api/academy/workspaces", h.staffWorkspaces)
 }
 func (h *Handler) route(w http.ResponseWriter, r *http.Request) {
 	user, e := h.user(r)
@@ -80,15 +81,38 @@ func (h *Handler) route(w http.ResponseWriter, r *http.Request) {
 		fail(w, 404, "Курс не найден")
 		return
 	}
-	var owner int64
-	e = h.db.QueryRowContext(r.Context(), `SELECT c.owner_id FROM courses c JOIN users u ON u.id=c.owner_id WHERE c.id=$1 AND c.owner_id=$2 AND NOT u.is_blocked`, course, user).Scan(&owner)
-	if e != nil {
-		problem(w, e)
-		return
-	}
+	owner := h.courseOwner(r, course, user)
 	action := ""
 	if len(parts) > 1 {
 		action = parts[1]
+	}
+	if !owner {
+		var allowed bool
+		e = h.db.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_cohort_staff s JOIN academy_cohorts c ON c.id=s.cohort_id JOIN users u ON u.id=s.user_id JOIN courses co ON co.id=c.course_id JOIN users owner ON owner.id=co.owner_id WHERE c.course_id=$1 AND s.user_id=$2 AND NOT u.is_blocked AND NOT u.is_system AND NOT owner.is_blocked)`, course, user).Scan(&allowed)
+		if e != nil {
+			problem(w, e)
+			return
+		}
+		if !allowed {
+			problem(w, sql.ErrNoRows)
+			return
+		}
+		if !((action == "" && r.Method == "GET") || oneOf(action, "cohorts", "crm", "reviews", "assessment-results") || action == "students" && r.Method == "GET") {
+			fail(w, 403, "Недостаточно прав")
+			return
+		}
+		if action == "" {
+			h.cohortWorkspace(w, r, course, user, false)
+			return
+		}
+	}
+	if action == "cohorts" {
+		h.cohortRoute(w, r, course, user, parts[2:])
+		return
+	}
+	if action == "crm" {
+		h.crmRoute(w, r, course, user, owner, parts[2:])
+		return
 	}
 	if action == "reviews" {
 		h.reviewQueue(w, r, course, user, parts[2:])
@@ -271,7 +295,7 @@ func (h *Handler) entities(w http.ResponseWriter, r *http.Request, course, user 
 }
 func (h *Handler) workspace(w http.ResponseWriter, r *http.Request, course, user int64) {
 	var raw []byte
-	e := h.db.QueryRowContext(r.Context(), `SELECT jsonb_build_object('id',id,'owner_id',owner_id,'title',title,'cover_image',cover_image,'status',status,'slug',slug,'landing_modules',(SELECT count(*) FROM course_modules WHERE course_id=c.id),'landing_lessons',(SELECT count(*) FROM course_lessons l JOIN course_modules m ON m.id=l.module_id WHERE m.course_id=c.id)) FROM courses c WHERE id=$1`, course).Scan(&raw)
+	e := h.db.QueryRowContext(r.Context(), `SELECT jsonb_build_object('id',id,'owner_id',owner_id,'can_manage',true,'title',title,'cover_image',cover_image,'status',status,'slug',slug,'landing_modules',(SELECT count(*) FROM course_modules WHERE course_id=c.id),'landing_lessons',(SELECT count(*) FROM course_lessons l JOIN course_modules m ON m.id=l.module_id WHERE m.course_id=c.id)) FROM courses c WHERE id=$1`, course).Scan(&raw)
 	if e != nil {
 		problem(w, e)
 		return

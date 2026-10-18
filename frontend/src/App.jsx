@@ -43,6 +43,9 @@ import CourseView from './pages/courses/CourseView'
 import AcademyPage from './pages/academy/AcademyPage'
 import AcademyStudents from './pages/academy/AcademyStudents'
 import AcademyReviews from './pages/academy/AcademyReviews'
+import AcademyCohorts from './pages/academy/AcademyCohorts'
+import AcademyCRM from './pages/academy/AcademyCRM'
+import AcademyTeaching from './pages/academy/AcademyTeaching'
 import MyLearningPage from './pages/academy/MyLearningPage'
 import LearningRoom from './pages/academy/LearningRoom'
 
@@ -161,8 +164,13 @@ export default function App() {
       <Route path="/profile/courses" element={<CourseAccessGate><CoursesPage mine /></CourseAccessGate>} />
       <Route path="/profile/courses/create" element={<CourseAccessGate><CourseEditor /></CourseAccessGate>} />
       <Route path="/profile/learning" element={<MyLearningPage />} />
+      <Route path="/profile/academy" element={<AcademyTeaching />} />
+      <Route path="/profile/courses/:id/academy/cohorts" element={<AcademyCohorts />} />
+      <Route path="/profile/courses/:id/academy/cohorts/:cohortId/room" element={<LearningRoom preview />} />
+      <Route path="/profile/courses/:id/academy/cohorts/:cohortId" element={<AcademyCohorts />} />
+      <Route path="/profile/courses/:id/academy/crm" element={<AcademyCRM />} />
       <Route path="/profile/learning/:enrollmentId" element={<LearningRoom />} />
-      <Route path="/profile/courses/:id/academy/reviews" element={<CourseAccessGate><AcademyReviews /></CourseAccessGate>} />
+      <Route path="/profile/courses/:id/academy/reviews" element={<AcademyReviews />} />
       <Route path="/profile/courses/:id/academy/students" element={<CourseAccessGate><AcademyStudents /></CourseAccessGate>} />
       <Route path="/profile/courses/:id/academy/room/:versionId" element={<CourseAccessGate><LearningRoom preview /></CourseAccessGate>} />
       <Route path="/profile/courses/:id/academy" element={<CourseAccessGate><AcademyPage /></CourseAccessGate>} />
