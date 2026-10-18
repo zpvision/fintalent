@@ -3,6 +3,7 @@ package main
 import (
 	"FinTalent/internal/academy"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"github.com/jackc/pgx/v5"
@@ -16,7 +17,15 @@ import (
 )
 
 // Focused opt-in fixture: no live user data and no SMTP transport.
-func TestAcademyCommunicationsIsolatedPostgres(t *testing.T) {
+type academyFocusedFixture struct {
+	DB                                                *sql.DB
+	Mux                                               *http.ServeMux
+	Owner, Student, Teacher, Course, Program, Version int64
+	Root                                              string
+}
+
+func newAcademyFocusedFixture(t *testing.T) academyFocusedFixture {
+	t.Helper()
 	if os.Getenv("RUN_COURSES_DB_TESTS") != "1" {
 		t.Skip("set RUN_COURSES_DB_TESTS=1 and cloud DATABASE_URL")
 	}
@@ -30,27 +39,27 @@ func TestAcademyCommunicationsIsolatedPostgres(t *testing.T) {
 		t.Fatal("invalid DATABASE_URL")
 	}
 	admin := stdlib.OpenDB(*config)
-	defer admin.Close()
+	t.Cleanup(func() { admin.Close() })
 	schema := fmt.Sprintf("academy_comm_audit_%d", time.Now().UnixNano())
 	t.Logf("isolated schema: %s", schema)
 	quoted := pgx.Identifier{schema}.Sanitize()
 	if _, e = admin.Exec("CREATE SCHEMA " + quoted); e != nil {
 		t.Fatal(e)
 	}
-	defer func() {
+	t.Cleanup(func() {
 		if !strings.HasPrefix(schema, "academy_comm_audit_") {
 			panic("unsafe test schema")
 		}
 		if _, e := admin.Exec("DROP SCHEMA " + quoted + " CASCADE"); e != nil {
 			t.Error(e)
 		}
-	}()
+	})
 	config.RuntimeParams["search_path"] = schema
 	isolated := stdlib.OpenDB(*config)
-	defer isolated.Close()
+	t.Cleanup(func() { isolated.Close() })
 	oldDB := db
 	db = isolated
-	defer func() { db = oldDB }()
+	t.Cleanup(func() { db = oldDB })
 	var actual string
 	if e = isolated.QueryRow("SELECT current_schema()").Scan(&actual); e != nil || actual != schema {
 		t.Fatal("schema isolation failed")
@@ -90,8 +99,14 @@ func TestAcademyCommunicationsIsolatedPostgres(t *testing.T) {
 	if _, e = db.Exec("INSERT INTO academy_version_releases(course_id,version_id,published_by) VALUES($1,$2,$3)", course, version, owner); e != nil {
 		t.Fatal(e)
 	}
+	root := t.TempDir()
 	mux := http.NewServeMux()
-	h := academy.New(db, func(r *http.Request) (int64, error) { return strconv.ParseInt(r.Header.Get("X-Test-User"), 10, 64) }, func(h http.HandlerFunc) http.HandlerFunc { return h }, t.TempDir())
+	h := academy.New(db, func(r *http.Request) (int64, error) { return strconv.ParseInt(r.Header.Get("X-Test-User"), 10, 64) }, func(h http.HandlerFunc) http.HandlerFunc { return h }, root)
 	h.Register(mux)
-	testAcademyStageE(t, db, mux, owner, student, course)
+	return academyFocusedFixture{DB: db, Mux: mux, Owner: owner, Student: student, Teacher: teacher, Course: course, Program: program, Version: version, Root: root}
+}
+
+func TestAcademyCommunicationsIsolatedPostgres(t *testing.T) {
+	f := newAcademyFocusedFixture(t)
+	testAcademyStageE(t, f.DB, f.Mux, f.Owner, f.Student, f.Course)
 }

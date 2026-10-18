@@ -12,15 +12,16 @@ import (
 )
 
 type Handler struct {
-	db   *sql.DB
-	user func(*http.Request) (int64, error)
-	gate func(http.HandlerFunc) http.HandlerFunc
-	root string
-	base string
+	db             *sql.DB
+	user           func(*http.Request) (int64, error)
+	gate           func(http.HandlerFunc) http.HandlerFunc
+	root           string
+	base           string
+	analyticsSlots chan struct{}
 }
 
 func New(db *sql.DB, user func(*http.Request) (int64, error), gate func(http.HandlerFunc) http.HandlerFunc, root string) *Handler {
-	return &Handler{db: db, user: user, gate: gate, root: root, base: "https://fintalent.ru"}
+	return &Handler{db: db, user: user, gate: gate, root: root, base: "https://fintalent.ru", analyticsSlots: make(chan struct{}, 2)}
 }
 
 type inputError struct{ message string }
@@ -100,7 +101,7 @@ func (h *Handler) route(w http.ResponseWriter, r *http.Request) {
 			problem(w, sql.ErrNoRows)
 			return
 		}
-		if !((action == "" && r.Method == "GET") || oneOf(action, "cohorts", "crm", "reviews", "assessment-results", "communications") || action == "students" && r.Method == "GET") {
+		if !((action == "" && r.Method == "GET") || oneOf(action, "cohorts", "crm", "reviews", "assessment-results", "communications", "analytics") || action == "students" && r.Method == "GET") {
 			fail(w, 403, "Недостаточно прав")
 			return
 		}
@@ -108,6 +109,10 @@ func (h *Handler) route(w http.ResponseWriter, r *http.Request) {
 			h.cohortWorkspace(w, r, course, user, false)
 			return
 		}
+	}
+	if action == "analytics" {
+		h.analyticsRoute(w, r, course, user, parts[2:])
+		return
 	}
 	if action == "communications" {
 		h.communicationRoute(w, r, course, user, parts[2:])

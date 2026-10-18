@@ -28,6 +28,9 @@ var academyCohortSchema string
 //go:embed migrations/082_academy_communications.sql
 var academyCommunicationSchema string
 
+//go:embed migrations/083_academy_analytics.sql
+var academyAnalyticsSchema string
+
 func prepareAcademyDatabase(ctx context.Context) error {
 	_, err := db.ExecContext(ctx, academySchema)
 	if err != nil {
@@ -46,9 +49,13 @@ func prepareAcademyDatabase(ctx context.Context) error {
 		return err
 	}
 	_, err = db.ExecContext(ctx, academyCommunicationSchema)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, academyAnalyticsSchema)
 	return err
 }
-func registerAcademyRoutes(gate func(http.HandlerFunc) http.HandlerFunc) func(http.HandlerFunc) http.HandlerFunc {
+func academyStorageRoot() string {
 	root := os.Getenv("ACADEMY_STORAGE_DIR")
 	if root == "" {
 		root = filepath.Join(".local-data", "academy")
@@ -63,6 +70,10 @@ func registerAcademyRoutes(gate func(http.HandlerFunc) http.HandlerFunc) func(ht
 	if relErr == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		panic("Academy storage must be outside static")
 	}
+	return absolute
+}
+func registerAcademyRoutes(gate func(http.HandlerFunc) http.HandlerFunc) func(http.HandlerFunc) http.HandlerFunc {
+	absolute := academyStorageRoot()
 	h := academy.New(db, func(r *http.Request) (int64, error) {
 		u, e := userFromRequest(r)
 		if e != nil {

@@ -15,7 +15,7 @@ import (
 func (h *Handler) CoursePage(page http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
-		if len(parts) >= 5 && parts[0] == "profile" && parts[1] == "courses" && parts[3] == "academy" && oneOf(parts[4], "cohorts", "crm", "reviews", "communications", "automations") {
+		if len(parts) >= 5 && parts[0] == "profile" && parts[1] == "courses" && parts[3] == "academy" && oneOf(parts[4], "cohorts", "crm", "reviews", "communications", "automations", "analytics") {
 			course, _ := strconv.ParseInt(parts[2], 10, 64)
 			user, err := h.user(r)
 			if err == nil && user > 0 {
