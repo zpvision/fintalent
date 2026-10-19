@@ -526,12 +526,28 @@ func employeeTestingInvitations(w http.ResponseWriter, r *http.Request) {
 }
 
 func employeeTestingInvitationAction(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "private, no-store")
 	u, err := userFromRequest(r)
 	if err != nil {
 		jsonError(w, http.StatusUnauthorized, "Требуется авторизация")
 		return
 	}
 	parts := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/employee-testing/invitations/"), "/"), "/")
+	if len(parts) == 2 && parts[1] == "results.pdf" {
+		w.Header().Set("Cache-Control", "private, no-store")
+		if r.Method != http.MethodGet {
+			w.Header().Set("Allow", "GET")
+			jsonError(w, http.StatusMethodNotAllowed, "Метод не поддерживается")
+			return
+		}
+		id, err := strconv.ParseInt(parts[0], 10, 64)
+		if err != nil || id < 1 {
+			jsonError(w, http.StatusBadRequest, "Некорректное назначение")
+			return
+		}
+		employeeTestingDownloadPDF(w, r, u, id)
+		return
+	}
 	if r.Method != http.MethodPost || len(parts) != 2 || (parts[1] != "retake" && parts[1] != "revoke" && parts[1] != "send-results") {
 		jsonError(w, http.StatusMethodNotAllowed, "Метод не поддерживается")
 		return

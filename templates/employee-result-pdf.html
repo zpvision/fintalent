@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'"><title>Результаты тестирования — FinTalent</title><style>{{.CSS}}</style></head>
+<body><table class="report"><thead><tr><td><header class="report-brand"><div class="brand"><div class="logo"><img src="{{.Logo}}" alt=""></div><div><b>Fin<span>Talent</span></b><small>Профессиональное тестирование</small></div></div><a href="https://fintalent.ru">fintalent.ru</a></header></td></tr></thead>
+<tbody><tr><td><main>
+<section class="report-summary"><h1>Результаты тестирования</h1>
+<div class="report-panel report-title"><small>ТЕСТ</small><h2>{{.Title}}</h2></div>
+<div class="report-panel"><small>СОТРУДНИК</small><b>{{.Name}}</b><p>{{.Email}}</p></div>
+<div class="report-metrics"><div><small>РЕЗУЛЬТАТ</small><strong>{{.Percent}}%</strong></div><div><small>БАЛЛЫ</small><strong>{{.Score}} / {{.MaxScore}}</strong></div><div><small>ВРЕМЯ</small><strong>{{.Duration}}</strong></div></div>
+{{if .Date}}<p class="report-date">Дата завершения: {{.Date}}</p>{{end}}</section>
+<section class="answer-review"><div class="review-heading"><div><span>Разбор результатов</span><h2>Проверьте свои ответы</h2></div><b>{{.Correct}}<small> / {{len .Questions}}</small></b></div>
+<div class="review-list">{{range .Questions}}
+<article class="review-question {{if .Correct}}correct{{else}}wrong{{end}}"><header><span>{{if .Correct}}✓{{else}}×{{end}}</span><div><small>Вопрос {{.Number}}</small><h3>{{.Text}}</h3></div><b>{{if .Correct}}Верно{{else}}Есть ошибка{{end}}</b></header>
+{{if .Textual}}<div class="text-comparison"><div><small>Ответ сотрудника</small><p>{{.TextAnswer}}</p></div></div>{{else}}<ul>{{range .Options}}<li class="{{.Class}}"><i>{{.Marker}}</i><span>{{if .Selected}}<small class="selected-answer-label">Выбран сотрудником</small>{{end}}{{.Text}}</span></li>{{end}}</ul>{{end}}
+{{if .Explanation}}<p class="review-explanation"><small>Пояснение</small>{{.Explanation}}</p>{{end}}</article>
+{{end}}</div></section>
+</main></td></tr></tbody></table></body></html>
