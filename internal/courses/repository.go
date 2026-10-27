@@ -192,7 +192,15 @@ func (h *Handler) save(ctx context.Context, id, user int64, v *Input) error {
 	if e = saveCustomFeatures(ctx, tx, id, v); e != nil {
 		return e
 	}
-	_, e = tx.ExecContext(ctx, `UPDATE courses SET title=$1,description=$2,category_id=$3,level=$4,cover_image=$5,promo_url=$6,price=$7,old_price=$8,hours=$9,access_months=$10,certificate=$11,chat=$12,updates=$13,any_device=$14,corporate=$15,bonuses_color=$17,revision=revision+1,updated_at=NOW(),status=CASE WHEN status IN ('published','moderation') THEN 'draft' ELSE status END WHERE id=$16`, v.Title, v.Description, v.CategoryID, v.Level, v.CoverImage, v.PromoURL, v.Price, v.OldPrice, v.Hours, v.AccessMonths, v.Certificate, v.Chat, v.Updates, v.AnyDevice, v.Corporate, id, v.BonusesColor)
+	var outcomes any
+	if v.LearningOutcomes != nil {
+		raw, err := json.Marshal(v.LearningOutcomes)
+		if err != nil {
+			return err
+		}
+		outcomes = string(raw)
+	}
+	_, e = tx.ExecContext(ctx, `UPDATE courses SET title=$1,description=$2,category_id=$3,level=$4,cover_image=$5,promo_url=$6,price=$7,old_price=$8,hours=$9,access_months=$10,certificate=$11,chat=$12,updates=$13,any_device=$14,corporate=$15,bonuses_color=$17,learning_outcomes=COALESCE($18::jsonb,learning_outcomes),revision=revision+1,updated_at=NOW(),status=CASE WHEN status IN ('published','moderation') THEN 'draft' ELSE status END WHERE id=$16`, v.Title, v.Description, v.CategoryID, v.Level, v.CoverImage, v.PromoURL, v.Price, v.OldPrice, v.Hours, v.AccessMonths, v.Certificate, v.Chat, v.Updates, v.AnyDevice, v.Corporate, id, v.BonusesColor, outcomes)
 	if e != nil {
 		return e
 	}

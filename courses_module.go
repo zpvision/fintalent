@@ -31,6 +31,9 @@ var courseTariffsSchema string
 //go:embed migrations/077_course_tariff_details.sql
 var courseTariffDetailsSchema string
 
+//go:embed migrations/086_course_learning_outcomes.sql
+var courseLearningOutcomesSchema string
+
 func prepareCoursesDatabase(ctx context.Context) error {
 	_, err := db.ExecContext(ctx, coursesSchema)
 	if err != nil {
@@ -61,6 +64,10 @@ func prepareCoursesDatabase(ctx context.Context) error {
 		return err
 	}
 	_, err = db.ExecContext(ctx, courseTariffDetailsSchema)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, courseLearningOutcomesSchema)
 	return err
 }
 func registerCoursesRoutes() {

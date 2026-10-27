@@ -9,6 +9,24 @@ func validInput() Input {
 	category := int64(1)
 	return Input{Title: "Курс для бухгалтера", Description: "Практические знания для ежедневной работы", CategoryID: &category, Level: "beginner", CoverImage: "/static/uploads/profimarket/" + strings.Repeat("a", 32) + ".webp", Hours: 6, AccessMonths: 12, Benefits: []Benefit{{Icon: "clock", Title: "Время", Description: "Экономия времени"}, {Icon: "check", Title: "Практика", Description: "Рабочие навыки"}, {Icon: "folder", Title: "Материалы", Description: "Готовые шаблоны"}}, Modules: []Module{{Title: "Основы", Lessons: []Lesson{{Title: "Первый урок", Type: "video", Duration: 15}}}}}
 }
+
+func TestLearningOutcomes(t *testing.T) {
+	for _, publishing := range []bool{false, true} {
+		v := validInput()
+		v.LearningOutcomes = []string{"  Составлять финансовую модель  ", " ", strings.Repeat("я", 300)}
+		if err := Validate(&v, publishing); err != nil || v.LearningOutcomes[0] != "Составлять финансовую модель" || v.LearningOutcomes[1] != "" {
+			t.Fatalf("valid outcomes rejected or not trimmed: %v", err)
+		}
+		v.LearningOutcomes = []string{strings.Repeat("я", 301)}
+		if Validate(&v, publishing) == nil {
+			t.Fatal("oversized outcome accepted")
+		}
+		v.LearningOutcomes = make([]string, 21)
+		if Validate(&v, publishing) == nil {
+			t.Fatal("too many outcomes accepted")
+		}
+	}
+}
 func TestCustomFeatureValidation(t *testing.T) {
 	for _, publishing := range []bool{false, true} {
 		v := validInput()
