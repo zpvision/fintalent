@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -41,6 +42,54 @@ func TestEmployeePDFRequiresLogin(t *testing.T) {
 	}
 	if w.Header().Get("Cache-Control") != "private, no-store" {
 		t.Fatal("private results must not be cached")
+	}
+}
+
+func TestEmployeePDFMaterialHTML(t *testing.T) {
+	imageURL, err := employeePDFImage(materialPNG())
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture := employeePDFFixture()
+	html, err := buildEmployeePDFHTML("Сотрудник", "employee@example.invalid", fixture, map[int64][]employeePDFMaterial{
+		1: {{Name: "Диаграмма.png", Kind: "Изображение", Image: imageURL}, {Name: "Данные <script>.pdf", Kind: "Документ PDF"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"data:image/jpeg;base64,", "Диаграмма.png", "Данные &lt;script&gt;.pdf", "Документ PDF"} {
+		if !bytes.Contains(html, []byte(want)) {
+			t.Fatalf("missing %s", want)
+		}
+	}
+	if bytes.Contains(html, []byte("application/pdf;base64")) || bytes.Contains(html, []byte("<iframe")) || bytes.Contains(html, []byte("Данные <script>")) {
+		t.Fatal("PDF contents embedded or unescaped name")
+	}
+	if _, err = employeePDFImage([]byte("not an image")); err == nil {
+		t.Fatal("invalid image accepted")
+	}
+}
+
+func TestEmployeePDFWindowsDiscovery(t *testing.T) {
+	if runtime.GOOS != "windows" {
+		t.Skip("Windows browser locations")
+	}
+	root := t.TempDir()
+	browser := filepath.Join(root, "Microsoft", "Edge", "Application", "msedge.exe")
+	if err := os.MkdirAll(filepath.Dir(browser), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(browser, []byte("MZ"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PDF_CHROMIUM_PATH", "")
+	t.Setenv("PATH", "")
+	t.Setenv("ProgramFiles", root)
+	t.Setenv("ProgramFiles(x86)", "")
+	t.Setenv("LOCALAPPDATA", "")
+	found, err := employeePDFBrowser()
+	if err != nil || found != browser {
+		t.Fatalf("browser discovery: %q, %v", found, err)
 	}
 }
 
@@ -132,7 +181,15 @@ func TestEmployeePDFChromium(t *testing.T) {
 		t.Skip("set PDF_CHROMIUM_PATH to test actual HTML to PDF conversion")
 	}
 	fixture := employeePDFFixture()
-	html, err := buildEmployeePDFHTML("Анна Смирнова", "anna@example.test", fixture)
+	data, err := os.ReadFile("static/profimarket-ai-publish.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	imageURL, err := employeePDFImage(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	html, err := buildEmployeePDFHTML("Анна Смирнова", "anna@example.test", fixture, map[int64][]employeePDFMaterial{1: {{Name: "Изображение к вопросу.png", Kind: "Изображение", Image: imageURL}, {Name: "Материалы.pdf", Kind: "Документ PDF"}}})
 	if err != nil {
 		t.Fatal(err)
 	}

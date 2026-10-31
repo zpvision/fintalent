@@ -28,6 +28,7 @@ async function parseResponse(response) {
 export async function apiRequest(path, options = {}) {
   const {
     redirectOnUnauthorized = true,
+    responseType = 'auto',
     headers,
     body,
     ...requestOptions
@@ -46,7 +47,7 @@ export async function apiRequest(path, options = {}) {
     headers: requestHeaders,
     body: requestBody,
   })
-  const payload = await parseResponse(response)
+  const payload = response.ok && responseType === 'blob' ? await response.blob() : await parseResponse(response)
 
   if (!response.ok) {
     if (response.status === 401 && redirectOnUnauthorized && window.location.pathname !== '/login') {

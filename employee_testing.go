@@ -836,7 +836,7 @@ func employeeTestInfo(w http.ResponseWriter, r *http.Request, token string) {
 			for _, a := range q.Answers {
 				answers = append(answers, map[string]any{"id": a.ID, "answer": a.Answer})
 			}
-			questions = append(questions, map[string]any{"id": q.ID, "question": q.Question, "question_type": q.Type, "points": q.Points, "answers": answers})
+			questions = append(questions, map[string]any{"id": q.ID, "question": q.Question, "question_type": q.Type, "points": q.Points, "answers": answers, "settings": q.Settings})
 		}
 		seen := map[int64]bool{}
 		for _, a := range loaded.Answers {

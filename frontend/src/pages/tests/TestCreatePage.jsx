@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { createQuestion, createTest, deleteQuestion, forkTestDraft, getTest, getTestCategories, publishTest, updateQuestion, updateTest } from '../../api/tests'
 import { useDocumentPage } from '../../hooks/useDocumentPage'
 import usePageStyles from '../../hooks/usePageStyles'
 import UserLayout from '../../layouts/UserLayout'
 import PublishSuccessModal from '../../components/PublishSuccessModal'
+import QuestionMaterials, { QuestionMaterialsEditor } from '../../components/tests/QuestionMaterials'
 
-const styles = ['/static/profile.css', '/static/test-editor.css', '/static/test-create-profile.css?v=2', '/static/profile-logo.css', '/static/profile-sidebar-v2.css?v=2', '/static/profile-buttons.css', '/static/test-correct.css', '/static/test-drag.css', '/static/fintalent-theme.css', '/static/test-create-fix.css', '/static/test-create-blue.css', '/static/test-create-readable.css', '/static/test-info-center.css', '/static/test-answers-section.css', '/static/test-question-clarity.css', '/static/test-question-tools.css?v=2', '/static/test-preview.css?v=2', '/static/test-editor-ux.css', '/static/test-sidebar-sticky.css', '/static/vacancy-publish-success.css?v=1']
+const styles = ['/static/profile.css', '/static/test-editor.css', '/static/test-create-profile.css?v=2', '/static/profile-logo.css', '/static/profile-sidebar-v2.css?v=2', '/static/profile-buttons.css', '/static/test-correct.css', '/static/test-drag.css', '/static/fintalent-theme.css', '/static/test-create-fix.css', '/static/test-create-blue.css', '/static/test-create-readable.css', '/static/test-info-center.css', '/static/test-answers-section.css', '/static/test-question-clarity.css', '/static/test-question-tools.css?v=2', '/static/test-preview.css?v=2', '/static/test-editor-ux.css?v=2', '/static/test-sidebar-sticky.css', '/static/vacancy-publish-success.css?v=1']
 const stepNames = ['Информация', 'Вопросы', 'Предпросмотр', 'Публикация']
 const blankTest = () => ({ title: '', description: '', category: '', difficulty: 'medium', visibility: 'public', is_free: true, shuffle_answers: false, price: 0, version: 1, status: 'draft' })
 const makeAnswer = (answer = '', is_correct = false) => ({ answer, is_correct, key: crypto.randomUUID() })
@@ -68,7 +69,7 @@ function useOrdering(selector, handle, classes, move) {
   }
 }
 
-function Question({ value, index, set, remove, invalid = {} }) {
+function Question({ value, index, set, remove, invalid = {}, testID, updateMaterials, materialBusy, onUploading }) {
   const multiple = value.question_type === 'multiple_choice', text = value.question_type === 'text', boolean = value.question_type === 'boolean'
   const change = (key, next) => set({ ...value, [key]: next })
   const answerOrder = useOrdering('.answer-row', '.drag-handle', ['dragging', 'drop-before', 'drop-after'], (from, to) => change('answers', moveItem(value.answers, from, to)))
@@ -92,8 +93,9 @@ function Question({ value, index, set, remove, invalid = {} }) {
   }
   const selected = value.answers.flatMap((a, i) => a.is_correct ? [String(i)] : [])
   return <article className={`panel question${value.fresh ? ' question-appearing' : ''}${invalid.question ? ' invalid-question' : ''}`} data-key={value.key} data-id={value.id || ''} draggable={false}>
-    <div className="question-head"><b className="number" title="Перетащите, чтобы изменить порядок вопросов">{index + 1}</b><span className="question-type-label">Тип вопроса</span><select className="type" aria-label={`Тип вопроса ${index + 1}`} value={value.question_type} onChange={e => changeType(e.target.value)}><option value="single_choice">Один вариант</option><option value="multiple_choice">Несколько вариантов</option><option value="boolean">Да / Нет</option><option value="text">Текст</option></select><button type="button" className="remove" title="Удалить" aria-label={`Удалить вопрос ${index + 1}`} onClick={remove}>×</button></div>
+    <div className="question-head"><b className="number" title="Перетащите, чтобы изменить порядок вопросов">{index + 1}</b><span className="question-type-label">Тип вопроса</span><select className="type" aria-label={`Тип вопроса ${index + 1}`} value={value.question_type} onChange={e => changeType(e.target.value)}><option value="single_choice">Один вариант</option><option value="multiple_choice">Несколько вариантов</option><option value="boolean">Да / Нет</option><option value="text">Текст</option></select><button type="button" className="remove" title="Удалить" aria-label={`Удалить вопрос ${index + 1}`} disabled={materialBusy} onClick={remove}>×</button></div>
     <label className="question-field"><span className="question-field-title"><i>?</i> Вопрос</span><textarea className={`question-text${invalid.question ? ' invalid-field' : ''}`} rows="3" placeholder="Введите текст вопроса" value={value.question} onChange={e => change('question', e.target.value)} /></label>
+    <QuestionMaterialsEditor testID={testID} question={value} onChange={updateMaterials} disabled={materialBusy} onUploading={onUploading} />
     <div className={`answers-section${invalid.answers ? ' invalid-section' : ''}`}>
       <div className="answer-caption">Варианты ответов</div>
       <div className="answers" {...answerOrder}>{!text && value.answers.map((a, i) => <div className="answer-row" key={a.key} draggable={false}>
@@ -119,7 +121,8 @@ export default function TestCreatePage() {
   const [categories, setCategories] = useState([]), [test, setTest] = useState(blankTest)
   const [questions, setQuestions] = useState(() => [blankQuestion()]), [invalid, setInvalid] = useState({})
   const [error, setError] = useState(''), [busy, setBusy] = useState(false), [published, setPublished] = useState(false)
-  const pendingScroll = useRef(null)
+  const pendingScroll = useRef(null), exitLock = useRef(false), goTo = useNavigate()
+  const [savingExit, setSavingExit] = useState(false)
   const moveQuestion = (from, to) => setQuestions(items => moveItem(items, from, to))
   const questionOrder = useOrdering('.question', '.number', ['question-dragging', 'question-drop-before', 'question-drop-after'], moveQuestion)
   const previewOrder = useOrdering('.preview-question', null, ['preview-dragging', 'preview-drop', 'preview-drop'], moveQuestion)
@@ -191,6 +194,21 @@ export default function TestCreatePage() {
       setStep(target); setMaxStep(current => Math.max(current, target))
     } catch (e) { setError(e.message) } finally { setBusy(false) }
   }
+  async function saveAndExit() {
+    if (busy || exitLock.current) return
+    exitLock.current = true; setBusy(true); setSavingExit(true); setError('')
+    let phase = 'info'
+    try {
+      const testId = await saveInfo()
+      const hasQuestions = questions.some(q => q.id || q.question.trim() || q.explanation?.trim() || q.settings?.materials?.length || Number(q.points) > 0 || q.answers.some(a => a.answer.trim()))
+      if (hasQuestions) { phase = 'questions'; await saveQuestions(testId) }
+      goTo('/tests')
+    } catch (e) {
+      setError(e.message)
+      if (phase === 'info') setStep(1)
+      else { setStep(2); setMaxStep(current => Math.max(current, 2)) }
+    } finally { exitLock.current = false; setBusy(false); setSavingExit(false) }
+  }
   async function removeQuestion(q) {
     if (q.id && !confirm('Удалить вопрос?')) return
     try { if (q.id) await deleteQuestion(q.id); setQuestions(items => items.filter(item => item.key !== q.key)) } catch (e) { setError(e.message) }
@@ -218,10 +236,10 @@ export default function TestCreatePage() {
 
   return <UserLayout active="tests"><main className="dashboard-main test-create-main"><div className="create-workspace">
     <div className="editor-breadcrumb"><a href="/tests">Тесты и навыки</a><span>›</span><a href="/tests">Мои тесты</a><span>›</span><b>Новый тест</b></div>
-    <div className="editor-title"><div><h1>Создание теста</h1><p>Соберите профессиональный тест и настройте правила прохождения</p></div><div className="draft-state"><i>✓</i><span>Черновик сохраняется</span><a href="/tests">Сохранить и выйти</a></div></div>
+    <div className="editor-title"><div><h1>Создание теста</h1><p>Соберите профессиональный тест и настройте правила прохождения</p></div><div className="draft-state"><i>✓</i><span>Черновик теста</span><button type="button" className="outline test-save-exit" disabled={busy} onClick={saveAndExit}>{savingExit ? 'Сохраняем…' : 'Сохранить и выйти'}</button></div></div>
     <div className="steps">{stepNames.map((name, i) => <span key={name} className={`${i + 1 <= step ? 'active' : ''} ${i + 1 <= maxStep ? 'available' : ''}`} tabIndex={0} role="button" aria-current={i + 1 === step ? 'step' : 'false'} aria-disabled={i + 1 > maxStep || busy} onClick={() => navigate(i + 1)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(i + 1) } }}><i>{i + 1}</i><b>{name}</b></span>)}</div>
     <div id="error" role="alert">{error}</div>
-    <div className="editor-layout"><div className="editor-stage">
+    <fieldset className="editor-layout" disabled={busy}><div className="editor-stage">
       <section className={`step${step === 1 ? ' active' : ''}`} data-step="1">
         <div className="section-head"><div><h2>Информация о тесте</h2><p>Заполните основные настройки справа и проверьте описание теста</p></div><span>Шаг 1 из 4</span></div>
         <div className="panel start-card"><div className="start-icon">▤</div><h2>Подготовьте основу теста</h2><p>Укажите понятное название, описание, категорию и уровень сложности. После этого переходите к созданию вопросов.</p><div className="start-tips"><span><i>✓</i> Короткое и ясное название</span><span><i>✓</i> Описание проверяемых навыков</span><span><i>✓</i> Подходящая категория</span></div></div>
@@ -236,24 +254,24 @@ export default function TestCreatePage() {
       </section>
       <section className={`step${step === 2 ? ' active' : ''}`} data-step="2">
         <div className="section-head"><div><h2>Вопросы теста</h2><p>Добавьте вопросы, варианты и укажите правильные ответы</p></div><button id="add-question" className="add-question-top" onClick={addQuestion}>＋ Добавить вопрос</button></div>
-        <div id="questions" {...questionOrder}>{questions.map((q, i) => <Question key={q.key} value={q} index={i} set={value => changeQuestion(q.key, value)} remove={() => removeQuestion(q)} invalid={invalid[q.key]} />)}</div>
+        <div id="questions" {...questionOrder}>{questions.map((q, i) => <Question key={q.key} testID={id} materialBusy={busy} onUploading={setBusy} updateMaterials={materials => setQuestions(items => items.map(item => item.key === q.key ? { ...item, settings: { ...item.settings, materials } } : item))} value={q} index={i} set={value => changeQuestion(q.key, value)} remove={() => removeQuestion(q)} invalid={invalid[q.key]} />)}</div>
         <button type="button" className="add-question-bottom outline" onClick={addQuestion}>＋ Добавить ещё вопрос</button>
       </section>
       <section className={`step${step === 3 ? ' active' : ''}`} data-step="3">
         <div className="section-head"><div><h2>Предпросмотр теста</h2><p>Проверьте, как вопросы увидят пользователи</p></div><span>Шаг 3 из 4</span></div>
         <div id="preview" {...previewOrder}><div className="panel preview-test-head"><span>Предпросмотр теста</span><h2>{test.title.trim()}</h2><p>{(test.description || '').trim()}</p></div><div className="preview-order-hint">☷ Перетаскивайте вопросы или используйте стрелки справа</div>
-          {questions.map((q, i) => <article className="panel preview-question" draggable key={q.key} data-index={i}><div className="preview-question-number">{i + 1}</div><div className="preview-question-body"><h3>{q.question.trim()} <small>{q.points} балл(а)</small></h3><div className="preview-answers">{q.answers.map((a, n) => <div className="preview-answer" key={a.key}><b>{n + 1}</b><span>{a.answer.trim()}</span></div>)}</div></div><div className="preview-order-actions"><button type="button" data-move="up" title="Переместить выше" disabled={i === 0} onClick={() => moveQuestion(i, i - 1)}>↑</button><button type="button" data-move="down" title="Переместить ниже" disabled={i === questions.length - 1} onClick={() => moveQuestion(i, i + 1)}>↓</button><i title="Перетащите вопрос">☷</i></div></article>)}
+          {questions.map((q, i) => <article className="panel preview-question" draggable key={q.key} data-index={i}><div className="preview-question-number">{i + 1}</div><div className="preview-question-body"><h3>{q.question.trim()} <small>{q.points} балл(а)</small></h3><QuestionMaterials question={q} /><div className="preview-answers">{q.answers.map((a, n) => <div className="preview-answer" key={a.key}><b>{n + 1}</b><span>{a.answer.trim()}</span></div>)}</div></div><div className="preview-order-actions"><button type="button" data-move="up" title="Переместить выше" disabled={i === 0} onClick={() => moveQuestion(i, i - 1)}>↑</button><button type="button" data-move="down" title="Переместить ниже" disabled={i === questions.length - 1} onClick={() => moveQuestion(i, i + 1)}>↓</button><i title="Перетащите вопрос">☷</i></div></article>)}
         </div>
       </section>
       <section className={`step${step === 4 ? ' active' : ''}`} data-step="4">
         <div className="section-head"><div><h2>Как вы хотите использовать тест?</h2><p>Выберите доступ для своей команды или публикацию в общем каталоге</p></div><span>Шаг 4 из 4</span></div>
-        <div className="panel publish"><div className="publish-ready-icon">✓</div><h2 id="ready-title">{test.title}</h2><p id="ready-info">{questions.length} вопросов · версия {test.version || 1}</p><section className="publish-options"><article className="publish-choice publish-choice-team"><span>Для работы</span><h3>Только для своей команды</h3><p>Тест не появится в Маркетплейсе. Вы сможете назначать его сотрудникам и отправлять по прямой ссылке.</p><button id="publish" className="outline" disabled={busy} onClick={() => publish()}>Сохранить для своей команды</button></article><article className="publish-choice publish-choice-marketplace"><span>Для всех</span><h3>В общем каталоге FinTalent</h3><p>Тест появится в Маркетплейсе. Другие пользователи смогут найти его, пройти и оставить отзыв.</p><button id="marketplace" disabled={busy} onClick={() => publish(true)}>Опубликовать в Маркетплейсе</button></article></section><a href="/tests">Оставить черновиком</a></div>
+        <div className="panel publish"><div className="publish-ready-icon">✓</div><h2 id="ready-title">{test.title}</h2><p id="ready-info">{questions.length} вопросов · версия {test.version || 1}</p><section className="publish-options"><article className="publish-choice publish-choice-team"><span>Для работы</span><h3>Только для своей команды</h3><p>Тест не появится в Маркетплейсе. Вы сможете назначать его сотрудникам и отправлять по прямой ссылке.</p><button id="publish" className="outline" disabled={busy} onClick={() => publish()}>Сохранить для своей команды</button></article><article className="publish-choice publish-choice-marketplace"><span>Для всех</span><h3>В общем каталоге FinTalent</h3><p>Тест появится в Маркетплейсе. Другие пользователи смогут найти его, пройти и оставить отзыв.</p><button id="marketplace" disabled={busy} onClick={() => publish(true)}>Опубликовать в Маркетплейсе</button></article></section><button type="button" className="outline test-save-exit" disabled={busy} onClick={saveAndExit}>Оставить черновиком</button></div>
       </section>
     </div><aside className="test-settings">
       <section className="test-stat-card"><h3>Статистика теста <small>черновик</small></h3><div><span>Вопросов</span><b id="stat-questions">{questions.length}</b></div><div><span>Максимальный балл</span><b id="stat-points">{Number.isInteger(points) ? points : points.toFixed(1)}</b></div><div><span>Версия</span><b id="stat-version">{test.version || 1}</b></div></section>
       <section id="question-navigation" className="question-navigation"><h3>Навигация по вопросам</h3><div id="question-navigation-list">{questions.map((q, i) => { const title = q.question.trim() || 'Вопрос без названия'; return <button type="button" key={q.key} data-question={i} onClick={() => { pendingScroll.current = q.key; if (step === 2) document.querySelector(`[data-key="${q.key}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); else setStep(2) }}><b>{i + 1}</b><span>{title.slice(0, 30)}{title.length > 30 ? '…' : ''}</span></button> })}</div></section>
       <section className="editor-help"><h3>Нужна помощь?</h3><p>Используйте разные типы вопросов, чтобы точнее оценить знания кандидата.</p><a href="#">Открыть руководство →</a></section>
-    </aside></div>
+    </aside></fieldset>
     <footer className="editor-footer"><button id="prev" className={`outline${step === 1 || step === 4 ? ' hidden' : ''}`} disabled={busy} onClick={() => navigate(step - 1)}>← Назад</button><span /><button id="next" className={step === 4 ? 'hidden' : ''} disabled={busy} onClick={() => navigate(step + 1, true)}>Продолжить →</button></footer>
   </div></main>{published && <PublishSuccessModal eyebrow={published==='marketplace'?'ТЕСТ ОПУБЛИКОВАН В МАРКЕТПЛЕЙСЕ':'ТЕСТ ГОТОВ К ИСПОЛЬЗОВАНИЮ'} title="Всё получилось!" description={published==='marketplace'?'Тест появился в общем каталоге и готов к прохождению.':'Тест сохранён для вашей команды. Теперь его можно назначать сотрудникам.'} wishTitle="Пусть тест помогает находить сильных специалистов" wishText="Желаем точных результатов и полезной обратной связи!" primaryHref="/tests" primaryText="Перейти к моим тестам" onClose={() => setPublished(false)} />}</UserLayout>
 }

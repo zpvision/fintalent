@@ -10,6 +10,7 @@
 <section class="answer-review"><div class="review-heading"><div><span>Разбор результатов</span><h2>Проверьте свои ответы</h2></div><b>{{.Correct}}<small> / {{len .Questions}}</small></b></div>
 <div class="review-list">{{range .Questions}}
 <article class="review-question {{if .Correct}}correct{{else}}wrong{{end}}"><header><span>{{if .Correct}}✓{{else}}×{{end}}</span><div><small>Вопрос {{.Number}}</small><h3>{{.Text}}</h3></div><b>{{if .Correct}}Верно{{else}}Есть ошибка{{end}}</b></header>
+{{range .Materials}}<figure class="report-material">{{if .Image}}<img src="{{.Image}}" alt="{{.Name}}">{{end}}<figcaption><small>{{.Kind}}</small><span>{{.Name}}</span></figcaption></figure>{{end}}
 {{if .Textual}}<div class="text-comparison"><div><small>Ответ сотрудника</small><p>{{.TextAnswer}}</p></div></div>{{else}}<ul>{{range .Options}}<li class="{{.Class}}"><i>{{.Marker}}</i><span>{{if .Selected}}<small class="selected-answer-label">Выбран сотрудником</small>{{end}}{{.Text}}</span></li>{{end}}</ul>{{end}}
 {{if .Explanation}}<p class="review-explanation"><small>Пояснение</small>{{.Explanation}}</p>{{end}}</article>
 {{end}}</div></section>

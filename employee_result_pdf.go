@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"image"
+	"image/jpeg"
 	"log"
 	"math"
 	"mime"
@@ -17,6 +19,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -49,6 +52,12 @@ type employeePDFQuestion struct {
 	Text, Explanation, TextAnswer string
 	Correct, Textual              bool
 	Options                       []employeePDFOption
+	Materials                     []employeePDFMaterial
+}
+
+type employeePDFMaterial struct {
+	Name, Kind string
+	Image      template.URL
 }
 
 type employeePDFReport struct {
@@ -59,7 +68,7 @@ type employeePDFReport struct {
 	Logo                                                template.URL
 }
 
-func buildEmployeePDFHTML(name, email string, result *domain.Attempt) ([]byte, error) {
+func buildEmployeePDFHTML(name, email string, result *domain.Attempt, materials ...map[int64][]employeePDFMaterial) ([]byte, error) {
 	duration := max(0, result.DurationSeconds)
 	report := employeePDFReport{
 		Name: name, Email: email, Title: result.TestTitle,
@@ -80,6 +89,9 @@ func buildEmployeePDFHTML(name, email string, result *domain.Attempt) ([]byte, e
 	for index, question := range result.Questions {
 		answers := groups[question.ID]
 		item := employeePDFQuestion{Number: index + 1, Text: question.Question, Explanation: question.Explanation, Textual: question.Type == domain.QuestionText, TextAnswer: "Ответ не дан"}
+		if len(materials) > 0 {
+			item.Materials = materials[0][question.ID]
+		}
 		selected := make(map[int64]bool)
 		for i, answer := range answers {
 			if i == 0 {
@@ -150,7 +162,13 @@ func employeeTestingDownloadPDF(w http.ResponseWriter, r *http.Request, owner *u
 		jsonError(w, 500, "Не удалось загрузить результат")
 		return
 	}
-	html, err := buildEmployeePDFHTML(name, email, result)
+	materials, err := loadEmployeePDFMaterials(ctx, result)
+	if err != nil {
+		log.Printf("employee result PDF materials: %T", err)
+		jsonError(w, 500, "Не удалось подготовить материалы для PDF")
+		return
+	}
+	html, err := buildEmployeePDFHTML(name, email, result, materials)
 	if err != nil {
 		jsonError(w, 500, "Не удалось подготовить PDF")
 		return
@@ -177,7 +195,93 @@ func employeePDFBrowser() (string, error) {
 			return path, nil
 		}
 	}
+	if runtime.GOOS == "windows" {
+		for _, root := range []string{os.Getenv("ProgramFiles"), os.Getenv("ProgramFiles(x86)"), os.Getenv("LOCALAPPDATA")} {
+			if root == "" {
+				continue
+			}
+			for _, relative := range []string{"Microsoft/Edge/Application/msedge.exe", "Google/Chrome/Application/chrome.exe"} {
+				if path, err := exec.LookPath(filepath.Join(root, filepath.FromSlash(relative))); err == nil {
+					return path, nil
+				}
+			}
+		}
+	}
 	return "", errors.New("Chromium is not installed; set PDF_CHROMIUM_PATH")
+}
+
+// Read only the attempt's immutable question version. PDFs are listed by name;
+// image bytes are embedded, so Chromium never requests private or external URLs.
+func loadEmployeePDFMaterials(ctx context.Context, result *domain.Attempt) (map[int64][]employeePDFMaterial, error) {
+	items := map[int64][]employeePDFMaterial{}
+	rows, err := db.QueryContext(ctx, `SELECT q.id,m.name,m.mime,CASE WHEN m.mime IN('image/jpeg','image/png') THEN m.content ELSE NULL END FROM test_questions q JOIN test_versions v ON v.id=q.test_version_id JOIN test_question_materials m ON m.test_id=v.test_id AND COALESCE(q.settings->'materials','[]'::jsonb) @> jsonb_build_array(jsonb_build_object('id',m.id)) WHERE v.id=$1 AND v.test_id=$2 ORDER BY q.sort_order,q.id,m.id`, result.TestVersionID, result.TestID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	total := 0
+	for rows.Next() {
+		var question int64
+		var name, kind string
+		var data []byte
+		if err = rows.Scan(&question, &name, &kind, &data); err != nil {
+			return nil, err
+		}
+		material := employeePDFMaterial{Name: name, Kind: "Документ PDF"}
+		if kind == "image/png" || kind == "image/jpeg" {
+			material.Kind = "Изображение"
+			material.Image, err = employeePDFImage(data)
+			if err != nil {
+				material.Kind = "Изображение (предпросмотр недоступен)"
+			}
+			total += len(material.Image)
+			if total > 24<<20 {
+				return nil, errors.New("PDF image data exceeds size limit")
+			}
+		}
+		items[question] = append(items[question], material)
+	}
+	return items, rows.Err()
+}
+
+func employeePDFImage(data []byte) (template.URL, error) {
+	config, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return "", err
+	}
+	if config.Width <= 0 || config.Height <= 0 || int64(config.Width)*int64(config.Height) > 40000000 {
+		return "", errors.New("invalid image dimensions")
+	}
+	source, _, err := image.Decode(bytes.NewReader(data))
+	if err != nil {
+		return "", err
+	}
+	width, height := config.Width, config.Height
+	if width > 1600 {
+		height = max(1, height*1600/width)
+		width = 1600
+	}
+	if height > 1200 {
+		width = max(1, width*1200/height)
+		height = 1200
+	}
+	output := image.NewRGBA(image.Rect(0, 0, width, height))
+	bounds := source.Bounds()
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			r, g, b, a := source.At(bounds.Min.X+x*config.Width/width, bounds.Min.Y+y*config.Height/height).RGBA()
+			i := output.PixOffset(x, y)
+			output.Pix[i] = uint8((r + 65535 - a) >> 8)
+			output.Pix[i+1] = uint8((g + 65535 - a) >> 8)
+			output.Pix[i+2] = uint8((b + 65535 - a) >> 8)
+			output.Pix[i+3] = 255
+		}
+	}
+	var encoded bytes.Buffer
+	if err = jpeg.Encode(&encoded, output, &jpeg.Options{Quality: 90}); err != nil {
+		return "", err
+	}
+	return template.URL("data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(encoded.Bytes())), nil
 }
 
 func renderEmployeeHTMLPDF(ctx context.Context, html []byte) ([]byte, error) {
