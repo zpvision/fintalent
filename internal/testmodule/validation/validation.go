@@ -9,6 +9,9 @@ import (
 )
 
 func Test(input dto.CreateTest) error {
+	if input.TimeLimitSeconds != nil && (*input.TimeLimitSeconds < 0 || *input.TimeLimitSeconds > 2147483647) {
+		return errors.New("некорректный лимит времени")
+	}
 	if len([]rune(strings.TrimSpace(input.Title))) < 3 || len([]rune(input.Title)) > 240 {
 		return errors.New("название должно содержать от 3 до 240 символов")
 	}

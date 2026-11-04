@@ -1,7 +1,9 @@
 package service
 
 import (
+	"FinTalent/internal/testmodule/dto"
 	"context"
+	"errors"
 	"testing"
 
 	"FinTalent/internal/testmodule/domain"
@@ -36,5 +38,13 @@ func TestStartReturnsAttemptQuestionsWithoutCorrectAnswers(t *testing.T) {
 		if answer.IsCorrect {
 			t.Fatal("start response exposes correct answers")
 		}
+	}
+}
+
+func TestExpiredAttemptRejectsAnswers(t *testing.T) {
+	r := &startRepository{attempt: domain.Attempt{ID: 42, UserID: 7, Status: "started", TimeLimitSeconds: 60, RemainingSeconds: 0}}
+	err := New(r).SaveAnswer(context.Background(), 42, 7, dto.SubmitAnswer{QuestionID: 11})
+	if !errors.Is(err, repository.ErrForbidden) {
+		t.Fatalf("expired answer: %v", err)
 	}
 }

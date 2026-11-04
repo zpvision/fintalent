@@ -51,7 +51,7 @@ function Material({ file, questionID, access, onRemove, removeDisabled }) {
 }
 
 export default function QuestionMaterials({ question, access, onRemove, removeDisabled }) {
-  usePageStyles(['/static/test-question-materials.css?v=2'])
+  usePageStyles(['/static/test-question-materials.css?v=3'])
   const items = Array.isArray(question?.settings?.materials) ? question.settings.materials : [], images = items.filter(f => f.mime?.startsWith('image/')), files = items.filter(f => f.mime === 'application/pdf')
   if (!items.length) return null
   return <section className={`tqm-layout ${images.length && files.length ? 'tqm-mixed' : ''}`} aria-label="Материалы к вопросу">{images.length > 0 && <div className="tqm-images">{images.map(file => <Material key={file.id} file={file} questionID={question.id} access={access} onRemove={onRemove ? () => onRemove(file.id) : undefined} removeDisabled={removeDisabled} />)}</div>}{files.length > 0 && <div className="tqm-files"><h4>Документы к вопросу</h4>{files.map(file => <Material key={file.id} file={file} questionID={question.id} access={access} onRemove={onRemove ? () => onRemove(file.id) : undefined} removeDisabled={removeDisabled} />)}</div>}</section>

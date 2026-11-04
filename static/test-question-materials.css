@@ -11,3 +11,7 @@
 
 .tqm-material{position:relative}.tqm-remove,.test-create-main .tqm-editor button.tqm-remove{position:absolute;z-index:2;top:9px;right:9px;display:grid;place-items:center;width:40px;height:40px;min-width:40px;padding:0;border:1px solid #f0d8dc;border-radius:11px;background:#fff8f9;color:#ba5b69;box-shadow:0 3px 10px #783c4b12;cursor:pointer}.tqm-remove svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.tqm-remove:hover,.test-create-main .tqm-editor button.tqm-remove:hover{background:#fdeef1;border-color:#e9b5bf;color:#a53e50}.tqm-remove:disabled,.test-create-main .tqm-editor button.tqm-remove:disabled{opacity:.5;cursor:default}.tqm-remove:focus-visible{outline:2px solid #cf8291;outline-offset:2px}.tqm-document:has(>.tqm-remove)>.tqm-file-button{padding-right:60px}.tqm-document>.tqm-remove{top:14px}
 @media(max-width:650px){.tqm-remove,.test-create-main .tqm-editor button.tqm-remove{width:44px;height:44px;min-width:44px}.tqm-document:has(>.tqm-remove)>.tqm-file-button{padding-right:64px}}
+
+/* Keep author-entered paragraphs, list markers and indentation in every question view. */
+.test-question-content{white-space:pre-wrap;overflow-wrap:anywhere;tab-size:4}
+.question-field .question-format-hint{display:block;margin-top:8px;color:#7186a2;font-size:12px;line-height:1.6;font-weight:400}
