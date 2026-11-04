@@ -260,6 +260,26 @@ func TestCoursesIsolatedPostgres(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+	t.Run("learning outcomes persistence and legacy clients", func(t *testing.T) {
+		saved.LearningOutcomes = []string{"  Составлять финансовую модель  ", "Оценивать рентабельность проекта", ""}
+		_ = json.Unmarshal(request("PUT", path, author, false, saved, 200), &saved)
+		if len(saved.LearningOutcomes) != 3 || saved.LearningOutcomes[0] != "Составлять финансовую модель" {
+			t.Fatal("outcomes not persisted")
+		}
+		legacy := saved
+		legacy.LearningOutcomes = nil
+		_ = json.Unmarshal(request("PUT", path, author, false, legacy, 200), &saved)
+		if len(saved.LearningOutcomes) != 3 {
+			t.Fatal("legacy update removed outcomes")
+		}
+		saved.LearningOutcomes = []string{}
+		_ = json.Unmarshal(request("PUT", path, author, false, saved, 200), &saved)
+		if len(saved.LearningOutcomes) != 0 {
+			t.Fatal("explicit removal did not clear outcomes")
+		}
+		saved.LearningOutcomes = []string{"Составлять финансовую модель", "Оценивать рентабельность проекта"}
+		_ = json.Unmarshal(request("PUT", path, author, false, saved, 200), &saved)
+	})
 	t.Run("custom course features", func(t *testing.T) {
 		saved.CustomFeatures = []courses.Bonus{{Title: "  Проверка домашних заданий автором  "}, {Title: "Индивидуальная консультация"}}
 		_ = json.Unmarshal(request("PUT", path, author, false, saved, 200), &saved)
@@ -471,6 +491,9 @@ func TestCoursesIsolatedPostgres(t *testing.T) {
 		return rev
 	}()}, 200)
 	publicView := request("GET", publicPath, 0, false, nil, 200)
+	if !bytes.Contains(publicView, []byte(saved.LearningOutcomes[0])) {
+		t.Fatal("learning outcomes missing from public landing")
+	}
 	if !bytes.Contains(publicView, []byte(saved.CustomFeatures[0].Title)) {
 		t.Fatal("custom features missing from published course")
 	}

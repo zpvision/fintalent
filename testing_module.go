@@ -23,6 +23,9 @@ var testShuffleAnswersMigrationSQL string
 //go:embed migrations/066_attempt_revision.sql
 var attemptRevisionMigrationSQL string
 
+//go:embed migrations/087_test_question_materials.sql
+var testQuestionMaterialsMigrationSQL string
+
 //go:embed migrations/044_test_result_resume_visibility.sql
 var attemptResumeVisibilityMigrationSQL string
 
@@ -46,5 +49,9 @@ func prepareTestingDatabase(ctx context.Context) error {
 		return err
 	}
 	_, err = db.ExecContext(ctx, attemptRevisionMigrationSQL)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, testQuestionMaterialsMigrationSQL)
 	return err
 }

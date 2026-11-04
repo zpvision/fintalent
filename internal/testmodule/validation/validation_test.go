@@ -41,3 +41,14 @@ func TestPaidTestNeedsPrice(t *testing.T) {
 		t.Fatal("paid test without price must be rejected")
 	}
 }
+
+func TestTimeLimitValidation(t *testing.T) {
+	for _, seconds := range []int{0, 1, 60, 900, 2147483647, -1, 2147483648} {
+		in := dto.CreateTest{Title: "Valid test", Difficulty: "medium", Visibility: "public", IsFree: true, PassingPercent: 60, TimeLimitSeconds: &seconds}
+		err := Test(in)
+		valid := seconds >= 0 && seconds <= 2147483647
+		if (err == nil) != valid {
+			t.Errorf("time limit %d: %v", seconds, err)
+		}
+	}
+}

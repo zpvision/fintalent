@@ -157,6 +157,8 @@ func main() {
 		return u.ID, nil
 	}, isAdmin)
 	testHandler.Register(http.DefaultServeMux)
+	http.HandleFunc("/api/test-materials", uploadQuestionMaterial)
+	http.HandleFunc("/api/test-materials/", serveQuestionMaterial)
 
 	listenAddress := strings.TrimSpace(os.Getenv("HTTP_ADDR"))
 	if listenAddress == "" {
@@ -195,7 +197,7 @@ func securityHeaders(next http.Handler) http.Handler {
 		if strings.HasPrefix(r.URL.Path, "/static/uploads/") && strings.HasSuffix(strings.ToLower(r.URL.Path), ".svg") {
 			w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
 		}
-		w.Header().Set("Content-Security-Policy-Report-Only", "default-src 'self'; script-src 'self' 'unsafe-inline' https://mc.yandex.ru https://yastatic.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' https: data: blob:; connect-src 'self' https://mc.yandex.ru https://mc.yandex.com; frame-src https://rutube.ru https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; base-uri 'self'")
+		w.Header().Set("Content-Security-Policy-Report-Only", "default-src 'self'; script-src 'self' 'unsafe-inline' https://mc.yandex.ru https://yastatic.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' https: data: blob:; connect-src 'self' https://mc.yandex.ru https://mc.yandex.com; frame-src 'self' blob: https://rutube.ru https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; base-uri 'self'")
 		if secureCookies() {
 			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		}

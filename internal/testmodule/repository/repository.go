@@ -275,13 +275,16 @@ func (p *Postgres) AddQuestion(ctx context.Context, testID, user int64, in dto.C
 	if err != nil {
 		return 0, err
 	}
-	settings, _ := json.Marshal(in.Settings)
 	tx, err := p.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
 	}
 	defer tx.Rollback()
 	var id int64
+	if err = validateMaterials(ctx, tx, testID, user, &in); err != nil {
+		return 0, err
+	}
+	settings, _ := json.Marshal(in.Settings)
 	err = tx.QueryRowContext(ctx, `INSERT INTO test_questions(test_version_id,sort_order,question,question_type,explanation,points,settings) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id`, v, in.SortOrder, strings.TrimSpace(in.Question), in.QuestionType, in.Explanation, in.Points, settings).Scan(&id)
 	if err != nil {
 		return 0, err
@@ -292,12 +295,33 @@ func (p *Postgres) AddQuestion(ctx context.Context, testID, user int64, in dto.C
 	return id, tx.Commit()
 }
 func (p *Postgres) UpdateQuestion(ctx context.Context, id, user int64, in dto.CreateQuestion) error {
-	settings, _ := json.Marshal(in.Settings)
 	tx, err := p.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
+	var testID int64
+	var oldSettings []byte
+	if err = tx.QueryRowContext(ctx, `SELECT v.test_id,q.settings FROM test_questions q JOIN test_versions v ON v.id=q.test_version_id JOIN tests t ON t.id=v.test_id WHERE q.id=$1 AND t.author_id=$2 AND t.status='draft' AND t.deleted_at IS NULL AND v.version=t.current_version AND v.published_at IS NULL AND NOT EXISTS(SELECT 1 FROM test_attempts a WHERE a.test_version_id=v.id) FOR UPDATE OF q`, id, user).Scan(&testID, &oldSettings); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrForbidden
+		}
+		return err
+	}
+	if in.Settings == nil {
+		in.Settings = map[string]any{}
+	}
+	if _, present := in.Settings["materials"]; !present {
+		var old map[string]any
+		_ = json.Unmarshal(oldSettings, &old)
+		if value, ok := old["materials"]; ok {
+			in.Settings["materials"] = value
+		}
+	}
+	if err = validateMaterials(ctx, tx, testID, user, &in); err != nil {
+		return err
+	}
+	settings, _ := json.Marshal(in.Settings)
 	res, err := tx.ExecContext(ctx, `UPDATE test_questions q SET sort_order=$1,question=$2,question_type=$3,explanation=$4,points=$5,settings=$6,updated_at=NOW() FROM test_versions v JOIN tests t ON t.id=v.test_id WHERE q.id=$7 AND q.test_version_id=v.id AND t.author_id=$8 AND t.status='draft' AND t.deleted_at IS NULL AND v.version=t.current_version AND v.published_at IS NULL AND NOT EXISTS(SELECT 1 FROM test_attempts used WHERE used.test_version_id=v.id)`, in.SortOrder, strings.TrimSpace(in.Question), in.QuestionType, in.Explanation, in.Points, settings, id, user)
 	if err != nil {
 		return err

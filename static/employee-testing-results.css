@@ -67,3 +67,10 @@
 .et-toast.error { border-color: #f1c6ca; }
 .et-toast.error>i { background: #ffeaec; color: #d83e4b; }
 @media(max-width:600px){.et-toast{top:74px;right:16px}}
+.et-result-actions .et-download-pdf{display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:3px 5px;border:0;border-radius:6px;background:transparent;color:#1762ec;font:700 11px/1.4 Arial,sans-serif;cursor:pointer;text-align:left;text-decoration:none}
+.et-result-actions .et-download-pdf:hover{background:#edf4ff}
+.et-result-actions .et-download-pdf:focus-visible{outline:2px solid #1762ec;outline-offset:2px}
+.et-result-actions .et-download-pdf:disabled{background:#edf4ff;color:#1762ec;cursor:wait}
+.et-pdf-spinner{display:inline-block;width:15px;height:15px;flex:0 0 15px;border:2px solid #c8dafa;border-top-color:#1762ec;border-radius:50%;animation:et-pdf-spin .8s linear infinite}
+@keyframes et-pdf-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.et-pdf-spinner{animation:none}}

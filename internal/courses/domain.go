@@ -48,6 +48,8 @@ type Tariff struct {
 	Recommended bool    `json:"recommended"`
 }
 type Input struct {
+	LearningOutcomes []string `json:"learning_outcomes"`
+
 	PricingMode    string    `json:"pricing_mode"`
 	Tariffs        []Tariff  `json:"tariffs"`
 	Revision       int64     `json:"revision"`
@@ -81,6 +83,15 @@ var customLessonType = regexp.MustCompile(`^lesson-[1-9][0-9]{0,18}$`)
 var lessonTypes = map[string]bool{"video": true, "text": true, "practice": true, "test": true, "materials": true}
 
 func Validate(v *Input, publishing bool) error {
+	if len(v.LearningOutcomes) > 20 {
+		return fmt.Errorf("Добавьте не больше 20 результатов обучения")
+	}
+	for i := range v.LearningOutcomes {
+		v.LearningOutcomes[i] = strings.TrimSpace(v.LearningOutcomes[i])
+		if utf8.RuneCountInString(v.LearningOutcomes[i]) > 300 {
+			return fmt.Errorf("Результат обучения №%d: не больше 300 символов", i+1)
+		}
+	}
 	if err := validateTariffs(v, publishing); err != nil {
 		return err
 	}
