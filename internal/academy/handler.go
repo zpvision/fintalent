@@ -67,15 +67,15 @@ func decode(w http.ResponseWriter, r *http.Request, v any) bool {
 	return true
 }
 func (h *Handler) Register(mux *http.ServeMux) {
-	mux.HandleFunc("/api/academy/courses/", h.authorOrStaff)
+	mux.HandleFunc("/api/academy/courses/", h.gate(h.route))
 	mux.HandleFunc("/api/admin/academy", h.administration)
 	mux.HandleFunc("/api/admin/academy/", h.administration)
-	mux.HandleFunc("/api/academy/learning", h.learner)
-	mux.HandleFunc("/api/academy/learning/", h.learner)
-	mux.HandleFunc("/api/academy/enrollments/", h.learner)
-	mux.HandleFunc("/api/academy/notifications", h.learner)
-	mux.HandleFunc("/api/academy/workspaces", h.staffWorkspaces)
-	mux.HandleFunc("/api/academy/communication-preferences", h.communicationPreferences)
+	mux.HandleFunc("/api/academy/learning", h.gate(h.learner))
+	mux.HandleFunc("/api/academy/learning/", h.gate(h.learner))
+	mux.HandleFunc("/api/academy/enrollments/", h.gate(h.learner))
+	mux.HandleFunc("/api/academy/notifications", h.gate(h.learner))
+	mux.HandleFunc("/api/academy/workspaces", h.gate(h.staffWorkspaces))
+	mux.HandleFunc("/api/academy/communication-preferences", h.gate(h.communicationPreferences))
 	mux.HandleFunc("/api/academy/unsubscribe/", h.communicationPreferences)
 }
 func (h *Handler) route(w http.ResponseWriter, r *http.Request) {

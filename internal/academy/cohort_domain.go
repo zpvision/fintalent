@@ -149,7 +149,13 @@ func availability(c *Cohort, module, lesson string, now time.Time) LessonAvailab
 		return LessonAvailability{Available: true}
 	}
 	if oneOf(c.Status, "draft", "scheduled") {
-		return LessonAvailability{Reason: "Поток ещё не запущен", OpensAt: &c.StartsAt}
+		// The start date is not an unlock guarantee: an author must launch the cohort.
+		// Never advertise a date in the past as a future opening.
+		result := LessonAvailability{Reason: "Поток ещё не запущен"}
+		if c.StartsAt.After(now) {
+			result.OpensAt = &c.StartsAt
+		}
+		return result
 	}
 	at := c.StartsAt
 	if c.Mode != "all" {

@@ -54,3 +54,19 @@ func TestCohortRejectsForeignAndDuplicateRules(t *testing.T) {
 		t.Fatal("foreign assignment accepted")
 	}
 }
+
+func TestUnlaunchedCohortDoesNotPromisePastOpening(t *testing.T) {
+	now := time.Now()
+	for _, status := range []string{"draft", "scheduled"} {
+		c := &Cohort{Status: status, StartsAt: now.Add(-time.Hour), Timezone: "UTC", Mode: "all"}
+		result := availability(c, "module", "lesson", now)
+		if result.Available || result.OpensAt != nil || result.Reason != "Поток ещё не запущен" {
+			t.Fatalf("%s: %+v", status, result)
+		}
+		c.StartsAt = now.Add(time.Hour)
+		result = availability(c, "module", "lesson", now)
+		if result.Available || result.OpensAt == nil {
+			t.Fatalf("future %s: %+v", status, result)
+		}
+	}
+}

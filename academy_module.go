@@ -99,10 +99,10 @@ func registerAcademyRoutes(gate func(http.HandlerFunc) http.HandlerFunc) func(ht
 	h.SetAdminResolver(resolveAcademyAdministrator)
 	h.Register(http.DefaultServeMux)
 	http.HandleFunc("/academy/unsubscribe/", serveFrontendPage("static/courses-unavailable.html"))
-	http.HandleFunc("/profile/academy/notifications", serveFrontendPage("static/courses-unavailable.html"))
-	http.HandleFunc("/profile/academy", serveFrontendPage("static/courses-unavailable.html"))
-	http.HandleFunc("/profile/learning", serveFrontendPage("static/courses-unavailable.html"))
-	http.HandleFunc("/profile/learning/", serveFrontendPage("static/courses-unavailable.html"))
+	http.HandleFunc("/profile/academy/notifications", gate(serveFrontendPage("static/courses-unavailable.html")))
+	http.HandleFunc("/profile/academy", gate(serveFrontendPage("static/courses-unavailable.html")))
+	http.HandleFunc("/profile/learning", gate(serveFrontendPage("static/courses-unavailable.html")))
+	http.HandleFunc("/profile/learning/", gate(serveFrontendPage("static/courses-unavailable.html")))
 	return h.CoursePage
 }
 

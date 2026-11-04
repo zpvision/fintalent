@@ -10,40 +10,9 @@ import (
 	"unicode/utf8"
 )
 
-// Assigned staff can enter their Academy workspace even when the public courses beta is closed.
-// This exception never grants access to the author's program or landing editor.
+// The platform Courses gate is required in addition to enrollment/staff permissions.
 func (h *Handler) CoursePage(page http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
-		if len(parts) >= 5 && parts[0] == "profile" && parts[1] == "courses" && parts[3] == "academy" && oneOf(parts[4], "cohorts", "crm", "reviews", "communications", "automations", "analytics") {
-			course, _ := strconv.ParseInt(parts[2], 10, 64)
-			user, err := h.user(r)
-			if err == nil && user > 0 {
-				var allowed bool
-				err = h.db.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_cohort_staff s JOIN academy_cohorts ch ON ch.id=s.cohort_id JOIN courses c ON c.id=ch.course_id JOIN users owner ON owner.id=c.owner_id JOIN users u ON u.id=s.user_id WHERE ch.course_id=$1 AND s.user_id=$2 AND NOT owner.is_blocked AND NOT u.is_blocked AND NOT u.is_system)`, course, user).Scan(&allowed)
-				if err == nil && allowed {
-					page(w, r)
-					return
-				}
-			}
-		}
-		h.gate(page)(w, r)
-	}
-}
-
-func (h *Handler) authorOrStaff(w http.ResponseWriter, r *http.Request) {
-	user, err := h.user(r)
-	if err != nil || user <= 0 {
-		fail(w, 401, "Войдите в аккаунт")
-		return
-	}
-	parts := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/academy/courses/"), "/"), "/")
-	course, _ := strconv.ParseInt(parts[0], 10, 64)
-	if h.courseOwner(r, course, user) {
-		h.gate(h.route)(w, r)
-		return
-	}
-	h.route(w, r)
+	return h.gate(page)
 }
 func (h *Handler) cohortWorkspace(w http.ResponseWriter, r *http.Request, course, user int64, owner bool) {
 	var raw json.RawMessage

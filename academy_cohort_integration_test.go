@@ -192,7 +192,7 @@ func testAcademyStageD(t *testing.T, db *sql.DB, mux *http.ServeMux, owner, stud
 		path  string
 		actor int64
 		code  int
-	}{{fmt.Sprintf("/profile/courses/%d/academy/cohorts/%d", course, c.ID), curator, 200}, {fmt.Sprintf("/profile/courses/%d/edit", course), curator, 403}, {fmt.Sprintf("/profile/courses/%d/academy", course), curator, 403}, {fmt.Sprintf("/profile/courses/%d/academy/crm", course), student2, 403}} {
+	}{{fmt.Sprintf("/profile/courses/%d/academy/cohorts/%d", course, c.ID), curator, 403}, {fmt.Sprintf("/profile/courses/%d/edit", course), curator, 403}, {fmt.Sprintf("/profile/courses/%d/academy", course), curator, 403}, {fmt.Sprintf("/profile/courses/%d/academy/crm", course), student2, 403}} {
 		r := httptest.NewRequest("GET", scenario.path, nil)
 		r.Header.Set("X-Test-User", strconv.FormatInt(scenario.actor, 10))
 		w := httptest.NewRecorder()
