@@ -46,6 +46,7 @@ func TestQuestionMaterialTypes(t *testing.T) {
 
 // Opt-in; all fixtures live in a newly created schema on the configured cloud PostgreSQL.
 func TestQuestionMaterialsIsolatedPostgres(t *testing.T) {
+	useLocalSharedStorage(t)
 	if os.Getenv("RUN_TEST_MATERIALS_DB_TESTS") != "1" {
 		t.Skip("set RUN_TEST_MATERIALS_DB_TESTS=1 with cloud DATABASE_URL")
 	}

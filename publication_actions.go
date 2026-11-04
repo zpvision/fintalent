@@ -369,7 +369,8 @@ func publicationUpload(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 405, "Метод не поддерживается")
 		return
 	}
-	if _, err := userFromRequest(r); err != nil {
+	u, err := userFromRequest(r)
+	if err != nil {
 		writeJSON(w, 401, "Требуется авторизация")
 		return
 	}
@@ -378,6 +379,7 @@ func publicationUpload(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, "Изображение слишком большое")
 		return
 	}
+	defer r.MultipartForm.RemoveAll()
 	file, header, err := r.FormFile("image")
 	if err != nil {
 		writeJSON(w, 400, "Выберите изображение")
@@ -412,6 +414,14 @@ func publicationUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		writeJSON(w, 500, "Не удалось сохранить файл")
+		return
+	}
+	if err = out.Close(); err != nil {
+		writeJSON(w, 500, "Не удалось сохранить файл")
+		return
+	}
+	if err = mirrorUserFile(r, "/static/uploads/publications/"+name, filepath.Join(dir, name), header.Filename, fileUser(u.ID), "files"); err != nil {
+		writeJSON(w, 503, "Хранилище временно недоступно")
 		return
 	}
 	writeAdminJSON(w, 201, map[string]string{"url": "/static/uploads/publications/" + name})

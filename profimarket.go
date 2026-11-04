@@ -1512,7 +1512,8 @@ func profiMarketUploadAPI(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 405, "Метод не поддерживается")
 		return
 	}
-	if _, ok := profiRequireUser(w, r); !ok {
+	u, ok := profiRequireUser(w, r)
+	if !ok {
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, 8<<20)
@@ -1520,7 +1521,8 @@ func profiMarketUploadAPI(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 400, "Файл слишком большой")
 		return
 	}
-	file, _, err := r.FormFile("image")
+	defer r.MultipartForm.RemoveAll()
+	file, header, err := r.FormFile("image")
 	if err != nil {
 		writeJSON(w, 400, "Выберите изображение")
 		return
@@ -1553,6 +1555,14 @@ func profiMarketUploadAPI(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		writeJSON(w, 500, "Не удалось сохранить файл")
+		return
+	}
+	if err = out.Close(); err != nil {
+		writeJSON(w, 500, "Не удалось сохранить файл")
+		return
+	}
+	if err = mirrorUserFile(r, "/static/uploads/profimarket/"+name, filepath.Join(dir, name), header.Filename, fileUser(u.ID), "files"); err != nil {
+		writeJSON(w, 503, "Хранилище временно недоступно")
 		return
 	}
 	profiRespond(w, 201, map[string]string{"url": "/static/uploads/profimarket/" + name})

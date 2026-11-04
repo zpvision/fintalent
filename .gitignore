@@ -1,5 +1,7 @@
 .idea/
 .env
+.env.*
+!.env.example
 .local-backups/
 .codex-run/
 test-results/
@@ -7,6 +9,9 @@ test-results/
 *.log
 tmp/
 static/uploads/
+uploads/resume-certificates/
+*.dump
+*-credentials-private.json
 node_modules/
 static/react/
 .DS_Store

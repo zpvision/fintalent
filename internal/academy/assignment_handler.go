@@ -119,7 +119,7 @@ func (h *Handler) assignmentAction(w http.ResponseWriter, r *http.Request, tx *s
 			raw, _ := json.Marshal(body.Answer)
 			_, err = tx.ExecContext(r.Context(), `UPDATE academy_assignment_submissions SET answer=$2,revision=revision+1,updated_at=NOW() WHERE id=$1`, id, string(raw))
 			if err == nil {
-				_, err = tx.ExecContext(r.Context(), `UPDATE academy_media_assets SET deleted_at=NOW() WHERE submission_id=$1 AND deleted_at IS NULL AND id NOT IN(SELECT value::bigint FROM jsonb_array_elements_text($2::jsonb))`, id, jsonValue(body.Answer.AssetIDs))
+				_, err = tx.ExecContext(r.Context(), `WITH removed AS(UPDATE academy_media_assets SET deleted_at=NOW() WHERE submission_id=$1 AND deleted_at IS NULL AND id NOT IN(SELECT value::bigint FROM jsonb_array_elements_text($2::jsonb)) RETURNING storage_key,storage_driver) INSERT INTO academy_storage_gc(storage_key,storage_driver,next_at) SELECT storage_key,storage_driver,now() FROM removed ON CONFLICT(storage_key,storage_driver) DO UPDATE SET next_at=now()`, id, jsonValue(body.Answer.AssetIDs))
 			}
 			if err == nil {
 				err = touchLearningTx(r.Context(), tx, e, user, a.LessonKey)
@@ -227,6 +227,7 @@ func (h *Handler) submissionFile(w http.ResponseWriter, r *http.Request, tx *sql
 			fail(w, 400, "До 10 файлов в одном ответе")
 			return
 		}
+		_ = tx.Rollback() // Release enrollment locks while receiving and transferring bytes.
 		if err := parseUpload(w, r); err != nil {
 			fail(w, 400, err.Error())
 			return
@@ -243,8 +244,33 @@ func (h *Handler) submissionFile(w http.ResponseWriter, r *http.Request, tx *sql
 				upload.remove()
 			}
 		}()
+		newTx, newEnrollment, newAssessment, recheck := h.assessmentTx(r, e.ID, user, a.LessonKey, a.BlockKey)
+		if recheck != nil {
+			problem(w, recheck)
+			return
+		}
+		defer newTx.Rollback()
+		tx = newTx
+		e = newEnrollment
+		a = newAssessment
+		latest, recheck := submissions(r.Context(), tx, e.ID, a.ID)
+		if recheck != nil {
+			problem(w, recheck)
+			return
+		}
+		var current *Submission
+		for i := range latest {
+			if latest[i].ID == s.ID {
+				current = &latest[i]
+			}
+		}
+		if current == nil || current.Status != "draft" || current.Revision != s.Revision || len(current.Answer.AssetIDs) >= 10 {
+			problem(w, ErrConflict)
+			return
+		}
+		s = current
 		var id int64
-		err = tx.QueryRowContext(r.Context(), `INSERT INTO academy_media_assets(program_id,entity_key,storage_key,name,mime,size,created_by,submission_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`, e.ProgramID, a.BlockKey, upload.storage, upload.name, upload.mime, upload.size, user, s.ID).Scan(&id)
+		err = tx.QueryRowContext(r.Context(), `INSERT INTO academy_media_assets(program_id,entity_key,storage_key,name,mime,size,created_by,submission_id,storage_driver,checksum,checksum_kind) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'sha256') RETURNING id`, e.ProgramID, a.BlockKey, upload.storage, upload.name, upload.mime, upload.size, user, s.ID, upload.driver, upload.checksum).Scan(&id)
 		if err == nil {
 			s.Answer.AssetIDs = append(s.Answer.AssetIDs, id)
 			_, err = tx.ExecContext(r.Context(), `UPDATE academy_assignment_submissions SET answer=$2,revision=revision+1,updated_at=NOW() WHERE id=$1`, s.ID, jsonValue(s.Answer))

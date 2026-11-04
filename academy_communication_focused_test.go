@@ -27,6 +27,7 @@ type academyFocusedFixture struct {
 
 func newAcademyFocusedFixture(t *testing.T) academyFocusedFixture {
 	t.Helper()
+	useLocalSharedStorage(t)
 	if os.Getenv("RUN_COURSES_DB_TESTS") != "1" {
 		t.Skip("set RUN_COURSES_DB_TESTS=1 and cloud DATABASE_URL")
 	}

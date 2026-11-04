@@ -525,6 +525,10 @@ func validateResumeEducation(item *resumeEducation) string {
 }
 
 func resumeEducationCertificateHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "GET" || r.Method == "HEAD" {
+		serveResumeCertificate(w, r)
+		return
+	}
 	u, err := userFromRequest(r)
 	if err != nil {
 		writeJSON(w, http.StatusUnauthorized, "Требуется авторизация")
@@ -578,6 +582,10 @@ func resumeEducationCertificateHandler(w http.ResponseWriter, r *http.Request) {
 	fullPath := filepath.Join(directory, storageName)
 	if err = os.WriteFile(fullPath, data, 0o640); err != nil {
 		writeJSON(w, http.StatusInternalServerError, "Не удалось сохранить файл")
+		return
+	}
+	if err = mirrorUserFile(r, "certificate:"+storageName, fullPath, originalName, fileUser(u.ID), "files"); err != nil {
+		writeJSON(w, 503, "Хранилище временно недоступно")
 		return
 	}
 	var id int64

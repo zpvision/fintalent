@@ -3,6 +3,7 @@ import Icon from '../../components/Icon'
 import { academyAPI } from '../../api/academy'
 import AcademyTest from './AcademyTest'
 import AcademyAssignment from './AcademyAssignment'
+import UploadedVideo from './UploadedVideo'
 
 export const blockTypes = { text: ['Текст', 'book'], video: ['Видео', 'video'], image: ['Изображение', 'globe'], file: ['Файл', 'folder'], link: ['Ссылка', 'globe'], note: ['Примечание', 'lightbulb'], test: ['Тест FinTalent', 'check'], assignment: ['Практическое задание', 'briefcase'] }
 export const noteTypes = { info: 'Информация', tip: 'Совет', important: 'Важно', warning: 'Предупреждение', example: 'Пример' }
@@ -44,9 +45,9 @@ export function Video({ data, courseID, assetURL }) {
   const mediaURL = assetURL || ((id, download = false) => academyAPI.assetURL(courseID, id, download))
   const [playing, setPlaying] = useState(false)
   useEffect(() => setPlaying(false), [data.url, data.poster_id])
-  const source = videoSource(data.url)
+  const source = data.asset_id ? ['stored',mediaURL(data.asset_id)] : videoSource(data.url)
   if (!source) return <div className="academy-media-empty"><Icon name="video" /><span>Добавьте ссылку на YouTube, Vimeo, Rutube или MP4/WebM</span></div>
-  return <figure className="academy-video">{source[0] === 'video' ? <video controls preload="metadata" src={source[1]} poster={data.poster_id ? mediaURL(data.poster_id) : undefined} /> : data.poster_id && !playing ? <button type="button" className="academy-video-poster" onClick={() => setPlaying(true)} aria-label="Показать видеоплеер"><img src={mediaURL(data.poster_id)} alt="Постер видео" /><span>▶</span></button> : <iframe src={source[1]} title={data.title || 'Видео урока'} loading="lazy" allow="fullscreen; picture-in-picture" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />}{data.title && <figcaption>{data.title}{data.duration_minutes > 0 && ` · ${data.duration_minutes} мин`}</figcaption>}</figure>
+  return <figure className="academy-video">{source[0] === 'stored' ? <UploadedVideo url={source[1]} poster={data.poster_id ? mediaURL(data.poster_id) : undefined} /> : source[0] === 'video' ? <video controls preload="metadata" src={source[1]} poster={data.poster_id ? mediaURL(data.poster_id) : undefined} /> : data.poster_id && !playing ? <button type="button" className="academy-video-poster" onClick={() => setPlaying(true)} aria-label="Показать видеоплеер"><img src={mediaURL(data.poster_id)} alt="Постер видео" /><span>▶</span></button> : <iframe src={source[1]} title={data.title || 'Видео урока'} loading="lazy" allow="fullscreen; picture-in-picture" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />}{data.title && <figcaption>{data.title}{data.duration_minutes > 0 && ` · ${data.duration_minutes} мин`}</figcaption>}</figure>
 }
 const answerFormatLabels = { text: 'текст', file: 'файл', link: 'ссылка' }
 export const fileSize = size => size >= 1048576 ? `${(size / 1048576).toFixed(1)} МБ` : `${Math.ceil((size || 0) / 1024)} КБ`

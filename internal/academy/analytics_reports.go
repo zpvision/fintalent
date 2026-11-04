@@ -1,6 +1,7 @@
 package academy
 
 import (
+	"FinTalent/internal/objectstorage"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -40,6 +41,7 @@ type analyticsReportJob struct {
 	OwnerScope bool              `json:"owner_scope"`
 	Lease      string            `json:"lease_key"`
 	Storage    string            `json:"storage_key"`
+	Driver     string            `json:"storage_driver"`
 	Created    time.Time         `json:"created_at"`
 	Expires    time.Time         `json:"expires_at"`
 	Rows       int               `json:"rows_count"`
@@ -189,11 +191,17 @@ func (h *Handler) analyticsReports(w http.ResponseWriter, r *http.Request, cours
 			analyticsProblem(w, e)
 			return
 		}
-		if job.Storage != "" {
-			if p, e := reportPath(h.root, job.Storage); e == nil {
-				_ = os.Remove(p)
+		if job.Storage != "" && reportKeyPattern.MatchString(job.Storage) {
+			driver := job.Driver
+			if driver == "" {
+				driver = "local"
+			}
+			if e = h.queueDelete("reports/"+job.Storage, driver); e != nil {
+				analyticsProblem(w, e)
+				return
 			}
 		}
+
 		respond(w, 200, map[string]bool{"deleted": true})
 		return
 	}
@@ -219,21 +227,29 @@ func (h *Handler) analyticsReports(w http.ResponseWriter, r *http.Request, cours
 		fail(w, 403, "Область доступа изменилась. Сформируйте новый отчёт по доступным ученикам")
 		return
 	}
-	p, e := reportPath(h.root, job.Storage)
-	if e != nil {
+	if !reportKeyPattern.MatchString(job.Storage) {
 		analyticsProblem(w, sql.ErrNoRows)
 		return
 	}
-	file, e := os.Open(p)
-	if e != nil {
-		analyticsProblem(w, sql.ErrNoRows)
-		return
-	}
-	defer file.Close()
-	stat, e := file.Stat()
-	if e != nil {
-		analyticsProblem(w, e)
-		return
+	var file *os.File
+	var stat os.FileInfo
+	if job.Driver == "" || job.Driver == "local" {
+		p, err := reportPath(h.root, job.Storage)
+		if err != nil {
+			analyticsProblem(w, err)
+			return
+		}
+		file, e = os.Open(p)
+		if e != nil {
+			analyticsProblem(w, sql.ErrNoRows)
+			return
+		}
+		defer file.Close()
+		stat, e = file.Stat()
+		if e != nil {
+			analyticsProblem(w, e)
+			return
+		}
 	}
 	tx, e := h.db.BeginTx(r.Context(), nil)
 	if e != nil {
@@ -257,11 +273,30 @@ func (h *Handler) analyticsReports(w http.ResponseWriter, r *http.Request, cours
 	} else {
 		w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	}
-	http.ServeContent(w, r, stat.Name(), stat.ModTime(), file)
+	if file != nil {
+		http.ServeContent(w, r, stat.Name(), stat.ModTime(), file)
+		return
+	}
+	if h.storage.Multipart == nil {
+		h.storageFailure(w)
+		return
+	}
+	signed, err := h.storage.Multipart.SignGet(r.Context(), objectKey("s3", "reports/"+job.Storage), w.Header().Get("Content-Type"), w.Header().Get("Content-Disposition"), h.storage.TTL)
+	if err != nil {
+		h.storageFailure(w)
+		return
+	}
+	w.Header().Set("Referrer-Policy", "no-referrer")
+	http.Redirect(w, r, signed.URL, http.StatusTemporaryRedirect)
 }
 
 // One bounded job per call; the existing application lifecycle invokes it. PostgreSQL owns scheduling/leases.
-func ProcessAnalyticsReports(ctx context.Context, db *sql.DB, root string) error {
+func ProcessAnalyticsReports(ctx context.Context, db *sql.DB, root string, options ...StorageOptions) error {
+	h := New(db, nil, nil, root)
+	var e error
+	if len(options) > 0 {
+		h.SetStorage(options[0])
+	}
 	// Only this writer's expired temporary files are eligible; never traverse directories or symlinks.
 	if entries, err := os.ReadDir(filepath.Join(root, "reports")); err == nil {
 		for _, entry := range entries {
@@ -273,20 +308,23 @@ func ProcessAnalyticsReports(ctx context.Context, db *sql.DB, root string) error
 		}
 	}
 	var expired []struct {
-		ID  int64  `json:"id"`
-		Key string `json:"storage_key"`
+		ID     int64  `json:"id"`
+		Key    string `json:"storage_key"`
+		Driver string `json:"storage_driver"`
 	}
-	if e := analyticsJSON(ctx, db, `SELECT COALESCE(jsonb_agg(to_jsonb(x)),'[]') FROM(SELECT id,storage_key FROM academy_report_jobs WHERE (expires_at<=now() OR deleted_at IS NOT NULL) AND storage_key IS NOT NULL LIMIT 50)x`, &expired); e != nil {
+	if e := analyticsJSON(ctx, db, `SELECT COALESCE(jsonb_agg(to_jsonb(x)),'[]') FROM(SELECT id,storage_key,storage_driver FROM academy_report_jobs WHERE (expires_at<=now() OR deleted_at IS NOT NULL) AND storage_key IS NOT NULL LIMIT 50)x`, &expired); e != nil {
 		return e
 	}
 	for _, j := range expired {
-		p, e := reportPath(root, j.Key)
-		if e != nil {
-			return e
+		if !reportKeyPattern.MatchString(j.Key) {
+			return ErrInvalid
 		}
-		e = os.Remove(p)
-		if e != nil && !errors.Is(e, os.ErrNotExist) {
-			continue
+		driver := j.Driver
+		if driver == "" {
+			driver = "local"
+		}
+		if e = h.queueDelete("reports/"+j.Key, driver); e != nil {
+			return e
 		}
 		if _, e = db.ExecContext(ctx, `UPDATE academy_report_jobs SET status=CASE WHEN deleted_at IS NULL THEN 'expired' ELSE 'cancelled' END,storage_key=NULL WHERE id=$1`, j.ID); e != nil {
 			return e
@@ -318,20 +356,33 @@ func ProcessAnalyticsReports(ctx context.Context, db *sql.DB, root string) error
 		return e
 	}
 	oldStorage := job.Storage
+	oldDriver := job.Driver
+	job.Driver = h.uploadDriver()
 	job.Lease = Key()
 	job.Storage = Key() + "." + job.Format
-	_, e = tx.ExecContext(ctx, `UPDATE academy_report_jobs SET status='running',started_at=now(),lease_key=$2,storage_key=$3,error_code='' WHERE id=$1`, job.ID, job.Lease, job.Storage)
+	if job.Driver == "s3" && job.Actor > 0 {
+		key, err := objectstorage.UserKey(job.Actor, "academy")
+		if err != nil {
+			return err
+		}
+		job.Storage = key + "." + job.Format
+	}
+	_, e = tx.ExecContext(ctx, `UPDATE academy_report_jobs SET status='running',started_at=now(),lease_key=$2,storage_key=$3,storage_driver=$4,error_code='' WHERE id=$1`, job.ID, job.Lease, job.Storage, job.Driver)
 	if e != nil {
 		return e
 	}
 	if e = tx.Commit(); e != nil {
 		return e
 	}
-	if oldStorage != "" {
-		if p, er := reportPath(root, oldStorage); er == nil {
-			_ = os.Remove(p)
+	if oldStorage != "" && reportKeyPattern.MatchString(oldStorage) {
+		if oldDriver == "" {
+			oldDriver = "local"
+		}
+		if e = h.queueDelete("reports/"+oldStorage, oldDriver); e != nil {
+			return e
 		}
 	}
+
 	if job.AdminKey != "" {
 		var principal AdminPrincipal
 		if job.AdminKey == "platform_admin" {
@@ -345,7 +396,6 @@ func ProcessAnalyticsReports(ctx context.Context, db *sql.DB, root string) error
 		}
 		ctx = adminScope(ctx, principal)
 	}
-	h := New(db, nil, nil, root)
 	f, e := parseAnalyticsFilters(job.Filters.values(), job.Created)
 	var d *analyticsDataset
 	var rows [][]string
@@ -363,7 +413,7 @@ func ProcessAnalyticsReports(ctx context.Context, db *sql.DB, root string) error
 		e = ctx.Err()
 	}
 	if e == nil {
-		size, e = writeReportFile(root, job.Storage, job.Format, rows)
+		size, e = h.writeStoredReport(ctx, job.Storage, job.Format, rows)
 	}
 	status, code := "ready", ""
 	if e != nil {
@@ -400,9 +450,8 @@ func ProcessAnalyticsReports(ctx context.Context, db *sql.DB, root string) error
 		return e
 	}
 	if n == 0 || status != "ready" {
-		if p, er := reportPath(root, job.Storage); er == nil {
-			_ = os.Remove(p)
-		}
+		return h.queueDelete("reports/"+job.Storage, job.Driver)
 	}
+
 	return nil
 }

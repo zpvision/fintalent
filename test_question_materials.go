@@ -120,6 +120,10 @@ func uploadQuestionMaterial(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, 500, "Не удалось сохранить файл")
 		return
 	}
+	if err = mirrorTestMaterial(r, asset.ID, user.ID, name, typ, data); err != nil {
+		jsonError(w, 503, "Хранилище временно недоступно")
+		return
+	}
 	jsonResponse(w, 201, asset)
 }
 
@@ -152,13 +156,21 @@ func serveQuestionMaterial(w http.ResponseWriter, r *http.Request) {
 	}
 	var data []byte
 	var name, typ string
-	err = db.QueryRowContext(r.Context(), questionMaterialAccessSQL, id, uid, isAdmin(r), question, invitation, resultHash).Scan(&name, &typ, &data)
+	var authorizedID int64
+	err = db.QueryRowContext(r.Context(), questionMaterialMetadataSQL, id, uid, isAdmin(r), question, invitation, resultHash).Scan(&name, &typ, &authorizedID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			http.NotFound(w, r)
 		} else {
 			jsonError(w, 500, "Не удалось открыть материал")
 		}
+		return
+	}
+	if serveRegisteredFile(w, r, "test-material:"+strconv.FormatInt(id, 10)) {
+		return
+	}
+	if err = db.QueryRowContext(r.Context(), `SELECT content FROM test_question_materials WHERE id=$1`, authorizedID).Scan(&data); err != nil {
+		jsonError(w, 503, "Не удалось открыть материал")
 		return
 	}
 	w.Header().Set("Content-Type", typ)
@@ -170,6 +182,8 @@ func serveQuestionMaterial(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write(data)
 	}
 }
+
+var questionMaterialMetadataSQL = strings.Replace(questionMaterialAccessSQL, "SELECT m.name,m.mime,m.content ", "SELECT m.name,m.mime,m.id ", 1)
 
 const questionMaterialAccessSQL = `SELECT m.name,m.mime,m.content FROM test_question_materials m JOIN tests t ON t.id=m.test_id JOIN users author ON author.id=t.author_id
  WHERE m.id=$1 AND (NOT author.is_blocked OR author.is_system) AND (

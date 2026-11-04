@@ -1,16 +1,16 @@
 package academy
 
 import (
+	"FinTalent/internal/objectstorage"
 	"archive/zip"
 	"bytes"
-	"crypto/rand"
 	"encoding/hex"
 	"fmt"
 	"io"
-	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -67,6 +67,10 @@ func (h *Handler) assets(w http.ResponseWriter, r *http.Request, course, user in
 		problem(w, e)
 		return
 	}
+	if len(parts) > 0 && parts[0] == "uploads" {
+		h.uploadSessions(w, r, course, user, program, parts[1:])
+		return
+	}
 	if len(parts) == 0 || parts[0] == "" {
 		if r.Method == "GET" {
 			var raw []byte
@@ -113,16 +117,16 @@ func (h *Handler) assets(w http.ResponseWriter, r *http.Request, course, user in
 			return
 		}
 		storage, name, typ := upload.storage, upload.name, upload.mime
-		file := filepath.Join(h.root, storage)
+
 		tx, e := h.db.BeginTx(r.Context(), nil)
 		if e != nil {
-			_ = os.Remove(file)
+			upload.remove()
 			problem(w, e)
 			return
 		}
 		defer tx.Rollback()
 		var id int64
-		e = tx.QueryRowContext(r.Context(), `INSERT INTO academy_media_assets(program_id,entity_key,storage_key,name,mime,size,created_by) VALUES($1,$2,$3,$4,$5,$6,$7) RETURNING id`, program, key, storage, name, typ, upload.size, user).Scan(&id)
+		e = tx.QueryRowContext(r.Context(), `INSERT INTO academy_media_assets(program_id,entity_key,storage_key,name,mime,size,created_by,storage_driver,checksum,checksum_kind) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'sha256') RETURNING id`, program, key, storage, name, typ, upload.size, user, upload.driver, upload.checksum).Scan(&id)
 		if e == nil {
 			_, e = tx.ExecContext(r.Context(), `INSERT INTO academy_asset_links(asset_id,program_id,entity_key) VALUES($1,$2,$3)`, id, program, key)
 		}
@@ -130,7 +134,7 @@ func (h *Handler) assets(w http.ResponseWriter, r *http.Request, course, user in
 			e = tx.Commit()
 		}
 		if e != nil {
-			_ = os.Remove(file)
+			upload.remove()
 			problem(w, e)
 			return
 		}
@@ -149,8 +153,19 @@ func (h *Handler) assets(w http.ResponseWriter, r *http.Request, course, user in
 		return
 	}
 	if r.Method == "DELETE" {
+		tx, err := h.db.BeginTx(r.Context(), nil)
+		if err != nil {
+			problem(w, err)
+			return
+		}
+		defer tx.Rollback()
+		var locked int64
+		if err = tx.QueryRowContext(r.Context(), "SELECT id FROM academy_course_programs WHERE id=$1 FOR UPDATE", program).Scan(&locked); err != nil {
+			problem(w, err)
+			return
+		}
 		var inUse bool
-		e = h.db.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_program_versions WHERE program_id=$1) OR EXISTS(SELECT 1 FROM academy_modules WHERE program_id=$1 AND cover_asset_id=$2) OR EXISTS(SELECT 1 FROM academy_lessons WHERE program_id=$1 AND cover_asset_id=$2) OR EXISTS(SELECT 1 FROM academy_lesson_blocks WHERE program_id=$1 AND (data->>'asset_id'=$2::text OR data->>'poster_id'=$2::text OR (data->'material_ids') @> to_jsonb($2::bigint)))`, program, id).Scan(&inUse)
+		e = tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_program_versions v CROSS JOIN LATERAL jsonb_array_elements(v.content->'modules') m WHERE v.program_id=$1 AND (m->>'cover_asset_id'=$2::bigint::text OR EXISTS(SELECT 1 FROM jsonb_array_elements(m->'lessons') l WHERE l->>'cover_asset_id'=$2::bigint::text OR EXISTS(SELECT 1 FROM jsonb_array_elements(l->'blocks') b WHERE b->'data'->>'asset_id'=$2::bigint::text OR b->'data'->>'poster_id'=$2::bigint::text OR (b->'data'->'material_ids') @> to_jsonb($2::bigint))))) OR EXISTS(SELECT 1 FROM academy_modules WHERE program_id=$1 AND cover_asset_id=$2::bigint) OR EXISTS(SELECT 1 FROM academy_lessons WHERE program_id=$1 AND cover_asset_id=$2::bigint) OR EXISTS(SELECT 1 FROM academy_lesson_blocks WHERE program_id=$1 AND (data->>'asset_id'=$2::bigint::text OR data->>'poster_id'=$2::bigint::text OR (data->'material_ids') @> to_jsonb($2::bigint)))`, program, id).Scan(&inUse)
 		if e != nil {
 			problem(w, e)
 			return
@@ -159,11 +174,15 @@ func (h *Handler) assets(w http.ResponseWriter, r *http.Request, course, user in
 			fail(w, 409, "Файл используется программой или сохранённой версией. Сначала уберите его из материалов; файлы версий сохраняются")
 			return
 		}
-		_, e = h.db.ExecContext(r.Context(), `UPDATE academy_media_assets SET deleted_at=NOW() WHERE id=$1 AND program_id=$2`, id, program)
+		_, e = tx.ExecContext(r.Context(), `WITH removed AS(UPDATE academy_media_assets SET deleted_at=now() WHERE id=$1 AND program_id=$2 RETURNING storage_key,storage_driver) INSERT INTO academy_storage_gc(storage_key,storage_driver,next_at) SELECT storage_key,storage_driver,now() FROM removed ON CONFLICT(storage_key,storage_driver) DO UPDATE SET next_at=now()`, id, program)
+		if e == nil {
+			e = tx.Commit()
+		}
 		if e != nil {
 			problem(w, e)
 			return
 		}
+
 		respond(w, 200, map[string]bool{"deleted": true})
 		return
 	}
@@ -182,35 +201,17 @@ func (h *Handler) serveAsset(w http.ResponseWriter, r *http.Request, program, id
 	}
 	h.sendAssetFile(w, r, storage, name, typ)
 }
-func (h *Handler) sendAssetFile(w http.ResponseWriter, r *http.Request, storage, name, typ string) {
-	if !regexpStorage(storage) {
+func (h *Handler) sendAssetFile(w http.ResponseWriter, r *http.Request, key, name, typ string) {
+	if !regexpStorage(key) {
 		fail(w, 404, "Файл не найден")
 		return
 	}
-	f, e := os.Open(filepath.Join(h.root, storage))
-	if e != nil {
-		fail(w, 404, "Файл временно недоступен")
-		return
-	}
-	defer f.Close()
-	info, e := f.Stat()
-	if e != nil {
-		problem(w, e)
-		return
-	}
-	disposition := "attachment"
-	if strings.HasPrefix(typ, "image/") && r.URL.Query().Get("download") != "1" {
-		disposition = "inline"
-	}
-	w.Header().Set("Content-Type", typ)
-	w.Header().Set("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": name}))
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("Content-Security-Policy", "sandbox; default-src 'none'")
-	w.Header().Set("Cache-Control", "private, no-store")
-	w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
-	http.ServeContent(w, r, name, info.ModTime(), f)
+	h.sendStoredAsset(w, r, key, name, typ)
 }
 func regexpStorage(s string) bool {
+	if strings.HasPrefix(s, "users/") {
+		return regexp.MustCompile(`^users/[1-9][0-9]*/academy/[a-f0-9]{48}$`).MatchString(s)
+	}
 	if len(s) != 48 {
 		return false
 	}
@@ -219,11 +220,16 @@ func regexpStorage(s string) bool {
 }
 
 type storedUpload struct {
-	storage, name, mime, path string
-	size                      int
+	storage, name, mime, path, driver, checksum string
+	size                                        int
+	cleanup                                     func()
 }
 
-func (u storedUpload) remove() { _ = os.Remove(u.path) }
+func (u storedUpload) remove() {
+	if u.cleanup != nil {
+		u.cleanup()
+	}
+}
 func parseUpload(w http.ResponseWriter, r *http.Request) error {
 	r.Body = http.MaxBytesReader(w, r.Body, maxAssetSize+(1<<20))
 	if r.ParseMultipartForm(1<<20) != nil {
@@ -232,9 +238,9 @@ func parseUpload(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 func (h *Handler) storeUpload(r *http.Request) (storedUpload, error) {
-	settings, err := academySettings(r.Context(), h.db)
-	if err != nil {
-		return storedUpload{}, err
+	settings, e := academySettings(r.Context(), h.db)
+	if e != nil {
+		return storedUpload{}, e
 	}
 	limit := int64(settings.UploadMB) << 20
 	f, header, e := r.FormFile("file")
@@ -242,36 +248,47 @@ func (h *Handler) storeUpload(r *http.Request) (storedUpload, error) {
 		return storedUpload{}, inputError{"Выберите файл"}
 	}
 	defer f.Close()
-	body, e := io.ReadAll(io.LimitReader(f, limit+1))
-	if e != nil || len(body) == 0 || int64(len(body)) > limit {
-		return storedUpload{}, inputError{"Файл пустой или больше 20 МБ"}
+	tmp, e := os.CreateTemp("", "academy-upload-*")
+	if e != nil {
+		return storedUpload{}, e
 	}
-	typ, e := fileType(header.Filename, body)
+	defer os.Remove(tmp.Name())
+	defer tmp.Close()
+	digest := newDigest()
+	n, e := io.Copy(io.MultiWriter(tmp, digest), io.LimitReader(f, limit+1))
+	if e != nil || n == 0 || n > limit {
+		return storedUpload{}, inputError{"Файл пустой или больше разрешённого размера"}
+	}
+	typ, e := streamFileType(header.Filename, tmp, n)
 	if e != nil {
 		return storedUpload{}, inputError{e.Error()}
 	}
-	name := filepath.Base(strings.ReplaceAll(header.Filename, "\\", "/"))
-	name = strings.Map(func(r rune) rune {
-		if r < 32 || r == 127 {
-			return -1
-		}
-		return r
-	}, name)
-	runes := []rune(name)
-	if len(runes) > 240 {
-		name = string(runes[:240])
+	name := cleanAssetName(header.Filename)
+	user, e := h.user(r)
+	if e != nil || user <= 0 {
+		return storedUpload{}, ErrAccess
 	}
-	token := make([]byte, 24)
-	if _, e = rand.Read(token); e != nil {
+	fullKey, e := objectstorage.UserKey(user, "academy")
+	if e != nil {
 		return storedUpload{}, e
 	}
-	storage := hex.EncodeToString(token)
-	if e = os.MkdirAll(h.root, 0700); e != nil {
+	key := fullKey
+	if h.uploadDriver() == "local" {
+		key = fullKey[strings.LastIndex(fullKey, "/")+1:]
+	}
+	driver := h.uploadDriver()
+	store, e := h.store(driver)
+	if e != nil {
 		return storedUpload{}, e
 	}
-	file := filepath.Join(h.root, storage)
-	if e = os.WriteFile(file, body, 0600); e != nil {
+	if e = h.reserveObject(r.Context(), key, driver); e != nil {
 		return storedUpload{}, e
 	}
-	return storedUpload{storage, name, typ, file, len(body)}, nil
+	if _, e = tmp.Seek(0, 0); e != nil {
+		return storedUpload{}, e
+	}
+	if e = store.Put(r.Context(), objectKey(driver, key), tmp, n, typ); e != nil {
+		return storedUpload{}, e
+	}
+	return storedUpload{storage: key, name: name, mime: typ, size: int(n), driver: driver, checksum: digestHex(digest), cleanup: func() { h.queueDelete(key, driver) }}, nil
 }

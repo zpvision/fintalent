@@ -94,10 +94,10 @@ func main() {
 		w.Header().Set("Cache-Control", "no-store")
 		w.WriteHeader(204)
 	})
-	http.Handle("/static/", http.StripPrefix("/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	http.Handle("/static/", sharedPublicFiles(http.StripPrefix("/static/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 		fs.ServeHTTP(w, r)
-	})))
+	}))))
 	http.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "image/x-icon")
 		http.ServeFile(w, r, "static/favicon.ico")
@@ -198,6 +198,11 @@ func securityHeaders(next http.Handler) http.Handler {
 			w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
 		}
 		w.Header().Set("Content-Security-Policy-Report-Only", "default-src 'self'; script-src 'self' 'unsafe-inline' https://mc.yandex.ru https://yastatic.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' https: data: blob:; connect-src 'self' https://mc.yandex.ru https://mc.yandex.com; frame-src 'self' blob: https://rutube.ru https://www.youtube.com https://youtube.com https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; base-uri 'self'")
+		if objectStorageCSPSource != "" {
+			policy := w.Header().Get("Content-Security-Policy-Report-Only")
+			policy = strings.Replace(policy, "connect-src 'self'", "connect-src 'self'"+objectStorageCSPSource, 1)
+			w.Header().Set("Content-Security-Policy-Report-Only", policy+"; media-src 'self' blob:"+objectStorageCSPSource)
+		}
 		if secureCookies() {
 			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 		}
@@ -289,6 +294,9 @@ func prepareDatabase() error {
 	}
 	if err := prepareAcademyDatabase(ctx); err != nil {
 		return fmt.Errorf("prepareAcademyDatabase: %w", err)
+	}
+	if err := prepareSharedObjectFilesDatabase(ctx); err != nil {
+		return fmt.Errorf("prepareSharedObjectFilesDatabase: %w", err)
 	}
 	if err := prepareClientExchangeDatabase(ctx); err != nil {
 		return fmt.Errorf("prepareClientExchangeDatabase: %w", err)
@@ -520,7 +528,8 @@ func profileAvatar(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, "Фотография должна быть не больше 5 МБ")
 		return
 	}
-	file, _, err := r.FormFile("avatar")
+	defer r.MultipartForm.RemoveAll()
+	file, header, err := r.FormFile("avatar")
 	if err != nil {
 		writeJSON(w, http.StatusBadRequest, "Выберите фотографию")
 		return
@@ -562,6 +571,10 @@ func profileAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	url := "/static/uploads/avatars/" + name
+	if err = mirrorUserFile(r, url, path, header.Filename, fileUser(u.ID), "files"); err != nil {
+		writeJSON(w, 503, "Хранилище временно недоступно")
+		return
+	}
 	if _, err = db.ExecContext(r.Context(), `UPDATE users SET avatar_url=$1 WHERE id=$2`, url, u.ID); err != nil {
 		_ = os.Remove(path)
 		writeJSON(w, 500, "Не удалось обновить профиль")

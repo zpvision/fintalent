@@ -21,7 +21,7 @@ func startAcademyAnalyticsWorker(ctx context.Context, wg *sync.WaitGroup) {
 				return
 			case <-tick.C:
 				job, cancel := context.WithTimeout(ctx, 5*time.Minute)
-				err := academy.ProcessAnalyticsReports(job, db, root)
+				err := academy.ProcessAnalyticsReports(job, db, root, academyStorageOptions())
 				cancel()
 				if err != nil && ctx.Err() == nil {
 					log.Print("academy report processing failed")

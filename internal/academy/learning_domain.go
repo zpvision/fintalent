@@ -56,7 +56,7 @@ func CheckReadiness(p Program) Readiness {
 					r.Blockers = append(r.Blockers, fmt.Sprintf("Добавьте содержимое обязательного урока «%s»", l.Title))
 				}
 				for _, b := range l.Blocks {
-					if (oneOf(b.Type, "image", "file") && b.Data.AssetID == 0) || (oneOf(b.Type, "video", "link") && b.Data.URL == "") {
+					if (oneOf(b.Type, "image", "file") && b.Data.AssetID == 0) || ((b.Type == "link" || b.Type == "video" && b.Data.AssetID == 0) && b.Data.URL == "") {
 						r.Blockers = append(r.Blockers, fmt.Sprintf("В уроке «%s» не заполнен блок материалов", l.Title))
 					}
 				}

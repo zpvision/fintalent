@@ -1,6 +1,7 @@
 package academy
 
 import (
+	"FinTalent/internal/objectstorage"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -12,6 +13,7 @@ import (
 )
 
 type Handler struct {
+	storage        StorageOptions
 	db             *sql.DB
 	user           func(*http.Request) (int64, error)
 	gate           func(http.HandlerFunc) http.HandlerFunc
@@ -40,6 +42,8 @@ func fail(w http.ResponseWriter, status int, message string) {
 func problem(w http.ResponseWriter, e error) {
 	var in inputError
 	switch {
+	case errors.Is(e, objectstorage.ErrUnavailable):
+		fail(w, 503, "Хранилище временно недоступно. Повторите позже")
 	case errors.Is(e, errAdminReplay):
 		respond(w, 200, map[string]bool{"replayed": true})
 	case errors.Is(e, ErrAssessmentUnprepared):

@@ -15,7 +15,7 @@ import (
 	"unicode"
 )
 
-var reportKeyPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{8,80}\.(csv|xlsx)$`)
+var reportKeyPattern = regexp.MustCompile(`^(?:[A-Za-z0-9_-]{8,80}|users/[1-9][0-9]*/academy/[a-f0-9]{48})\.(csv|xlsx)$`)
 
 func reportPath(root, key string) (string, error) {
 	if !reportKeyPattern.MatchString(key) {

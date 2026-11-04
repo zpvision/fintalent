@@ -316,6 +316,10 @@ func adminPositionIconUpload(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, "Не удалось сохранить иконку")
 		return
 	}
+	if err = mirrorUserFile(r, "/static/uploads/position-icons/"+name, filepath.Join(directory, name), header.Filename, filePlatform(), "files"); err != nil {
+		writeJSON(w, 503, "Хранилище временно недоступно")
+		return
+	}
 	writeAdminJSON(w, http.StatusCreated, map[string]string{"url": "/static/uploads/position-icons/" + name})
 }
 

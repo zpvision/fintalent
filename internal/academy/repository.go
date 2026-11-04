@@ -115,6 +115,15 @@ func (h *Handler) saveTree(ctx context.Context, tx *sql.Tx, p *Program) error {
 						return e
 					}
 				}
+				if b.Type == "video" && b.Data.AssetID > 0 {
+					var valid bool
+					if e := tx.QueryRowContext(ctx, "SELECT mime='video/mp4' FROM academy_media_assets WHERE id=$1 AND program_id=$2 AND deleted_at IS NULL", b.Data.AssetID, p.ID).Scan(&valid); e != nil {
+						return e
+					}
+					if !valid {
+						return ErrInvalid
+					}
+				}
 				for _, id := range b.Data.MaterialIDs {
 					if id <= 0 {
 						return ErrInvalid

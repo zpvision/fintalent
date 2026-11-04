@@ -140,5 +140,9 @@ func accountingCompanyUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	url := "/static/" + filepath.ToSlash(filepath.Join("uploads", "accounting-companies", folder, name))
+	if err = mirrorUserFile(r, url, path, header.Filename, fileCompany(companyID), "files", u.ID); err != nil {
+		jsonResponse(w, 503, map[string]string{"error": "Хранилище временно недоступно"})
+		return
+	}
 	jsonResponse(w, 200, map[string]string{"url": url})
 }

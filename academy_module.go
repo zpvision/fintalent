@@ -34,6 +34,12 @@ var academyAnalyticsSchema string
 //go:embed migrations/084_academy_admin.sql
 var academyAdminSchema string
 
+//go:embed migrations/089_academy_storage_owners.sql
+var academyStorageOwnersSchema string
+
+//go:embed migrations/088_academy_object_storage.sql
+var academyObjectStorageSchema string
+
 //go:embed migrations/085_academy_publication_defaults.sql
 var academyPublicationDefaultsSchema string
 
@@ -67,6 +73,14 @@ func prepareAcademyDatabase(ctx context.Context) error {
 		return err
 	}
 	_, err = db.ExecContext(ctx, academyPublicationDefaultsSchema)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, academyObjectStorageSchema)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, academyStorageOwnersSchema)
 	return err
 }
 func academyStorageRoot() string {
@@ -95,6 +109,7 @@ func registerAcademyRoutes(gate func(http.HandlerFunc) http.HandlerFunc) func(ht
 		}
 		return u.ID, nil
 	}, gate, absolute)
+	h.SetStorage(academyStorageOptions())
 	h.SetCommunicationBase(applicationBaseURL())
 	h.SetAdminResolver(resolveAcademyAdministrator)
 	h.Register(http.DefaultServeMux)

@@ -205,6 +205,9 @@ func validateBlock(b *Block) error {
 	if d.URL != "" && !validURL(d.URL) {
 		return fmt.Errorf("Используйте безопасную HTTPS-ссылку")
 	}
+	if b.Type == "video" && d.AssetID > 0 && d.URL != "" {
+		return fmt.Errorf("Выберите загрузку видео или ссылку, а не оба источника")
+	}
 	if b.Type == "video" && d.URL != "" {
 		if kind, _ := VideoSource(d.URL); kind == "" {
 			return fmt.Errorf("Видео: YouTube, Vimeo, Rutube или HTTPS-ссылка на MP4/WebM")

@@ -20,6 +20,7 @@ import (
 
 // Explicit opt-in. Fixtures live only in a new, verified schema on DATABASE_URL.
 func TestCoursesIsolatedPostgres(t *testing.T) {
+	useLocalSharedStorage(t)
 	if os.Getenv("RUN_COURSES_DB_TESTS") != "1" {
 		t.Skip("set RUN_COURSES_DB_TESTS=1 and cloud DATABASE_URL")
 	}
