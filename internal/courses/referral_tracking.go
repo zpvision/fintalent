@@ -160,6 +160,10 @@ func (h *Handler) courseInterest(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(204)
 		return
 	}
+	user, ok := h.current(w, r)
+	if !ok {
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 	tx, e := h.db.BeginTx(ctx, nil)
@@ -187,27 +191,13 @@ func (h *Handler) courseInterest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	hash, token, claimed, e := lockReferralGuest(ctx, tx, r)
-	if e != nil {
-		dbError(w, e)
-		return
-	}
-	user, _ := h.user(r)
 	var source sql.NullInt64
-	if user > 0 {
-		e = tx.QueryRowContext(ctx, `SELECT referral_link_id FROM course_referral_attributions WHERE user_id=$1 AND course_id=$2`, user, course).Scan(&source)
-	} else if !claimed {
-		e = tx.QueryRowContext(ctx, `SELECT g.referral_link_id FROM course_referral_guest_claims g JOIN course_referral_links l ON l.id=g.referral_link_id WHERE g.token_hash=$1 AND g.course_id=$2 AND l.deleted_at IS NULL`, hash, course).Scan(&source)
-	}
+	e = tx.QueryRowContext(ctx, `SELECT referral_link_id FROM course_referral_attributions WHERE user_id=$1 AND course_id=$2`, user, course).Scan(&source)
 	if e != nil && e != sql.ErrNoRows {
 		dbError(w, e)
 		return
 	}
-	if user > 0 {
-		_, e = tx.ExecContext(ctx, `INSERT INTO course_interests(course_id,user_id,referral_link_id,tariff_id) VALUES($1,$2,$3,NULLIF($4,0)) ON CONFLICT(course_id,user_id) WHERE user_id IS NOT NULL DO UPDATE SET referral_link_id=COALESCE(course_interests.referral_link_id,EXCLUDED.referral_link_id)`, course, user, source, in.Tariff)
-	} else {
-		_, e = tx.ExecContext(ctx, `INSERT INTO course_interests(course_id,guest_hash,referral_link_id,tariff_id) VALUES($1,$2,$3,NULLIF($4,0)) ON CONFLICT(course_id,guest_hash) WHERE user_id IS NULL DO UPDATE SET referral_link_id=COALESCE(course_interests.referral_link_id,EXCLUDED.referral_link_id)`, course, hash, source, in.Tariff)
-	}
+	_, e = tx.ExecContext(ctx, `INSERT INTO course_interests(course_id,user_id,referral_link_id,tariff_id) VALUES($1,$2,$3,NULLIF($4,0)) ON CONFLICT(course_id,user_id) WHERE user_id IS NOT NULL DO UPDATE SET referral_link_id=COALESCE(course_interests.referral_link_id,EXCLUDED.referral_link_id)`, course, user, source, in.Tariff)
 	if e == nil {
 		e = tx.Commit()
 	}
@@ -215,7 +205,6 @@ func (h *Handler) courseInterest(w http.ResponseWriter, r *http.Request) {
 		dbError(w, e)
 		return
 	}
-	visitorCookie(w, r, token)
 	w.WriteHeader(204)
 }
 

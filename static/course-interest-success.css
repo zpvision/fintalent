@@ -1,0 +1,24 @@
+.course-interest-success{padding:20px;font-family:Inter,Arial,sans-serif;overflow-y:auto;overscroll-behavior:contain}
+.course-interest-success,.course-interest-success *{box-sizing:border-box}
+.course-interest-success>section{width:min(540px,100%);max-height:calc(100dvh - 40px);overflow-y:auto;padding:44px 38px 28px;border-radius:28px}
+.course-interest-success>section:before,.course-interest-success>section:after{display:none}
+.course-interest-success h2{font-size:29px;line-height:1.2;margin:16px 0;color:#122d58;text-wrap:balance}
+.course-interest-success section>small{font-size:10px;line-height:1.6;letter-spacing:.11em}
+.course-interest-success section>p{font-size:15px;line-height:1.75;color:#677a97}
+.course-interest-success .publish-success-mark{width:88px;height:88px;margin-bottom:26px;border-radius:28px;animation:courseInterestMark .65s cubic-bezier(.2,.9,.3,1.2) both}
+.course-interest-success .publish-success-wish{margin:24px 0;padding:16px;gap:13px;border-color:#dbe9f3;background:linear-gradient(115deg,#eef5ff,#edf9f4)}
+.course-interest-success .publish-success-wish span{min-width:0;overflow-wrap:anywhere}
+.course-interest-success .publish-success-wish b{font-size:14px;line-height:1.5}
+.course-interest-success .publish-success-wish small{font-size:12px;line-height:1.65;margin-top:5px}
+.course-interest-success .publish-success-actions button,.course-interest-success .publish-success-actions a{min-height:48px;height:auto;padding:13px 18px;font:600 14px Inter,Arial,sans-serif;cursor:pointer;border:0}
+.course-interest-success .publish-success-actions .publish-success-primary{color:#fff;background:linear-gradient(105deg,#1559f6,#079ecc 75%,#00b590);box-shadow:0 8px 24px #1559f624;transition:filter .2s,transform .2s}
+.course-interest-success .publish-success-primary:hover{filter:brightness(1.04);transform:translateY(-1px)}
+.course-interest-success .publish-success-actions a{gap:16px}
+.course-interest-success section>.publish-success-footer{font-size:11px;line-height:1.6;color:#8a99ae;margin:21px auto 0;padding-top:18px;border-top:1px solid #e6edf5}
+.course-interest-success .publish-success-close{cursor:pointer;min-width:36px;min-height:36px}
+.course-interest-success :focus-visible{outline:3px solid #90b8ff;outline-offset:3px}
+.course-interest-success .publish-confetti i{width:11px;height:17px;border-radius:0;clip-path:polygon(0 0,100% 0,100% 100%,50% 72%,0 100%)}
+.course-interest-success.is-auth .publish-confetti{display:none}
+@keyframes courseInterestMark{from{opacity:0;transform:translateY(10px) scale(.7) rotate(-14deg)}to{opacity:1;transform:translateY(0) scale(1) rotate(-4deg)}}
+@media(max-width:560px){.course-interest-success{padding:14px}.course-interest-success>section{max-height:calc(100dvh - 28px);padding:38px 23px 24px;border-radius:23px}.course-interest-success h2{font-size:25px}.course-interest-success section>p{font-size:14px}.course-interest-success .publish-success-wish{padding:13px}.course-interest-success section>small{font-size:9px}.course-interest-success .publish-success-close{top:12px;right:12px}}
+@media(prefers-reduced-motion:reduce){.course-interest-success .publish-success-mark{animation:none}.course-interest-success .publish-confetti{display:none}.course-interest-success .publish-success-primary:hover{transform:none}}

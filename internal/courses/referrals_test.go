@@ -98,3 +98,16 @@ func TestReferralEarlyDenials(t *testing.T) {
 		}
 	}
 }
+
+func TestGuestInterestRequiresLoginBeforeDatabaseAccess(t *testing.T) {
+	h := New(nil, func(*http.Request) (int64, error) { return 0, nil }, nil)
+	r := httptest.NewRequest("POST", "/api/courses/interest", strings.NewReader(`{"slug":"course","user_id":123,"referral_link_id":456}`))
+	w := httptest.NewRecorder()
+	h.courseInterest(w, r)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatal("anonymous interest must be rejected before any database write")
+	}
+	if len(w.Result().Cookies()) != 0 {
+		t.Fatal("guest interest must not allocate a guest session")
+	}
+}

@@ -48,8 +48,14 @@ results are unchanged.
   Visits less than two seconds apart are coalesced. Login merges the visitor
   counts with the account and consumes the guest identity. No IP, email,
   user-agent, cookie token or signed URL is stored in acquisition statistics.
-- `course_interests`: one first choice per account/course or anonymous
-  browser/course. Login merges duplicates. The source comes from the database,
+- `course_interests`: one first choice per authenticated account/course.
+  Anonymous selection is not saved: the UI offers login/registration, and the
+  backend returns 401 before database access. After login the user returns to
+  the course and confirms selection. Login alone does not create an interest.
+  Existing historical anonymous rows are retained for compatibility but hidden
+  from lead lists and counts; the old login merge can still attach them to a
+  real account. Anonymous referral visits/claims remain necessary for source
+  attribution and are independent of applications. The source comes from the database,
   never from the interest request. A tariff is validated against the course;
   its numeric ID is historical metadata, not an order or price snapshot.
   A later first valid partner attribution can fill an interest's previously
@@ -89,7 +95,7 @@ consistent with login binding. Soft deletion preserves names and statistics.
 
 Source summary counts are explicitly **all time**, independent of learning
 filters. “Visitors” are pseudonymous browsers or accounts after merging, not
-an absolute count of humans. Interest detail uses period, search and source;
+an absolute count of humans. Interest detail contains authenticated accounts only and uses period, search and source;
 cohort/version/progress filters only apply to the enrollment table, because a
 lead need not have an enrollment. Whole-course acquisition statistics and leads
 are owner/admin-only. Curators see source names for their permitted enrollments,

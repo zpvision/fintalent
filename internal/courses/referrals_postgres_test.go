@@ -125,8 +125,11 @@ func TestReferralIsolatedPostgres(t *testing.T) {
 			t.Fatalf("interest %d %s", w.Code, w.Body.String())
 		}
 	}
-	interest("course-a", 0, cookie)
-	interest("course-a", 0, cookie)
+	for i := 0; i < 2; i++ {
+		if w := request("POST", "/interest", `{"slug":"course-a"}`, 0, cookie); w.Code != 401 {
+			t.Fatal("guest interest accepted")
+		}
+	}
 	var n int
 	check := func(q string, want int, args ...any) {
 		t.Helper()
@@ -134,7 +137,7 @@ func TestReferralIsolatedPostgres(t *testing.T) {
 			t.Fatalf("assertion got=%d want=%d error=%v", n, want, e)
 		}
 	}
-	check(`SELECT count(*) FROM course_interests`, 1)
+	check(`SELECT count(*) FROM course_interests`, 0)
 	r := httptest.NewRequest("POST", "/login", nil)
 	r.AddCookie(cookie)
 	if e = BindReferralGuest(context.Background(), db, r, 3); e != nil {
@@ -142,6 +145,9 @@ func TestReferralIsolatedPostgres(t *testing.T) {
 	}
 	check(`SELECT count(*) FROM course_referral_attributions WHERE user_id=3`, 2)
 	check(`SELECT referral_link_id FROM course_referral_attributions WHERE user_id=3 AND course_id=1`, int(first))
+	check(`SELECT count(*) FROM course_interests`, 0)
+	interest("course-a", 3, nil)
+	interest("course-a", 3, nil)
 	check(`SELECT count(*) FROM course_interests WHERE user_id=3`, 1)
 	visit("course-a", "email_2026", 3, nil)
 	interest("course-a", 3, nil)

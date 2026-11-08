@@ -13,7 +13,7 @@ func (h *Handler) courseInterests(ctx context.Context, d *analyticsDataset) (map
 	if source != "" && source != "platform" {
 		sourceID, _ = strconv.ParseInt(source, 10, 64)
 	}
-	where := `i.course_id=$1 AND i.first_clicked_at>=$2 AND i.first_clicked_at<$3 AND($4='' OR $4='platform' AND i.referral_link_id IS NULL OR i.referral_link_id=$5) AND($6='' OR u.full_name ILIKE '%'||$6||'%' OR i.user_id::text=$6)`
+	where := `i.user_id IS NOT NULL AND i.course_id=$1 AND i.first_clicked_at>=$2 AND i.first_clicked_at<$3 AND($4='' OR $4='platform' AND i.referral_link_id IS NULL OR i.referral_link_id=$5) AND($6='' OR u.full_name ILIKE '%'||$6||'%' OR i.user_id::text=$6)`
 	args := []any{d.Course, d.Filters.from, d.Filters.until, source, sourceID, d.Filters.Search}
 	var count int
 	err := h.db.QueryRowContext(ctx, `SELECT count(*) FROM course_interests i LEFT JOIN users u ON u.id=i.user_id WHERE `+where, args...).Scan(&count)
@@ -70,7 +70,7 @@ func (h *Handler) studentSources(ctx context.Context, d *analyticsDataset) ([]an
 		}
 		return result, nil
 	}
-	rows, e := h.db.QueryContext(ctx, `SELECT l.id,l.name,l.deleted_at IS NOT NULL,COALESCE((SELECT sum(v.visits) FROM course_referral_visitors v WHERE v.referral_link_id=l.id),0),(SELECT count(*) FROM course_referral_visitors v WHERE v.referral_link_id=l.id),(SELECT count(*) FROM course_referral_attributions a WHERE a.referral_link_id=l.id AND a.course_id=l.course_id),(SELECT count(*) FROM course_interests i WHERE i.referral_link_id=l.id AND i.course_id=l.course_id) FROM course_referral_links l WHERE l.course_id=$1 ORDER BY l.id`, d.Course)
+	rows, e := h.db.QueryContext(ctx, `SELECT l.id,l.name,l.deleted_at IS NOT NULL,COALESCE((SELECT sum(v.visits) FROM course_referral_visitors v WHERE v.referral_link_id=l.id),0),(SELECT count(*) FROM course_referral_visitors v WHERE v.referral_link_id=l.id),(SELECT count(*) FROM course_referral_attributions a WHERE a.referral_link_id=l.id AND a.course_id=l.course_id),(SELECT count(*) FROM course_interests i WHERE i.referral_link_id=l.id AND i.course_id=l.course_id AND i.user_id IS NOT NULL) FROM course_referral_links l WHERE l.course_id=$1 ORDER BY l.id`, d.Course)
 	if e != nil {
 		return nil, e
 	}
@@ -89,7 +89,7 @@ func (h *Handler) studentSources(ctx context.Context, d *analyticsDataset) ([]an
 	}
 	rows.Close()
 	var interests int64
-	if e = h.db.QueryRowContext(ctx, `SELECT count(*) FROM course_interests WHERE course_id=$1 AND referral_link_id IS NULL`, d.Course).Scan(&interests); e != nil {
+	if e = h.db.QueryRowContext(ctx, `SELECT count(*) FROM course_interests WHERE course_id=$1 AND referral_link_id IS NULL AND user_id IS NOT NULL`, d.Course).Scan(&interests); e != nil {
 		return nil, e
 	}
 	result = append([]analyticsRow{{"id": 0, "name": "FinTalent", "interests": interests}}, result...)
