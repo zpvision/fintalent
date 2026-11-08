@@ -95,6 +95,9 @@ func (h *Handler) route(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	owner := h.courseOwner(r, course, user)
+	if owner && !h.requireCourseModeration(w, r, course) {
+		return
+	}
 	action := ""
 	if len(parts) > 1 {
 		action = parts[1]
@@ -108,6 +111,9 @@ func (h *Handler) route(w http.ResponseWriter, r *http.Request) {
 		}
 		if !allowed {
 			problem(w, sql.ErrNoRows)
+			return
+		}
+		if !h.requireCourseModeration(w, r, course) {
 			return
 		}
 		if !((action == "" && r.Method == "GET") || oneOf(action, "cohorts", "crm", "reviews", "assessment-results", "communications", "analytics") || action == "students" && r.Method == "GET") {

@@ -12,7 +12,25 @@ import (
 
 // The platform Courses gate is required in addition to enrollment/staff permissions.
 func (h *Handler) CoursePage(page http.HandlerFunc) http.HandlerFunc {
-	return h.gate(page)
+	return h.gate(func(w http.ResponseWriter, r *http.Request) {
+		parts := strings.Split(strings.Trim(strings.TrimPrefix(r.URL.Path, "/profile/courses/"), "/"), "/")
+		if len(parts) > 1 && parts[1] == "academy" {
+			course, err := strconv.ParseInt(parts[0], 10, 64)
+			user, userErr := h.user(r)
+			if err == nil && course > 0 && userErr == nil && user > 0 {
+				approved, err := h.ownerCourseModerated(r, course, user)
+				if err != nil {
+					problem(w, err)
+					return
+				}
+				if !approved {
+					http.Redirect(w, r, "/profile/courses?academy=moderation", http.StatusSeeOther)
+					return
+				}
+			}
+		}
+		page(w, r)
+	})
 }
 func (h *Handler) cohortWorkspace(w http.ResponseWriter, r *http.Request, course, user int64, owner bool) {
 	var raw json.RawMessage

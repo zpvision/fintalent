@@ -48,6 +48,21 @@ func testAcademyStageA(t *testing.T, db *sql.DB, mux *http.ServeMux, gate func(h
 	}
 	request("GET", base, 0, nil, 401)
 	request("GET", base, other, nil, 404)
+	request("GET", base, owner, nil, 403)
+	// The editor requires a previously moderated landing. Simulate that state
+	// only inside this isolated fixture, then restore it for landing lifecycle tests.
+	var previousPublication sql.NullTime
+	if err := db.QueryRow("SELECT published_at FROM courses WHERE id=$1", course).Scan(&previousPublication); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec("UPDATE courses SET published_at=now() WHERE id=$1", course); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if _, err := db.Exec("UPDATE courses SET published_at=$1 WHERE id=$2", previousPublication, course); err != nil {
+			t.Error(err)
+		}
+	})
 	before := request("GET", fmt.Sprintf("/api/courses/my/%d", course), owner, nil, 200)
 	p := program(request("POST", base+"/program", owner, map[string]string{"source": "landing"}, 200))
 	if len(p.Modules) != 2 || len(p.Modules[0].Lessons) != 2 {

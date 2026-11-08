@@ -75,7 +75,13 @@
 .course-dashboard .course-card-section-heading p{font-size:12px;margin-top:3px;line-height:1.5}
 .course-card-section-icon{display:grid;place-items:center;flex:none;width:36px;height:36px;border:1px solid #dce8f8;border-radius:10px;background:#fff;color:var(--course-blue)}
 .course-card-section-icon svg{width:20px;height:20px}
-.course-dashboard .course-card-landing{margin-top:auto;padding-top:20px;border-top:1px solid var(--course-line)}
+.course-dashboard .course-card-landing{padding-bottom:20px;border-bottom:1px solid var(--course-line)}
+.course-dashboard .course-card-academy{margin-top:auto}
+.course-dashboard .course-card-academy.is-locked{background:#f7f9fc;border-color:#e3e9f1}
+.course-card-academy.is-locked .course-card-section-icon{color:#7b8da5;border-color:#e3e9f1}
+.course-dashboard .course-card-academy .course-primary:disabled{background:#e5ebf3;color:#71839a;box-shadow:none;border-color:#dce4ee;opacity:1;cursor:not-allowed}
+.course-dashboard .course-card-academy .course-primary:disabled svg{width:18px;height:18px}
+.course-dashboard .course-card-access-note{font-size:12px;line-height:1.65;color:#71839a}
 .course-card-landing .course-card-section-icon{background:#f7f9fc;color:#71849c;border-color:#e6ebf2}
 .course-card-landing .course-badge{margin-left:auto;max-width:100%;overflow-wrap:anywhere}
 .course-dashboard .course-card-landing>p{font-size:12px;line-height:1.6;margin:10px 0 14px}

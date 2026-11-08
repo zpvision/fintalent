@@ -87,7 +87,7 @@ func newAcademyFocusedFixture(t *testing.T) academyFocusedFixture {
 		}
 	}
 	var course, program, version int64
-	if e = db.QueryRow("INSERT INTO courses(owner_id,slug,title) VALUES($1,'stage-e','Stage E course') RETURNING id", owner).Scan(&course); e != nil {
+	if e = db.QueryRow("INSERT INTO courses(owner_id,slug,title,published_at) VALUES($1,'stage-e','Stage E course',now()) RETURNING id", owner).Scan(&course); e != nil {
 		t.Fatal(e)
 	}
 	if e = db.QueryRow("INSERT INTO academy_course_programs(course_id,source) VALUES($1,'empty') RETURNING id", course).Scan(&program); e != nil {
