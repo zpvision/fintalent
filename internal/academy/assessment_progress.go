@@ -11,6 +11,10 @@ type sqlReader interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }
 
+// Only an explicitly audited correction may reverse an erroneous result.
+// Publishing or ordinary progress refreshes never set this capability.
+type completionCorrectionKey struct{}
+
 func assessmentOutcomes(ctx context.Context, q sqlReader, e *Enrollment) (map[string]bool, error) {
 	rows, err := q.QueryContext(ctx, `SELECT a.block_key,CASE WHEN a.kind='test' THEN COALESCE((SELECT t.passed FROM academy_effective_test_attempts t WHERE t.enrollment_id=$1 AND t.assessment_id=a.id AND t.status='finished' ORDER BY CASE WHEN COALESCE((a.config->'assessment'->>'use_best')::boolean,true) THEN t.percent END DESC,t.number DESC LIMIT 1),false) ELSE EXISTS(SELECT 1 FROM academy_effective_assignment_submissions s WHERE s.enrollment_id=$1 AND s.assessment_id=a.id AND s.status='accepted') END FROM academy_assessment_versions a WHERE a.program_version_id=$2`, e.ID, e.VersionID)
 	if err != nil {
@@ -24,7 +28,7 @@ func assessmentOutcomes(ctx context.Context, q sqlReader, e *Enrollment) (map[st
 		if err = rows.Scan(&key, &passed); err != nil {
 			return nil, err
 		}
-		out[key] = passed
+		out[key] = out[key] || passed
 	}
 	return out, rows.Err()
 }
@@ -65,7 +69,7 @@ func readProgress(ctx context.Context, q sqlReader, e *Enrollment) error {
 		return err
 	}
 	e.AssessmentStates, err = assessmentOutcomes(ctx, q, e)
-	e.Summary = SummaryFor(e.Program, e.Progress, e.StartedAt != nil)
+	e.Summary = enrollmentSummary(e.Program, e.Progress, e.AssessmentStates, e.StartedAt != nil, e.CompletedAt != nil && ctx.Value(completionCorrectionKey{}) != true)
 	return err
 }
 func syncCourseTx(ctx context.Context, tx *sql.Tx, e *Enrollment, actor int64) error {
@@ -78,18 +82,19 @@ func syncCourseTx(ctx context.Context, tx *sql.Tx, e *Enrollment, actor int64) e
 		}
 		return event(ctx, tx, e, actor, "course_completed", "course_completed", "", map[string]int{"required": e.Summary.Required})
 	}
-	if e.Summary.Status != "completed" && e.CompletedAt != nil {
+	if ctx.Value(completionCorrectionKey{}) == true && e.CompletedAt != nil && e.Summary.Status != "completed" {
 		if _, err := tx.ExecContext(ctx, `UPDATE academy_enrollments SET completed_at=NULL WHERE id=$1`, e.ID); err != nil {
 			return err
 		}
-		return event(ctx, tx, e, actor, "course_requirements_pending", "", "", map[string]any{})
+		e.CompletedAt = nil
+		return event(ctx, tx, e, actor, "course_requirements_pending", "", "", map[string]any{"source": "administrative_correction"})
 	}
 	return nil
 }
 func reconcileAssessmentTx(ctx context.Context, tx *sql.Tx, e *Enrollment, actor int64, key string) error {
 	l, ok := findLesson(e.Program, key)
 	if !ok {
-		return ErrInvalid
+		return syncCourseTx(ctx, tx, e, actor)
 	}
 	states, err := assessmentOutcomes(ctx, tx, e)
 	if err != nil {
@@ -117,11 +122,11 @@ func reconcileAssessmentTx(ctx context.Context, tx *sql.Tx, e *Enrollment, actor
 			return err
 		}
 	}
-	if !ready && previous == "completed" {
+	if !ready && previous == "completed" && ctx.Value(completionCorrectionKey{}) == true {
 		if _, err = tx.ExecContext(ctx, `UPDATE academy_lesson_progress SET status='in_progress',completed_at=NULL WHERE enrollment_id=$1 AND lesson_key=$2`, e.ID, key); err != nil {
 			return err
 		}
-		if err = event(ctx, tx, e, actor, "lesson_requirements_pending", "", key, map[string]any{}); err != nil {
+		if err = event(ctx, tx, e, actor, "lesson_requirements_pending", "", key, map[string]any{"source": "administrative_correction"}); err != nil {
 			return err
 		}
 	}

@@ -241,6 +241,11 @@ func testAcademyStageA(t *testing.T, db *sql.DB, mux *http.ServeMux, gate func(h
 	// A second owner cannot adopt any child of the first program.
 	var second struct{ ID int64 }
 	_ = json.Unmarshal(request("POST", "/api/courses/my", other, nil, 201), &second)
+	// This second synthetic owner also needs a moderated landing before the
+	// cross-course ownership checks can reach the program writer.
+	if _, e := db.Exec(`UPDATE courses SET published_at=now() WHERE id=$1 AND owner_id=$2`, second.ID, other); e != nil {
+		t.Fatal(e)
+	}
 	otherBase := fmt.Sprintf("/api/academy/courses/%d", second.ID)
 	otherP := program(request("POST", otherBase+"/program", other, map[string]string{"source": "empty"}, 200))
 	otherP.Modules = p.Modules

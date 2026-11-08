@@ -10,13 +10,17 @@ export function mergeServerIDs(local, server) {
   return copy
 }
 export default function useAcademyDraft(id) {
-  const [program, setProgram] = useState(null), [state, setState] = useState('loading'), [error, setError] = useState('')
+  const [program, setProgram] = useState(null), [state, setState] = useState('loading'), [error, setError] = useState(''), [legacyBackup,setLegacyBackup]=useState(null)
   const current = useRef(null), sequence = useRef(0), saved = useRef(0), flight = useRef(null), timer = useRef(null), storage = useRef(''), rich = useRef(new Map()), alive = useRef(true)
   useEffect(() => { alive.current = true; return () => { alive.current = false; clearTimeout(timer.current) } }, [])
   function backup() { if (storage.current) try { sessionStorage.setItem(storage.current, JSON.stringify(current.current)) } catch {} }
   function accept(p) { current.current = p; if (alive.current) setProgram(p) }
   function load(p, owner) {
-    storage.current = `fintalent.academy.${owner}.${id}`
+    clearTimeout(timer.current)
+    rich.current.clear()
+    const legacyKey=`fintalent.academy.${owner}.${id}`
+    storage.current = p?.version_id ? `${legacyKey}.${p.version_id}` : legacyKey
+    try {setLegacyBackup(p?.version_id ? sessionStorage.getItem(legacyKey) : null)} catch {}
     sequence.current = 0; saved.current = 0; setError('')
     if (p) { try { const recovered = JSON.parse(sessionStorage.getItem(storage.current) || 'null'); if (recovered && recovered.id === p.id && confirm('Восстановить несохранённые изменения учебной программы из этой вкладки?')) { accept(recovered); sequence.current = 1; setState('error'); setError(recovered.revision !== p.revision ? 'На сервере другая ревизия. Скачайте свои правки, затем загрузите серверную версию.' : 'Изменения восстановлены. Нажмите «Сохранить».'); return } } catch {} }
     accept(p); setState('saved')
@@ -48,7 +52,7 @@ export default function useAcademyDraft(id) {
     await flush()
     // The UI locks structural commands until their result has been applied.
     setState('saving')
-    try { const p = await academyAPI.action(id, { ...data, revision: current.current.revision }); accept(p); setState('saved'); return p }
+    try { const p = await academyAPI.action(id, { ...data, revision: current.current.revision, version_id: current.current.version_id }); accept(p); setState('saved'); return p }
     catch (e) { setError(e.message); setState('error'); throw e }
   }
   useEffect(() => {
@@ -59,5 +63,5 @@ export default function useAcademyDraft(id) {
   }, [])
   const registerRich = useCallback((key, fn) => { if (fn) rich.current.set(key, fn); else rich.current.delete(key) }, [])
   function discardBackup() { try { sessionStorage.removeItem(storage.current) } catch {} }
-  return { program, state, error, load, change, flush, action, registerRich, current, discardBackup }
+  return { program, state, error, load, change, flush, action, registerRich, current, discardBackup, legacyBackup }
 }

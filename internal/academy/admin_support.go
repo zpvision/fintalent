@@ -21,7 +21,7 @@ func (h *Handler) adminCourse(w http.ResponseWriter, r *http.Request, p AdminPri
 		return
 	}
 	var versions json.RawMessage
-	err = h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',v.id,'number',v.number,'created_at',v.created_at,'published_at',r.published_at) ORDER BY v.number DESC),'[]') FROM academy_program_versions v JOIN academy_course_programs cp ON cp.id=v.program_id LEFT JOIN academy_version_releases r ON r.version_id=v.id WHERE cp.course_id=$1`, id).Scan(&versions)
+	err = h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',v.id,'number',v.number,'created_at',v.created_at,'published_at',r.published_at) ORDER BY v.number DESC),'[]') FROM academy_current_program_versions v JOIN academy_course_programs cp ON cp.id=v.program_id LEFT JOIN academy_current_version_releases r ON r.version_id=v.id WHERE cp.course_id=$1`, id).Scan(&versions)
 	if err != nil {
 		analyticsProblem(w, err)
 		return

@@ -1,16 +1,18 @@
 import { apiClient } from './client'
 const base = c => `/api/academy/enrollments/${c.enrollmentId}/lessons/${c.lessonKey}/assessments/${c.blockKey}`
 const owner = id => `/api/academy/courses/${id}`
+const pinned = (c,path) => c.publicationId == null ? path : `${path}${path.includes('?')?'&':'?'}publication_revision=${c.publicationId}`
 export const assessmentAPI = {
-  get: (c, attempt) => apiClient.get(base(c) + (attempt ? `?attempt=${attempt}` : '')),
-  start: (c, key) => apiClient.post(`${base(c)}/start`, { request_key: key }),
+  get: (c, attempt) => apiClient.get(pinned(c,base(c) + (attempt ? `?attempt=${attempt}` : ''))),
+  start: (c, key) => apiClient.post(pinned(c,`${base(c)}/start`), { request_key: key }),
   answer: (c, id, body) => apiClient.put(`${base(c)}/attempts/${id}/answer`, body),
   finish: (c, id) => apiClient.post(`${base(c)}/attempts/${id}/finish`, {}),
-  draft: (c, key) => apiClient.post(`${base(c)}/draft`, { request_key: key }),
+  draft: (c, key) => apiClient.post(pinned(c,`${base(c)}/draft`), { request_key: key }),
   save: (c, id, body) => apiClient.put(`${base(c)}/submissions/${id}`, body),
   submit: (c, id, revision) => apiClient.post(`${base(c)}/submissions/${id}/submit`, { revision }),
   upload: (c, id, file) => { const data = new FormData(); data.append('file', file); return apiClient.post(`${base(c)}/submissions/${id}/files`, data) },
   file: (c, id, file) => `${base(c)}/submissions/${id}/files/${file}`,
+  definitionAsset: (c,id,asset) => `${base(c)}/assets/${asset}?submission=${id}`,
   queue: (id, filters) => apiClient.get(`${owner(id)}/reviews?${new URLSearchParams(filters)}`),
   review: (id, submission) => apiClient.get(`${owner(id)}/reviews/${submission}`),
   decide: (id, submission, body) => apiClient.post(`${owner(id)}/reviews/${submission}`, body),

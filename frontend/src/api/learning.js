@@ -14,8 +14,9 @@ async function collection(path) {
 export const learningAPI = {
   mine: () => collection('/api/academy/learning'),
   room: id => apiClient.get(enrollment(id)),
-  open: (id, key) => apiClient.post(`${enrollment(id)}/lessons/${key}/open`, { event_key: crypto.randomUUID() }),
-  complete: (id, key, acknowledged) => apiClient.post(`${enrollment(id)}/lessons/${key}/complete`, { materials_acknowledged: acknowledged }),
+  progress: id => apiClient.get(`${enrollment(id)}/progress`),
+  open: (id, key, revision) => apiClient.post(`${enrollment(id)}/lessons/${key}/open${revision == null ? '' : `?publication_revision=${revision}`}`, { event_key: crypto.randomUUID() }),
+  complete: (id, key, acknowledged, revision) => apiClient.post(`${enrollment(id)}/lessons/${key}/complete${revision == null ? '' : `?publication_revision=${revision}`}`, { materials_acknowledged: acknowledged }),
   assetURL: (id, key, asset, download = false) => `${enrollment(id)}/assets/${asset}?lesson=${encodeURIComponent(key)}${download ? '&download=1' : ''}`,
   releases: id => apiClient.get(`${owner(id)}/releases`),
   publish: (id, version, acknowledge) => apiClient.post(`${owner(id)}/releases`, { version_id: version, acknowledge_warnings: acknowledge }),

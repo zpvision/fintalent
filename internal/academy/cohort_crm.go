@@ -153,7 +153,7 @@ func (h *Handler) cohortDetail(w http.ResponseWriter, r *http.Request, c *Cohort
 	upcoming := []any{}
 	for _, m := range p.Modules {
 		for _, l := range m.Lessons {
-			a := availability(c, m.Key, l.Key, time.Now())
+			a := programLessonAvailability(c, m.Key, l, time.Now())
 			if a.OpensAt != nil && a.OpensAt.After(time.Now()) {
 				upcoming = append(upcoming, map[string]any{"title": l.Title, "at": a.OpensAt, "type": "lesson"})
 			}

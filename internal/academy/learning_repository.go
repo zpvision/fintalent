@@ -11,6 +11,7 @@ import (
 var ErrAccess = errors.New("Доступ к обучению приостановлен, отозван или закончился")
 
 type Enrollment struct {
+	PublicationID    int64           `json:"publication_revision_id"`
 	CuratorID        int64           `json:"curator_id,omitempty"`
 	CohortID         *int64          `json:"cohort_id"`
 	Cohort           *Cohort         `json:"cohort,omitempty"`
@@ -42,11 +43,19 @@ type Enrollment struct {
 	Progress         []Progress      `json:"progress,omitempty"`
 }
 
-const enrollmentSQL = `SELECT e.id,e.course_id,e.user_id,e.program_version_id,v.number,e.access_status,e.enrolled_at,e.started_at,e.expires_at,e.completed_at,e.last_activity_at,e.last_lesson_key,c.title,c.cover_image,author.full_name,student.full_name,COALESCE(student.avatar_url,''),v.content,r.test_metadata,v.program_id,(author.is_blocked OR student.is_blocked OR student.is_system),e.cohort_id,(SELECT to_jsonb(ch) FROM academy_cohorts ch WHERE ch.id=e.cohort_id),COALESCE((SELECT u.full_name FROM academy_student_curators sc JOIN users u ON u.id=sc.user_id JOIN academy_cohort_staff st ON st.cohort_id=e.cohort_id AND st.user_id=sc.user_id WHERE sc.enrollment_id=e.id AND NOT u.is_blocked),''),COALESCE((SELECT sc.user_id FROM academy_student_curators sc JOIN academy_cohort_staff st ON st.user_id=sc.user_id AND st.cohort_id=e.cohort_id WHERE sc.enrollment_id=e.id),0) FROM academy_enrollments e JOIN courses c ON c.id=e.course_id JOIN users author ON author.id=c.owner_id JOIN users student ON student.id=e.user_id JOIN academy_program_versions v ON v.id=e.program_version_id JOIN academy_version_releases r ON r.version_id=v.id WHERE e.id=$1 AND (($3 AND academy_can_manage_enrollment(e.id,$2,false)) OR (NOT $3 AND e.user_id=$2) OR $4)`
+const enrollmentSQL = `SELECT e.id,e.course_id,e.user_id,e.program_version_id,v.number,e.access_status,e.enrolled_at,e.started_at,e.expires_at,e.completed_at,e.last_activity_at,e.last_lesson_key,c.title,c.cover_image,author.full_name,student.full_name,COALESCE(student.avatar_url,''),v.content,r.test_metadata,v.program_id,(author.is_blocked OR student.is_blocked OR student.is_system),e.cohort_id,(SELECT to_jsonb(ch) FROM academy_cohorts ch WHERE ch.id=e.cohort_id),COALESCE((SELECT u.full_name FROM academy_student_curators sc JOIN users u ON u.id=sc.user_id JOIN academy_cohort_staff st ON st.cohort_id=e.cohort_id AND st.user_id=sc.user_id WHERE sc.enrollment_id=e.id AND NOT u.is_blocked),''),COALESCE((SELECT sc.user_id FROM academy_student_curators sc JOIN academy_cohort_staff st ON st.user_id=sc.user_id AND st.cohort_id=e.cohort_id WHERE sc.enrollment_id=e.id),0) FROM academy_enrollments e JOIN courses c ON c.id=e.course_id JOIN users author ON author.id=c.owner_id JOIN users student ON student.id=e.user_id JOIN academy_current_program_versions v ON v.id=e.program_version_id JOIN academy_current_version_releases r ON r.version_id=v.id WHERE e.id=$1 AND (($3 AND academy_can_manage_enrollment(e.id,$2,false)) OR (NOT $3 AND e.user_id=$2) OR $4)`
 
 func loadEnrollment(ctx context.Context, q queryer, id, user int64, owner, locked bool) (*Enrollment, error) {
 	sqlText := enrollmentSQL
 	if locked {
+		// Keep publication stable through a progress/assessment transaction.
+		// Authorization is checked before taking the shared publication lock.
+		var version int64
+		err := q.QueryRowContext(ctx, `SELECT h.version_id FROM academy_enrollments e JOIN academy_program_revision_heads h ON h.version_id=e.program_version_id
+ WHERE e.id=$1 AND(($3 AND academy_can_manage_enrollment(e.id,$2,false)) OR(NOT $3 AND e.user_id=$2) OR $4) FOR SHARE OF h`, id, user, owner, administrative(ctx)).Scan(&version)
+		if err != nil && err != sql.ErrNoRows {
+			return nil, err
+		}
 		sqlText += " FOR UPDATE OF e"
 	}
 	var e Enrollment
@@ -59,6 +68,7 @@ func loadEnrollment(ctx context.Context, q queryer, id, user int64, owner, locke
 	if err = json.Unmarshal(raw, &e.Program); err != nil {
 		return nil, err
 	}
+	e.PublicationID = e.Program.PublicationID
 	if len(cohortRaw) > 0 {
 		if err = json.Unmarshal(cohortRaw, &e.Cohort); err != nil {
 			return nil, err
@@ -85,7 +95,7 @@ func event(ctx context.Context, tx *sql.Tx, e *Enrollment, actor int64, typ, key
 	_, err := tx.ExecContext(ctx, `INSERT INTO academy_learning_events(enrollment_id,actor_id,type,event_key,lesson_key,data) VALUES($1,NULLIF($2,0),$3,$4,$5,$6) ON CONFLICT(enrollment_id,event_key) DO NOTHING`, e.ID, actor, typ, key, lesson, string(raw))
 	return err
 }
-func (h *Handler) recordProgress(ctx context.Context, id, user int64, key, operation, eventKey string, ack bool) (*Enrollment, error) {
+func (h *Handler) recordProgress(ctx context.Context, id, user int64, key, operation, eventKey string, ack bool, publication int64) (*Enrollment, error) {
 	// Client request keys must not collide with server-owned lifecycle events.
 	if operation == "open" {
 		eventKey = "open:" + eventKey
@@ -101,6 +111,9 @@ func (h *Handler) recordProgress(ctx context.Context, id, user int64, key, opera
 	}
 	if e.EffectiveStatus != "active" {
 		return nil, ErrAccess
+	}
+	if e.PublicationID != publication {
+		return nil, ErrProgramUpdated
 	}
 	if err = e.checkLesson(key); err != nil {
 		return nil, err
@@ -187,13 +200,16 @@ func (h *Handler) recordProgress(ctx context.Context, id, user int64, key, opera
 	if err != nil {
 		return nil, err
 	}
+	if e.PublicationID != publication {
+		return nil, ErrProgramUpdated
+	}
 	err = h.progress(ctx, e)
 	return e, err
 }
 func (h *Handler) version(ctx context.Context, course, version int64) (Program, error) {
 	var raw []byte
 	var p Program
-	err := h.db.QueryRowContext(ctx, `SELECT v.content FROM academy_program_versions v JOIN academy_course_programs p ON p.id=v.program_id WHERE v.id=$1 AND p.course_id=$2`, version, course).Scan(&raw)
+	err := h.db.QueryRowContext(ctx, `SELECT v.content FROM academy_current_program_versions v JOIN academy_course_programs p ON p.id=v.program_id WHERE v.id=$1 AND p.course_id=$2`, version, course).Scan(&raw)
 	if err != nil {
 		return p, err
 	}

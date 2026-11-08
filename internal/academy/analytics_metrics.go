@@ -165,7 +165,7 @@ func (d *analyticsDataset) lessonRows(detail string) []analyticsRow {
 				if s.Version != vid || s.CohortID == 0 && !independent[l.Lesson.Key] {
 					continue
 				}
-				access := availability(d.Cohorts[s.CohortID], l.Module, l.Lesson.Key, d.Now).Available && s.Access == "active"
+				access := programLessonAvailability(d.Cohorts[s.CohortID], l.Module, l.Lesson, d.Now).Available && s.Access == "active"
 				if access {
 					available++
 				}
@@ -193,7 +193,7 @@ func (d *analyticsDataset) lessonRows(detail string) []analyticsRow {
 				if s.CohortID != 0 {
 					mode = 1
 				}
-				if next, ok := nextKeys[mode][l.Lesson.Key]; ok && done && s.Access == "active" && availability(d.Cohorts[s.CohortID], next[0], next[1], d.Now).Available {
+				if next, ok := nextKeys[mode][l.Lesson.Key]; ok && done && s.Access == "active" && availabilityInProgram(d.Cohorts[s.CohortID], d.Programs[s.Version], next[0], next[1], d.Now).Available {
 					eligible++
 					if _, has := d.progress[s.ID][next[1]]; has {
 						nextStarted++
@@ -265,7 +265,7 @@ func (d *analyticsDataset) moduleRows() []analyticsRow {
 						if l.Status != "published" || s.CohortID == 0 && !l.SelfPaced {
 							continue
 						}
-						open = open || availability(d.Cohorts[s.CohortID], next.Key, l.Key, d.Now).Available
+						open = open || programLessonAvailability(d.Cohorts[s.CohortID], next.Key, l, d.Now).Available
 						_, has := d.progress[s.ID][l.Key]
 						nextBegin = nextBegin || has
 					}
@@ -358,7 +358,7 @@ func (d *analyticsDataset) testRows(detail int64) []analyticsRow {
 				questions = append(questions, analyticsRow{"id": q.ID, "number": i + 1, "text": q.Text, "graded": v[0], "answers": v[1], "unanswered": v[0] - v[1], "correct": v[2], "correct_rate": ratio(v[2], v[0]), "error_rate": ratio(v[0]-v[2], v[0])})
 			}
 		}
-		out = append(out, analyticsRow{"id": a.ID, "title": a.Title, "lesson_key": a.Lesson, "version_id": a.Version, "version_number": d.VersionNumbers[a.Version], "attempts": len(scores), "started_attempts": started, "participants": len(users), "enrollments": len(enrolls), "average": mean(scores), "median": median(scores), "passed": passed, "success_rate": ratio(passed, len(scores)), "attempts_to_success": mean(untilSuccess), "distribution": bins, "questions": questions})
+		out = append(out, analyticsRow{"id": a.ID, "title": a.Title, "lesson_key": a.Lesson, "version_id": a.Version, "version_number": d.VersionNumbers[a.Version], "publication_number": a.Publication, "attempts": len(scores), "started_attempts": started, "participants": len(users), "enrollments": len(enrolls), "average": mean(scores), "median": median(scores), "passed": passed, "success_rate": ratio(passed, len(scores)), "attempts_to_success": mean(untilSuccess), "distribution": bins, "questions": questions})
 	}
 	return out
 }
@@ -430,10 +430,10 @@ func (d *analyticsDataset) assignmentRows(detail int64) []analyticsRow {
 					break
 				}
 			}
-			if module != "" && selfPaced && s.Access == "active" && availability(d.Cohorts[s.CohortID], module, a.Lesson, d.Now).Available {
+			if module != "" && selfPaced && s.Access == "active" && availabilityInProgram(d.Cohorts[s.CohortID], d.Programs[s.Version], module, a.Lesson, d.Now).Available {
 				received++
 			}
-			if at, _ := assignmentDeadline(d.Cohorts[s.CohortID], a.Block); module != "" && availability(d.Cohorts[s.CohortID], module, a.Lesson, d.Now).Available && at != nil && at.Before(d.Now) && !oneOf(latest[s.ID].Status, "submitted", "in_review", "accepted") {
+			if at, _ := assignmentDeadline(d.Cohorts[s.CohortID], a.Block); module != "" && availabilityInProgram(d.Cohorts[s.CohortID], d.Programs[s.Version], module, a.Lesson, d.Now).Available && at != nil && at.Before(d.Now) && !oneOf(latest[s.ID].Status, "submitted", "in_review", "accepted") {
 				overdue++
 			}
 		}
@@ -453,7 +453,7 @@ func (d *analyticsDataset) assignmentRows(detail int64) []analyticsRow {
 			dynamics = append(dynamics, analyticsRow{"date": date, "submitted": n})
 		}
 		sort.Slice(dynamics, func(i, j int) bool { return dynamics[i]["date"].(string) < dynamics[j]["date"].(string) })
-		out = append(out, analyticsRow{"id": a.ID, "title": a.Title, "lesson_key": a.Lesson, "version_id": a.Version, "version_number": d.VersionNumbers[a.Version], "available": received, "submitted": len(submitted), "accepted": len(accepted), "revised": len(revision), "revision_decisions": revisionCount, "reviewed": reviewed, "revision_rate": ratio(revisionCount, reviewed), "overdue": overdue, "average_score": mean(scores), "average_attempts": func() *float64 {
+		out = append(out, analyticsRow{"id": a.ID, "title": a.Title, "lesson_key": a.Lesson, "version_id": a.Version, "version_number": d.VersionNumbers[a.Version], "publication_number": a.Publication, "available": received, "submitted": len(submitted), "accepted": len(accepted), "revised": len(revision), "revision_decisions": revisionCount, "reviewed": reviewed, "revision_rate": ratio(revisionCount, reviewed), "overdue": overdue, "average_score": mean(scores), "average_attempts": func() *float64 {
 			if len(submitted) == 0 {
 				return nil
 			}

@@ -1,6 +1,7 @@
 package academy
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -53,7 +54,7 @@ func (h *Handler) releases(w http.ResponseWriter, r *http.Request, course, user 
 		defer tx.Rollback()
 		var locked int64
 		if err = tx.QueryRowContext(r.Context(), `SELECT id FROM courses WHERE id=$1 AND(owner_id=$2 OR $3) FOR UPDATE`, course, user, adminPrincipal(r.Context()).Can("cohorts")).Scan(&locked); err == nil {
-			err = freezeAssessments(r.Context(), tx, version, p, user)
+			err = freezeRevisionAssessments(r.Context(), tx, version, p, user, p.PublicationID)
 		}
 		if err == nil {
 			err = commitAcademy(r.Context(), tx)
@@ -73,7 +74,7 @@ func (h *Handler) releases(w http.ResponseWriter, r *http.Request, course, user 
 			return
 		}
 		var tests json.RawMessage
-		err = h.db.QueryRowContext(r.Context(), `SELECT test_metadata FROM academy_version_releases WHERE version_id=$1 AND course_id=$2`, version, course).Scan(&tests)
+		err = h.db.QueryRowContext(r.Context(), `SELECT test_metadata FROM academy_current_version_releases WHERE version_id=$1 AND course_id=$2`, version, course).Scan(&tests)
 		if errors.Is(err, sql.ErrNoRows) {
 			tests, err = h.testMetadata(r, course, p)
 		}
@@ -85,7 +86,7 @@ func (h *Handler) releases(w http.ResponseWriter, r *http.Request, course, user 
 		return
 	}
 	if r.Method == "GET" {
-		rows, err := h.db.QueryContext(r.Context(), `SELECT v.id,v.number,v.source_revision,v.content,r.published_at FROM academy_program_versions v JOIN academy_course_programs p ON p.id=v.program_id LEFT JOIN academy_version_releases r ON r.version_id=v.id WHERE p.course_id=$1 ORDER BY v.number DESC`, course)
+		rows, err := h.db.QueryContext(r.Context(), `SELECT v.id,v.number,v.source_revision,v.content,r.published_at FROM academy_current_program_versions v JOIN academy_course_programs p ON p.id=v.program_id LEFT JOIN academy_current_version_releases r ON r.version_id=v.id WHERE p.course_id=$1 ORDER BY v.number DESC`, course)
 		if err != nil {
 			problem(w, err)
 			return
@@ -126,35 +127,18 @@ func (h *Handler) releases(w http.ResponseWriter, r *http.Request, course, user 
 	if !decode(w, r, &v) {
 		return
 	}
-	p, err := h.version(r.Context(), course, v.VersionID)
-	if err != nil {
-		problem(w, err)
-		return
-	}
-	ready := CheckReadiness(p)
-	if len(ready.Blockers) > 0 {
-		fail(w, 400, strings.Join(ready.Blockers, ". "))
-		return
-	}
-	if len(ready.Warnings) > 0 && !v.Acknowledge {
-		fail(w, 400, "Подтвердите предупреждения о готовности курса перед публикацией")
-		return
-	}
-	tests, err := h.testMetadata(r, course, p)
-	if err != nil {
-		problem(w, err)
-		return
-	}
 	tx, err := h.beginTx(r.Context(), nil)
 	if err != nil {
 		problem(w, err)
 		return
 	}
 	defer tx.Rollback()
-	err = freezeAssessments(r.Context(), tx, v.VersionID, p, user)
-	if err == nil {
-		_, err = tx.ExecContext(r.Context(), `INSERT INTO academy_version_releases(version_id,course_id,published_by,test_metadata) VALUES($1,$2,$3,$4) ON CONFLICT(version_id) DO NOTHING`, v.VersionID, course, user, string(tests))
+	d, err := lockVersionDraft(r.Context(), tx, course, v.VersionID, user)
+	if err != nil {
+		problem(w, err)
+		return
 	}
+	out, err := h.publishProgramDraft(r, tx, course, user, d, d.Revision, v.Acknowledge, "")
 	if err == nil {
 		err = commitAcademy(r.Context(), tx)
 	}
@@ -162,9 +146,12 @@ func (h *Handler) releases(w http.ResponseWriter, r *http.Request, course, user 
 		problem(w, err)
 		return
 	}
-	respond(w, 200, map[string]any{"published": true, "version_id": v.VersionID})
+	respond(w, 200, out)
 }
 func (h *Handler) testMetadata(r *http.Request, course int64, p Program) (json.RawMessage, error) {
+	return testMetadataFrom(r.Context(), h.db, course, p)
+}
+func testMetadataFrom(ctx context.Context, q queryer, course int64, p Program) (json.RawMessage, error) {
 	ids := []int64{}
 	for _, m := range p.Modules {
 		for _, l := range m.Lessons {
@@ -180,7 +167,7 @@ func (h *Handler) testMetadata(r *http.Request, course int64, p Program) (json.R
 	}
 	raw, _ := json.Marshal(ids)
 	var tests json.RawMessage
-	err := h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',v.id,'title',v.title,'description',v.description,'version',v.version) ORDER BY v.id),'[]') FROM test_versions v JOIN tests t ON t.id=v.test_id JOIN courses c ON c.owner_id=t.author_id WHERE c.id=$1 AND v.id IN(SELECT value::bigint FROM jsonb_array_elements_text($2::jsonb))`, course, string(raw)).Scan(&tests)
+	err := q.QueryRowContext(ctx, `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',v.id,'title',v.title,'description',v.description,'version',v.version) ORDER BY v.id),'[]') FROM test_versions v JOIN tests t ON t.id=v.test_id JOIN courses c ON c.owner_id=t.author_id WHERE c.id=$1 AND v.id IN(SELECT value::bigint FROM jsonb_array_elements_text($2::jsonb))`, course, string(raw)).Scan(&tests)
 	return tests, err
 }
 func (h *Handler) students(w http.ResponseWriter, r *http.Request, course, user int64, path []string) {

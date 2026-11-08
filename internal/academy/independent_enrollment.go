@@ -13,7 +13,7 @@ func ensureIndependentEnrollment(ctx context.Context, tx *sql.Tx, course, studen
 	if err = tx.QueryRowContext(ctx, `SELECT id FROM users WHERE id=$1 AND NOT is_blocked AND NOT is_system`, student).Scan(&checked); err != nil {
 		return
 	}
-	if err = tx.QueryRowContext(ctx, `SELECT version_id FROM academy_version_releases WHERE course_id=$1 AND version_id=$2`, course, version).Scan(&checked); err != nil {
+	if err = tx.QueryRowContext(ctx, `SELECT version_id FROM academy_current_version_releases WHERE course_id=$1 AND version_id=$2`, course, version).Scan(&checked); err != nil {
 		if err == sql.ErrNoRows {
 			err = inputError{"Сначала опубликуйте выбранную версию учебной программы"}
 		}

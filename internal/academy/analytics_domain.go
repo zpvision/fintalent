@@ -247,14 +247,15 @@ type analyticsReview struct {
 	Criteria   map[string]float64 `json:"criterion_scores"`
 }
 type analyticsAssessment struct {
-	ID        int64     `json:"id"`
-	Version   int64     `json:"program_version_id"`
-	Lesson    string    `json:"lesson_key"`
-	Block     string    `json:"block_key"`
-	Kind      string    `json:"kind"`
-	Title     string    `json:"title"`
-	Config    BlockData `json:"config"`
-	Questions []struct {
+	Publication int       `json:"publication_number"`
+	ID          int64     `json:"id"`
+	Version     int64     `json:"program_version_id"`
+	Lesson      string    `json:"lesson_key"`
+	Block       string    `json:"block_key"`
+	Kind        string    `json:"kind"`
+	Title       string    `json:"title"`
+	Config      BlockData `json:"config"`
+	Questions   []struct {
 		ID   int64  `json:"id"`
 		Text string `json:"question"`
 	} `json:"questions"`
@@ -443,11 +444,6 @@ func (d *analyticsDataset) prepare() {
 		if s.CohortID != 0 {
 			p = normalized[s.Version]
 		}
-		s.Summary = SummaryFor(p, progress, s.Started != nil)
-		if s.Summary.Required > 0 {
-			v := float64(s.Summary.Percent)
-			s.Progress = &v
-		}
 		scores := []float64{}
 		fail := map[int64]int{}
 		latestTest := map[int64]analyticsTest{}
@@ -491,6 +487,30 @@ func (d *analyticsDataset) prepare() {
 				s.Accepted++
 			}
 		}
+		states := map[string]bool{}
+		for _, a := range d.Assessments {
+			if a.Version != s.Version {
+				continue
+			}
+			if a.Kind == "test" {
+				ok := passed[a.ID]
+				if !yes(policy(Block{Data: a.Config}).UseBest) {
+					ok = latestTest[a.ID].Passed
+				}
+				states[a.Block] = states[a.Block] || ok
+			} else {
+				for _, sub := range subs[s.ID] {
+					if sub.Assessment == a.ID && sub.Status == "accepted" {
+						states[a.Block] = true
+					}
+				}
+			}
+		}
+		s.Summary = enrollmentSummary(p, progress, states, s.Started != nil, s.Finished != nil)
+		if s.Summary.Required > 0 {
+			value := float64(s.Summary.Percent)
+			s.Progress = &value
+		}
 		r := AnalyticsRisk{Level: "low", Reasons: []string{}}
 		anchor := s.Enrolled
 		if s.Activity != nil {
@@ -501,7 +521,7 @@ func (d *analyticsDataset) prepare() {
 		s.Scheduled = c != nil && c.Mode != "all"
 		if s.Scheduled {
 			for _, l := range publishedLessons(d.Programs[s.Version], true) {
-				av := availability(c, l.Module, l.Lesson.Key, d.Now.Add(-time.Duration(d.Settings.GraceDays)*24*time.Hour))
+				av := programLessonAvailability(c, l.Module, l.Lesson, d.Now.Add(-time.Duration(d.Settings.GraceDays)*24*time.Hour))
 				if l.Lesson.Required && av.Available {
 					s.Expected++
 					if v, ok := d.progress[s.ID][l.Lesson.Key]; !ok || v.Status != "completed" || CompletionBlock(l.Lesson) != "" {
@@ -523,7 +543,7 @@ func (d *analyticsDataset) prepare() {
 					break
 				}
 			}
-			if module == "" || !availability(c, module, a.Lesson, d.Now).Available {
+			if module == "" || !availabilityInProgram(c, d.Programs[s.Version], module, a.Lesson, d.Now).Available {
 				continue
 			}
 			if at, _ := assignmentDeadline(d.Cohorts[s.CohortID], a.Block); at != nil && at.Before(d.Now) {

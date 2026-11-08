@@ -144,6 +144,24 @@ type LessonAvailability struct {
 	Reason    string     `json:"reason,omitempty"`
 }
 
+func programLessonAvailability(c *Cohort, module string, l Lesson, now time.Time) LessonAvailability {
+	if l.AccessMode == "immediate" && (c == nil || oneOf(c.Status, "active", "completed", "archived")) {
+		return LessonAvailability{Available: true}
+	}
+	return availability(c, module, l.Key, now)
+}
+
+func availabilityInProgram(c *Cohort, p Program, module, key string, now time.Time) LessonAvailability {
+	for _, m := range p.Modules {
+		for _, l := range m.Lessons {
+			if l.Key == key {
+				return programLessonAvailability(c, module, l, now)
+			}
+		}
+	}
+	return LessonAvailability{Reason: "Урок не входит в действующую программу"}
+}
+
 func availability(c *Cohort, module, lesson string, now time.Time) LessonAvailability {
 	if c == nil {
 		return LessonAvailability{Available: true}

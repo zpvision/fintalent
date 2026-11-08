@@ -78,7 +78,7 @@ func (h *Handler) loadAnalytics(ctx context.Context, course, actor int64, f Anal
 		Number  int     `json:"number"`
 		Program Program `json:"content"`
 	}
-	err = analyticsJSON(ctx, tx, `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.id),'[]') FROM(SELECT v.id,v.number,v.content FROM academy_program_versions v JOIN academy_version_releases r ON r.version_id=v.id WHERE r.course_id=$1 AND($3 OR EXISTS(SELECT 1 FROM academy_cohorts ch JOIN academy_cohort_staff s ON s.cohort_id=ch.id WHERE ch.course_id=$1 AND ch.program_version_id=v.id AND s.user_id=$2)) AND($4=0 OR v.id=$4))x`, &versions, course, actor, d.Owner, f.Version)
+	err = analyticsJSON(ctx, tx, `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.id),'[]') FROM(SELECT v.id,v.number,v.content FROM academy_current_program_versions v JOIN academy_current_version_releases r ON r.version_id=v.id WHERE r.course_id=$1 AND($3 OR EXISTS(SELECT 1 FROM academy_cohorts ch JOIN academy_cohort_staff s ON s.cohort_id=ch.id WHERE ch.course_id=$1 AND ch.program_version_id=v.id AND s.user_id=$2)) AND($4=0 OR v.id=$4))x`, &versions, course, actor, d.Owner, f.Version)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func (h *Handler) loadAnalytics(ctx context.Context, course, actor int64, f Anal
 		d.Programs[v.ID] = v.Program
 		d.VersionNumbers[v.ID] = v.Number
 	}
-	err = analyticsJSON(ctx, tx, `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.enrollment_id),'[]') FROM(SELECT e.id enrollment_id,e.user_id,u.full_name name,COALESCE(u.avatar_url,'') avatar,e.program_version_id version_id,v.number version_number,COALESCE(e.cohort_id,0) cohort_id,COALESCE(ch.name,'') cohort_name,COALESCE(sc.user_id,0) curator_id,COALESCE(curator.full_name,'') curator_name,e.enrolled_at,e.started_at,e.completed_at,e.last_activity_at,e.last_lesson_key,CASE WHEN u.is_blocked OR u.is_system THEN 'suspended' WHEN e.access_status='active' AND e.expires_at<=now() THEN 'expired' ELSE e.access_status END access_status FROM academy_enrollments e JOIN users u ON u.id=e.user_id JOIN academy_program_versions v ON v.id=e.program_version_id LEFT JOIN academy_cohorts ch ON ch.id=e.cohort_id LEFT JOIN academy_student_curators sc ON sc.enrollment_id=e.id LEFT JOIN users curator ON curator.id=sc.user_id WHERE e.course_id=$1 AND($9 OR academy_can_manage_enrollment(e.id,$2,false)) AND($3=0 OR e.cohort_id=$3 OR $3=-1 AND e.cohort_id IS NULL) AND($4=0 OR e.program_version_id=$4) AND($5=0 OR sc.user_id=$5) AND e.enrolled_at>=$6 AND e.enrolled_at<$7 AND($8=0 OR e.id=$8) ORDER BY e.id LIMIT 20001)x`, &d.Students, course, actor, f.Cohort, f.Version, f.Curator, f.from, f.until, f.Enrollment, adminPrincipal(ctx).Can("analytics"))
+	err = analyticsJSON(ctx, tx, `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.enrollment_id),'[]') FROM(SELECT e.id enrollment_id,e.user_id,u.full_name name,COALESCE(u.avatar_url,'') avatar,e.program_version_id version_id,v.number version_number,COALESCE(e.cohort_id,0) cohort_id,COALESCE(ch.name,'') cohort_name,COALESCE(sc.user_id,0) curator_id,COALESCE(curator.full_name,'') curator_name,e.enrolled_at,e.started_at,e.completed_at,e.last_activity_at,e.last_lesson_key,CASE WHEN u.is_blocked OR u.is_system THEN 'suspended' WHEN e.access_status='active' AND e.expires_at<=now() THEN 'expired' ELSE e.access_status END access_status FROM academy_enrollments e JOIN users u ON u.id=e.user_id JOIN academy_current_program_versions v ON v.id=e.program_version_id LEFT JOIN academy_cohorts ch ON ch.id=e.cohort_id LEFT JOIN academy_student_curators sc ON sc.enrollment_id=e.id LEFT JOIN users curator ON curator.id=sc.user_id WHERE e.course_id=$1 AND($9 OR academy_can_manage_enrollment(e.id,$2,false)) AND($3=0 OR e.cohort_id=$3 OR $3=-1 AND e.cohort_id IS NULL) AND($4=0 OR e.program_version_id=$4) AND($5=0 OR sc.user_id=$5) AND e.enrolled_at>=$6 AND e.enrolled_at<$7 AND($8=0 OR e.id=$8) ORDER BY e.id LIMIT 20001)x`, &d.Students, course, actor, f.Cohort, f.Version, f.Curator, f.from, f.until, f.Enrollment, adminPrincipal(ctx).Can("analytics"))
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,7 @@ func (h *Handler) loadAnalytics(ctx context.Context, course, actor int64, f Anal
 	}
 	idJSON := jsonValue(ids)
 	var cohorts []*Cohort
-	err = analyticsJSON(ctx, tx, `SELECT COALESCE(jsonb_agg(to_jsonb(ch)||jsonb_build_object('version_number',v.number) ORDER BY ch.id),'[]') FROM academy_cohorts ch JOIN academy_program_versions v ON v.id=ch.program_version_id WHERE ch.course_id=$1 AND($3 OR EXISTS(SELECT 1 FROM academy_cohort_staff s WHERE s.cohort_id=ch.id AND s.user_id=$2)) AND($4=0 OR ch.id=$4) AND($5=0 OR ch.program_version_id=$5)`, &cohorts, course, actor, d.Owner, f.Cohort, f.Version)
+	err = analyticsJSON(ctx, tx, `SELECT COALESCE(jsonb_agg(to_jsonb(ch)||jsonb_build_object('version_number',v.number) ORDER BY ch.id),'[]') FROM academy_cohorts ch JOIN academy_current_program_versions v ON v.id=ch.program_version_id WHERE ch.course_id=$1 AND($3 OR EXISTS(SELECT 1 FROM academy_cohort_staff s WHERE s.cohort_id=ch.id AND s.user_id=$2)) AND($4=0 OR ch.id=$4) AND($5=0 OR ch.program_version_id=$5)`, &cohorts, course, actor, d.Owner, f.Cohort, f.Version)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +158,7 @@ func (h *Handler) loadAnalytics(ctx context.Context, course, actor int64, f Anal
 	for id := range d.Programs {
 		vids = append(vids, id)
 	}
-	err = analyticsJSON(ctx, tx, `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.id),'[]') FROM(SELECT a.id,a.program_version_id,a.lesson_key,a.block_key,a.kind,a.title,a.config,COALESCE((SELECT jsonb_agg(jsonb_build_object('id',q->'id','question',q->'question')) FROM jsonb_array_elements(a.questions) q),'[]') questions FROM academy_assessment_versions a WHERE a.program_version_id IN(SELECT value::bigint FROM jsonb_array_elements_text($1::jsonb)))x`, &d.Assessments, jsonValue(vids))
+	err = analyticsJSON(ctx, tx, `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.id),'[]') FROM(SELECT a.id,COALESCE((SELECT r.number FROM academy_program_revisions r WHERE r.id=a.publication_revision_id),1) publication_number,a.program_version_id,a.lesson_key,a.block_key,a.kind,a.title,a.config,COALESCE((SELECT jsonb_agg(jsonb_build_object('id',q->'id','question',q->'question')) FROM jsonb_array_elements(a.questions) q),'[]') questions FROM academy_assessment_versions a WHERE a.program_version_id IN(SELECT value::bigint FROM jsonb_array_elements_text($1::jsonb)) AND(EXISTS(SELECT 1 FROM academy_current_assessment_versions current WHERE current.id=a.id) OR EXISTS(SELECT 1 FROM academy_test_attempts t WHERE t.assessment_id=a.id) OR EXISTS(SELECT 1 FROM academy_assignment_submissions s WHERE s.assessment_id=a.id)))x`, &d.Assessments, jsonValue(vids))
 	if err != nil {
 		return nil, err
 	}

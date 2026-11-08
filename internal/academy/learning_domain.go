@@ -70,7 +70,7 @@ func CheckReadiness(p Program) Readiness {
 		}
 	}
 	if r.Lessons == 0 {
-		r.Blockers = append(r.Blockers, "Опубликуйте хотя бы один модуль и урок в редакторе, затем зафиксируйте новую версию")
+		r.Blockers = append(r.Blockers, "Добавьте хотя бы один опубликованный модуль и урок, затем опубликуйте изменения программы")
 	}
 	if r.Required == 0 {
 		r.Warnings = append(r.Warnings, "Нет обязательных уроков: процент будет 0, автоматического завершения курса не будет")

@@ -105,6 +105,14 @@ func (h *Handler) learner(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(parts) > 2 && parts[1] == "lessons" {
 		key := parts[2]
+		if len(parts) >= 5 && parts[3] == "assessments" {
+			h.learningAssessment(w, r, e, user, key, parts[4], parts[5:])
+			return
+		}
+		if err = checkPublication(r, e); err != nil {
+			problem(w, err)
+			return
+		}
 		if err = e.checkLesson(key); err != nil {
 			problem(w, err)
 			return
@@ -134,7 +142,7 @@ func (h *Handler) learner(w http.ResponseWriter, r *http.Request) {
 				fail(w, 400, "Некорректный ключ события")
 				return
 			}
-			e, err = h.recordProgress(r.Context(), id, user, key, parts[3], v.EventKey, v.Acknowledged)
+			e, err = h.recordProgress(r.Context(), id, user, key, parts[3], v.EventKey, v.Acknowledged, e.PublicationID)
 			if err != nil {
 				problem(w, err)
 				return
@@ -242,7 +250,13 @@ func (h *Handler) room(w http.ResponseWriter, r *http.Request, e *Enrollment) {
 	}
 	deadlines := map[string]any{}
 	for _, m := range e.Program.Modules {
+		if m.Status != "published" {
+			continue
+		}
 		for _, l := range m.Lessons {
+			if l.Status != "published" {
+				continue
+			}
 			for _, b := range l.Blocks {
 				if b.Type == "assignment" {
 					if at, late := assignmentDeadline(e.Cohort, b.Key); at != nil {
@@ -317,7 +331,7 @@ func (h *Handler) enrollmentList(w http.ResponseWriter, r *http.Request, user in
 	}
 	// One query for the collection, version contents and progress; no per-student DB round trips.
 	var raw []byte
-	err := h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(x.payload ORDER BY x.id DESC),'[]') FROM (SELECT e.id,COALESCE(e.last_activity_at,e.enrolled_at) activity,to_jsonb(e)||jsonb_build_object('title',c.title,'cover_image',c.cover_image,'author_name',author.full_name,'user_name',student.full_name,'avatar',COALESCE(student.avatar_url,''),'version_number',v.number,'cohort',(SELECT to_jsonb(ch) FROM academy_cohorts ch WHERE ch.id=e.cohort_id),'program_content',v.content,'unavailable',author.is_blocked OR student.is_blocked OR student.is_system,'progress',COALESCE((SELECT jsonb_agg(jsonb_build_object('lesson_key',p.lesson_key,'status',p.status,'completed_at',p.completed_at) ORDER BY p.lesson_key) FROM academy_lesson_progress p WHERE p.enrollment_id=e.id AND p.program_version_id=e.program_version_id),'[]')) payload FROM academy_enrollments e JOIN courses c ON c.id=e.course_id JOIN users author ON author.id=c.owner_id JOIN users student ON student.id=e.user_id JOIN academy_program_versions v ON v.id=e.program_version_id WHERE e.id<$4 AND (($2 AND academy_can_manage_enrollment(e.id,$1,false) AND c.id=$3) OR (NOT $2 AND e.user_id=$1)) ORDER BY e.id DESC LIMIT 200) x`, user, owner, course, before).Scan(&raw)
+	err := h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(x.payload ORDER BY x.id DESC),'[]') FROM (SELECT e.id,COALESCE(e.last_activity_at,e.enrolled_at) activity,to_jsonb(e)||jsonb_build_object('title',c.title,'cover_image',c.cover_image,'author_name',author.full_name,'user_name',student.full_name,'avatar',COALESCE(student.avatar_url,''),'version_number',v.number,'cohort',(SELECT to_jsonb(ch) FROM academy_cohorts ch WHERE ch.id=e.cohort_id),'program_content',v.content,'unavailable',author.is_blocked OR student.is_blocked OR student.is_system,'progress',COALESCE((SELECT jsonb_agg(jsonb_build_object('lesson_key',p.lesson_key,'status',p.status,'completed_at',p.completed_at) ORDER BY p.lesson_key) FROM academy_lesson_progress p WHERE p.enrollment_id=e.id AND p.program_version_id=e.program_version_id),'[]')) payload FROM academy_enrollments e JOIN courses c ON c.id=e.course_id JOIN users author ON author.id=c.owner_id JOIN users student ON student.id=e.user_id JOIN academy_current_program_versions v ON v.id=e.program_version_id WHERE e.id<$4 AND (($2 AND academy_can_manage_enrollment(e.id,$1,false) AND c.id=$3) OR (NOT $2 AND e.user_id=$1)) ORDER BY e.id DESC LIMIT 200) x`, user, owner, course, before).Scan(&raw)
 	if err != nil {
 		problem(w, err)
 		return

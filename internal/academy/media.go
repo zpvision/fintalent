@@ -102,7 +102,7 @@ func (h *Handler) assets(w http.ResponseWriter, r *http.Request, course, user in
 		defer r.MultipartForm.RemoveAll()
 		key := r.FormValue("entity_key")
 		var exists bool
-		e := h.db.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_lessons WHERE program_id=$1 AND key=$2 UNION ALL SELECT 1 FROM academy_modules WHERE program_id=$1 AND key=$2)`, program, key).Scan(&exists)
+		e := h.db.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_editable_entities WHERE program_id=$1 AND key=$2)`, program, key).Scan(&exists)
 		if e != nil {
 			problem(w, e)
 			return
@@ -165,7 +165,7 @@ func (h *Handler) assets(w http.ResponseWriter, r *http.Request, course, user in
 			return
 		}
 		var inUse bool
-		e = tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_program_versions v CROSS JOIN LATERAL jsonb_array_elements(v.content->'modules') m WHERE v.program_id=$1 AND (m->>'cover_asset_id'=$2::bigint::text OR EXISTS(SELECT 1 FROM jsonb_array_elements(m->'lessons') l WHERE l->>'cover_asset_id'=$2::bigint::text OR EXISTS(SELECT 1 FROM jsonb_array_elements(l->'blocks') b WHERE b->'data'->>'asset_id'=$2::bigint::text OR b->'data'->>'poster_id'=$2::bigint::text OR (b->'data'->'material_ids') @> to_jsonb($2::bigint))))) OR EXISTS(SELECT 1 FROM academy_modules WHERE program_id=$1 AND cover_asset_id=$2::bigint) OR EXISTS(SELECT 1 FROM academy_lessons WHERE program_id=$1 AND cover_asset_id=$2::bigint) OR EXISTS(SELECT 1 FROM academy_lesson_blocks WHERE program_id=$1 AND (data->>'asset_id'=$2::bigint::text OR data->>'poster_id'=$2::bigint::text OR (data->'material_ids') @> to_jsonb($2::bigint)))`, program, id).Scan(&inUse)
+		e = tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_all_program_contents v CROSS JOIN LATERAL jsonb_array_elements(v.content->'modules') m WHERE v.program_id=$1 AND (m->>'cover_asset_id'=$2::bigint::text OR EXISTS(SELECT 1 FROM jsonb_array_elements(m->'lessons') l WHERE l->>'cover_asset_id'=$2::bigint::text OR EXISTS(SELECT 1 FROM jsonb_array_elements(l->'blocks') b WHERE b->'data'->>'asset_id'=$2::bigint::text OR b->'data'->>'poster_id'=$2::bigint::text OR (b->'data'->'material_ids') @> to_jsonb($2::bigint))))) OR EXISTS(SELECT 1 FROM academy_modules WHERE program_id=$1 AND cover_asset_id=$2::bigint) OR EXISTS(SELECT 1 FROM academy_lessons WHERE program_id=$1 AND cover_asset_id=$2::bigint) OR EXISTS(SELECT 1 FROM academy_lesson_blocks WHERE program_id=$1 AND (data->>'asset_id'=$2::bigint::text OR data->>'poster_id'=$2::bigint::text OR (data->'material_ids') @> to_jsonb($2::bigint)))`, program, id).Scan(&inUse)
 		if e != nil {
 			problem(w, e)
 			return

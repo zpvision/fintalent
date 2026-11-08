@@ -101,7 +101,7 @@ func (h *Handler) saveTree(ctx context.Context, tx *sql.Tx, p *Program) error {
 			if e := asset(l.CoverAssetID, l.Key, true); e != nil {
 				return e
 			}
-			if e := sync(ctx, tx, "academy_lessons", p.ID, &l.ID, l.Key, []string{"module_id", "title", "description", "duration_minutes", "status", "required", "free_preview", "self_paced", "completion_rule", "cover_asset_id", "sort_order"}, []any{m.ID, l.Title, l.Description, l.Duration, l.Status, l.Required, l.FreePreview, l.SelfPaced, l.CompletionRule, nullable(l.CoverAssetID), j}); e != nil {
+			if e := sync(ctx, tx, "academy_lessons", p.ID, &l.ID, l.Key, []string{"module_id", "title", "description", "duration_minutes", "status", "required", "free_preview", "self_paced", "completion_rule", "access_mode", "cover_asset_id", "sort_order"}, []any{m.ID, l.Title, l.Description, l.Duration, l.Status, l.Required, l.FreePreview, l.SelfPaced, l.CompletionRule, defaultAccessMode(l.AccessMode), nullable(l.CoverAssetID), j}); e != nil {
 				return e
 			}
 			lids = append(lids, l.ID)
@@ -161,6 +161,13 @@ func (h *Handler) saveTree(ctx context.Context, tx *sql.Tx, p *Program) error {
 	return nil
 }
 func (h *Handler) save(ctx context.Context, course, user int64, p *Program) (*Program, error) {
+	if p.VersionID > 0 {
+		d, err := h.saveVersionDraft(ctx, course, p.VersionID, user, VersionDraft{VersionID: p.VersionID, Revision: p.Revision, Program: *p})
+		if err != nil {
+			return nil, err
+		}
+		return &d.Program, nil
+	}
 	tx, e := h.db.BeginTx(ctx, nil)
 	if e != nil {
 		return nil, e

@@ -15,6 +15,9 @@ var ErrAssessmentUnprepared = errors.New("Проверка этой версии
 // Capture a complete, MVCC-consistent test in one statement. Academy never writes
 // professional attempts/statistics; both contexts use testmodule/domain.Grade.
 func freezeAssessments(ctx context.Context, tx *sql.Tx, version int64, p Program, owner int64) error {
+	return freezeRevisionAssessments(ctx, tx, version, p, owner, 0)
+}
+func freezeRevisionAssessments(ctx context.Context, tx *sql.Tx, version int64, p Program, owner, publication int64, sources ...map[string]capturedAcademyTest) error {
 	for _, m := range p.Modules {
 		if m.Status != "published" {
 			continue
@@ -28,7 +31,7 @@ func freezeAssessments(ctx context.Context, tx *sql.Tx, version int64, p Program
 					continue
 				}
 				var exists bool
-				if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM academy_assessment_versions WHERE program_version_id=$1 AND lesson_key=$2 AND block_key=$3)`, version, l.Key, b.Key).Scan(&exists); err != nil {
+				if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM academy_assessment_versions WHERE program_version_id=$1 AND lesson_key=$2 AND block_key=$3 AND publication_revision_id IS NOT DISTINCT FROM NULLIF($4::bigint,0))`, version, l.Key, b.Key, publication).Scan(&exists); err != nil {
 					return err
 				}
 				if exists {
@@ -40,16 +43,17 @@ func freezeAssessments(ctx context.Context, tx *sql.Tx, version int64, p Program
 					if b.Data.TestVersionID == 0 {
 						continue
 					}
-					var raw []byte
-					err := tx.QueryRowContext(ctx, `SELECT jsonb_build_object('title',v.title,'questions',COALESCE((SELECT jsonb_agg(to_jsonb(q)||jsonb_build_object('answers',COALESCE((SELECT jsonb_agg(to_jsonb(a) ORDER BY a.sort_order,a.id) FROM test_answers a WHERE a.question_id=q.id),'[]')) ORDER BY q.sort_order,q.id) FROM test_questions q WHERE q.test_version_id=v.id),'[]')) FROM test_versions v JOIN tests t ON t.id=v.test_id WHERE v.id=$1 AND t.author_id=$2 AND t.deleted_at IS NULL AND t.status NOT IN('deleted','blocked','archived')`, b.Data.TestVersionID, owner).Scan(&raw)
+					var captured capturedAcademyTest
+					var err error
+					if len(sources) > 0 {
+						captured = sources[0][b.Key]
+						if captured.VersionID != b.Data.TestVersionID {
+							return ErrInvalid
+						}
+					} else {
+						captured, err = captureAcademyTest(ctx, tx, b.Data.TestVersionID, owner)
+					}
 					if err != nil {
-						return inputError{"Тест недоступен владельцу курса. Выберите актуальную версию теста и зафиксируйте программу заново"}
-					}
-					var captured struct {
-						Title     string          `json:"title"`
-						Questions []test.Question `json:"questions"`
-					}
-					if err = json.Unmarshal(raw, &captured); err != nil {
 						return err
 					}
 					if len(captured.Questions) == 0 {
@@ -79,7 +83,7 @@ func freezeAssessments(ctx context.Context, tx *sql.Tx, version int64, p Program
 				data.Assessment = new(AssessmentPolicy)
 				*data.Assessment = policy(b)
 				config, _ := json.Marshal(data)
-				if _, err := tx.ExecContext(ctx, `INSERT INTO academy_assessment_versions(program_version_id,lesson_key,block_key,kind,config,questions,title) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(program_version_id,lesson_key,block_key) DO NOTHING`, version, l.Key, b.Key, b.Type, string(config), string(questions), title); err != nil {
+				if _, err := tx.ExecContext(ctx, `INSERT INTO academy_assessment_versions(program_version_id,lesson_key,block_key,kind,config,questions,title,publication_revision_id) VALUES($1,$2,$3,$4,$5,$6,$7,NULLIF($8::bigint,0)) ON CONFLICT DO NOTHING`, version, l.Key, b.Key, b.Type, string(config), string(questions), title, publication); err != nil {
 					return err
 				}
 			}
@@ -101,7 +105,10 @@ func assessment(ctx context.Context, q queryer, e *Enrollment, lesson, block str
 	}
 	var a Assessment
 	var config, questions []byte
-	err := q.QueryRowContext(ctx, `SELECT id,program_version_id,lesson_key,block_key,kind,title,config,questions FROM academy_assessment_versions WHERE program_version_id=$1 AND lesson_key=$2 AND block_key=$3`, e.VersionID, lesson, block).Scan(&a.ID, &a.VersionID, &a.LessonKey, &a.BlockKey, &a.Kind, &a.Title, &config, &questions)
+	err := q.QueryRowContext(ctx, `SELECT a.id,a.program_version_id,a.lesson_key,a.block_key,a.kind,a.title,a.config,a.questions,a.publication_revision_id FROM academy_assessment_versions a
+ WHERE a.program_version_id=$1 AND a.lesson_key=$2 AND a.block_key=$3
+ AND(a.publication_revision_id=$4 OR a.publication_revision_id IS NULL AND ($4=0 OR EXISTS(SELECT 1 FROM academy_program_revisions r WHERE r.id=$4 AND r.version_id=$1 AND r.number=1)))
+ ORDER BY a.publication_revision_id NULLS LAST LIMIT 1`, e.VersionID, lesson, block, e.Program.PublicationID).Scan(&a.ID, &a.VersionID, &a.LessonKey, &a.BlockKey, &a.Kind, &a.Title, &config, &questions, &a.PublicationID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrAssessmentUnprepared
 	}
@@ -113,6 +120,7 @@ func assessment(ctx context.Context, q queryer, e *Enrollment, lesson, block str
 		return nil, err
 	}
 	a.Policy = policy(Block{Data: d})
+	a.Definition = d
 	err = json.Unmarshal(questions, &a.Questions)
 	return &a, err
 }
@@ -155,7 +163,7 @@ type Submission struct {
 func testAttempts(ctx context.Context, db interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }, eid, aid int64) ([]AcademyTestAttempt, error) {
-	rows, err := db.QueryContext(ctx, `SELECT id,number,status,answer_revision,answers,grades,score,max_score,percent,passed,started_at,deadline_at,finished_at,correction_id FROM academy_effective_test_attempts WHERE enrollment_id=$1 AND assessment_id=$2 ORDER BY number DESC`, eid, aid)
+	rows, err := db.QueryContext(ctx, `SELECT id,number,status,answer_revision,answers,grades,score,max_score,percent,passed,started_at,deadline_at,finished_at,correction_id FROM academy_effective_test_attempts WHERE enrollment_id=$1 AND assessment_id IN(SELECT a.id FROM academy_assessment_versions a JOIN academy_assessment_versions current ON current.id=$2 AND a.program_version_id=current.program_version_id AND a.lesson_key=current.lesson_key AND a.block_key=current.block_key AND a.kind=current.kind) ORDER BY id DESC`, eid, aid)
 	if err != nil {
 		return nil, err
 	}
@@ -183,7 +191,7 @@ func testAttempts(ctx context.Context, db interface {
 func submissions(ctx context.Context, db interface {
 	QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 }, eid, aid int64) ([]Submission, error) {
-	rows, err := db.QueryContext(ctx, `SELECT s.id,s.number,s.status,s.revision,s.answer,s.created_at,s.submitted_at,s.score,s.comment,s.reviewed_at,s.reviewed_by,COALESCE(u.full_name,''),COALESCE((SELECT payload->'criteria' FROM academy_admin_corrections WHERE submission_id=s.id ORDER BY id DESC LIMIT 1),(SELECT criterion_scores FROM academy_submission_reviews WHERE submission_id=s.id ORDER BY id DESC LIMIT 1),'{}'),CASE WHEN s.correction_id>0 THEN 'administrative' ELSE COALESCE((SELECT source FROM academy_submission_reviews WHERE submission_id=s.id ORDER BY id DESC LIMIT 1),'') END,s.correction_id FROM academy_effective_assignment_submissions s LEFT JOIN users u ON u.id=COALESCE(s.reviewed_by,s.assigned_to) WHERE s.enrollment_id=$1 AND s.assessment_id=$2 ORDER BY s.number DESC`, eid, aid)
+	rows, err := db.QueryContext(ctx, `SELECT s.id,s.number,s.status,s.revision,s.answer,s.created_at,s.submitted_at,s.score,s.comment,s.reviewed_at,s.reviewed_by,COALESCE(u.full_name,''),COALESCE((SELECT payload->'criteria' FROM academy_admin_corrections WHERE submission_id=s.id ORDER BY id DESC LIMIT 1),(SELECT criterion_scores FROM academy_submission_reviews WHERE submission_id=s.id ORDER BY id DESC LIMIT 1),'{}'),CASE WHEN s.correction_id>0 THEN 'administrative' ELSE COALESCE((SELECT source FROM academy_submission_reviews WHERE submission_id=s.id ORDER BY id DESC LIMIT 1),'') END,s.correction_id FROM academy_effective_assignment_submissions s LEFT JOIN users u ON u.id=COALESCE(s.reviewed_by,s.assigned_to) WHERE s.enrollment_id=$1 AND s.assessment_id IN(SELECT a.id FROM academy_assessment_versions a JOIN academy_assessment_versions current ON current.id=$2 AND a.program_version_id=current.program_version_id AND a.lesson_key=current.lesson_key AND a.block_key=current.block_key AND a.kind=current.kind) ORDER BY s.id DESC`, eid, aid)
 	if err != nil {
 		return nil, err
 	}

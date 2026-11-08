@@ -108,7 +108,7 @@ func (h *Handler) markInterestPaid(w http.ResponseWriter, r *http.Request, cours
 			return
 		}
 		var raw []byte
-		err = tx.QueryRowContext(ctx, `SELECT v.content FROM academy_program_versions v JOIN academy_version_releases rel ON rel.version_id=v.id WHERE rel.course_id=$1 AND v.id=$2`, course, in.Version).Scan(&raw)
+		err = tx.QueryRowContext(ctx, `SELECT v.content FROM academy_current_program_versions v JOIN academy_current_version_releases rel ON rel.version_id=v.id WHERE rel.course_id=$1 AND v.id=$2`, course, in.Version).Scan(&raw)
 		if err == sql.ErrNoRows {
 			fail(w, 400, "Сначала опубликуйте выбранную версию учебной программы")
 			return

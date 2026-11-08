@@ -46,6 +46,9 @@ var academyPublicationDefaultsSchema string
 //go:embed migrations/092_course_manual_payments.sql
 var academyManualPaymentsSchema string
 
+//go:embed migrations/093_academy_program_revisions.sql
+var academyProgramRevisionsSchema string
+
 func prepareAcademyDatabase(ctx context.Context) error {
 	_, err := db.ExecContext(ctx, academySchema)
 	if err != nil {
@@ -88,6 +91,10 @@ func prepareAcademyDatabase(ctx context.Context) error {
 		return err
 	}
 	_, err = db.ExecContext(ctx, academyManualPaymentsSchema)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, academyProgramRevisionsSchema)
 	return err
 }
 func academyStorageRoot() string {

@@ -117,14 +117,16 @@ func validateAssessment(b *Block) error {
 }
 
 type Assessment struct {
-	ID        int64            `json:"id"`
-	VersionID int64            `json:"program_version_id"`
-	LessonKey string           `json:"lesson_key"`
-	BlockKey  string           `json:"block_key"`
-	Kind      string           `json:"kind"`
-	Title     string           `json:"title"`
-	Policy    AssessmentPolicy `json:"policy"`
-	Questions []test.Question  `json:"-"`
+	PublicationID *int64           `json:"publication_revision_id,omitempty"`
+	Definition    BlockData        `json:"definition"`
+	ID            int64            `json:"id"`
+	VersionID     int64            `json:"program_version_id"`
+	LessonKey     string           `json:"lesson_key"`
+	BlockKey      string           `json:"block_key"`
+	Kind          string           `json:"kind"`
+	Title         string           `json:"title"`
+	Policy        AssessmentPolicy `json:"policy"`
+	Questions     []test.Question  `json:"-"`
 }
 type TestAnswer struct {
 	QuestionID  int64   `json:"question_id"`

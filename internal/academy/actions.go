@@ -7,14 +7,15 @@ import (
 
 // The same atomic tree writer serves autosave and explicit structural commands.
 type Action struct {
-	Revision int64   `json:"revision"`
-	Type     string  `json:"type"`
-	Key      string  `json:"key"`
-	Target   string  `json:"target"`
-	Index    int     `json:"index"`
-	Module   *Module `json:"module,omitempty"`
-	Lesson   *Lesson `json:"lesson,omitempty"`
-	Block    *Block  `json:"block,omitempty"`
+	VersionID int64   `json:"version_id,omitempty"`
+	Revision  int64   `json:"revision"`
+	Type      string  `json:"type"`
+	Key       string  `json:"key"`
+	Target    string  `json:"target"`
+	Index     int     `json:"index"`
+	Module    *Module `json:"module,omitempty"`
+	Lesson    *Lesson `json:"lesson,omitempty"`
+	Block     *Block  `json:"block,omitempty"`
 }
 
 func NewModule() Module {
@@ -49,16 +50,30 @@ func (h *Handler) action(ctx context.Context, course, user int64, a Action) (*Pr
 		return nil, e
 	}
 	defer tx.Rollback()
-	id, rev, e := lock(ctx, tx, course, user)
-	if e != nil {
-		return nil, e
+	var p *Program
+	var draftTests map[string]capturedAcademyTest
+	var id, rev int64
+	if a.VersionID > 0 {
+		var d *VersionDraft
+		d, e = lockVersionDraft(ctx, tx, course, a.VersionID, user)
+		if e != nil {
+			return nil, e
+		}
+		p = &d.Program
+		draftTests = d.Tests
+		id = p.ID
+		rev = d.Revision
+	} else {
+		id, rev, e = lock(ctx, tx, course, user)
+		if e == nil {
+			p, e = load(ctx, tx, course)
+		}
+		if e != nil {
+			return nil, e
+		}
 	}
 	if a.Revision != rev {
 		return nil, ErrConflict
-	}
-	p, e := load(ctx, tx, course)
-	if e != nil {
-		return nil, e
 	}
 	mi, li, bi := -1, -1, -1
 	target := -1
@@ -96,7 +111,11 @@ func (h *Handler) action(ctx context.Context, course, user int64, a Action) (*Pr
 		l.Title = copyTitle(l.Title)
 		for i := range l.Blocks {
 			l.Blocks[i].ID = 0
+			oldKey := l.Blocks[i].Key
 			l.Blocks[i].Key = Key()
+			if seed, ok := draftTests[oldKey]; ok {
+				draftTests[l.Blocks[i].Key] = seed
+			}
 		}
 		return l, copyAssets(old, l.Key)
 	}
@@ -225,10 +244,33 @@ func (h *Handler) action(ctx context.Context, course, user int64, a Action) (*Pr
 		bs := p.Modules[mi].Lessons[li].Blocks
 		b := clone(bs[bi])
 		b.ID = 0
+		oldKey := b.Key
 		b.Key = Key()
+		if seed, ok := draftTests[oldKey]; ok {
+			draftTests[b.Key] = seed
+		}
 		p.Modules[mi].Lessons[li].Blocks = insert(bs, b, bi+1)
 	default:
 		return nil, inputError{"Неизвестное действие редактора"}
+	}
+	if a.VersionID > 0 {
+		if e = Validate(p); e != nil {
+			return nil, inputError{e.Error()}
+		}
+		if e = validateVersionReferences(ctx, tx, *p); e != nil {
+			return nil, e
+		}
+		p.Revision = rev + 1
+		d := &VersionDraft{VersionID: a.VersionID, Program: *p, Tests: draftTests}
+		if e = seedVersionTests(ctx, tx, d, false); e != nil {
+			return nil, e
+		}
+		sources, _ := json.Marshal(d.Tests)
+		raw, _ := json.Marshal(p)
+		if _, e = tx.ExecContext(ctx, `UPDATE academy_program_version_drafts SET content=$2,revision=revision+1,updated_by=$3,updated_at=now(),test_sources=$4 WHERE version_id=$1`, a.VersionID, string(raw), user, string(sources)); e != nil {
+			return nil, e
+		}
+		return p, tx.Commit()
 	}
 	if e = h.saveTree(ctx, tx, p); e != nil {
 		return nil, e

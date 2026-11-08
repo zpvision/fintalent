@@ -13,7 +13,7 @@ func loadCohort(ctx context.Context, q queryer, id, course int64, lock bool) (*C
 		suffix = " FOR UPDATE OF c"
 	}
 	var raw []byte
-	err := q.QueryRowContext(ctx, `SELECT to_jsonb(c)||jsonb_build_object('version_number',v.number) FROM academy_cohorts c JOIN academy_program_versions v ON v.id=c.program_version_id WHERE c.id=$1 AND c.course_id=$2`+suffix, id, course).Scan(&raw)
+	err := q.QueryRowContext(ctx, `SELECT to_jsonb(c)||jsonb_build_object('version_number',v.number) FROM academy_cohorts c JOIN academy_current_program_versions v ON v.id=c.program_version_id WHERE c.id=$1 AND c.course_id=$2`+suffix, id, course).Scan(&raw)
 	if err != nil {
 		return nil, err
 	}
@@ -25,7 +25,7 @@ func (e *Enrollment) lessonAvailability(key string) LessonAvailability {
 	for _, m := range e.Program.Modules {
 		for _, l := range m.Lessons {
 			if l.Key == key && l.Status == "published" && m.Status == "published" {
-				return availability(e.Cohort, m.Key, key, time.Now())
+				return programLessonAvailability(e.Cohort, m.Key, l, time.Now())
 			}
 		}
 	}
@@ -74,7 +74,7 @@ func scheduleCohortEvents(ctx context.Context, tx *sql.Tx, c *Cohort, eid, stude
 		return nil
 	}
 	var raw []byte
-	if err := tx.QueryRowContext(ctx, `SELECT content FROM academy_program_versions WHERE id=$1`, c.VersionID).Scan(&raw); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT content FROM academy_current_program_versions WHERE id=$1`, c.VersionID).Scan(&raw); err != nil {
 		return err
 	}
 	var p Program
@@ -89,7 +89,7 @@ func scheduleCohortEvents(ctx context.Context, tx *sql.Tx, c *Cohort, eid, stude
 			if l.Status != "published" {
 				continue
 			}
-			a := availability(c, m.Key, l.Key, time.Now())
+			a := programLessonAvailability(c, m.Key, l, time.Now())
 			if a.OpensAt != nil && a.OpensAt.After(time.Now()) {
 				key := "unlock:" + jsonValue(eid) + ":" + l.Key + ":" + a.OpensAt.Format(time.RFC3339)
 				if err := cohortEvent(ctx, tx, c.CourseID, &c.ID, &eid, actor, "lesson_unlocked", key, map[string]any{"title": l.Title, "lesson_key": l.Key}, &student, a.OpensAt); err != nil {

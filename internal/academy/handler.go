@@ -53,6 +53,8 @@ func problem(w http.ResponseWriter, e error) {
 		fail(w, 403, e.Error())
 	case errors.Is(e, ErrConflict):
 		fail(w, 409, e.Error())
+	case errors.Is(e, ErrProgramUpdated):
+		fail(w, 409, e.Error())
 	case errors.Is(e, sql.ErrNoRows):
 		fail(w, 404, "Курс или материал не найден")
 	case errors.Is(e, ErrInvalid), errors.As(e, &in):
@@ -156,6 +158,10 @@ func (h *Handler) route(w http.ResponseWriter, r *http.Request) {
 	}
 	if action == "assets" {
 		h.assets(w, r, course, user, parts[2:])
+		return
+	}
+	if action == "versions" {
+		h.versionRoute(w, r, course, user, parts[2:])
 		return
 	}
 	if oneOf(action, "modules", "lessons", "blocks") {
@@ -339,7 +345,7 @@ func (h *Handler) workspace(w http.ResponseWriter, r *http.Request, course, user
 		problem(w, e)
 		return
 	}
-	e = h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',v.id,'number',v.number,'revision',v.source_revision,'created_at',v.created_at) ORDER BY number DESC),'[]') FROM academy_program_versions v JOIN academy_course_programs p ON p.id=v.program_id WHERE p.course_id=$1`, course).Scan(&versions)
+	e = h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',v.id,'number',v.number,'revision',v.source_revision,'created_at',v.created_at) ORDER BY number DESC),'[]') FROM academy_current_program_versions v JOIN academy_course_programs p ON p.id=v.program_id WHERE p.course_id=$1`, course).Scan(&versions)
 	if e != nil {
 		problem(w, e)
 		return

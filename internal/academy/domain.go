@@ -13,11 +13,13 @@ import (
 )
 
 type Program struct {
-	ID       int64    `json:"id"`
-	CourseID int64    `json:"course_id"`
-	Revision int64    `json:"revision"`
-	Source   string   `json:"source"`
-	Modules  []Module `json:"modules"`
+	VersionID     int64    `json:"version_id,omitempty"`
+	PublicationID int64    `json:"publication_revision_id,omitempty"`
+	ID            int64    `json:"id"`
+	CourseID      int64    `json:"course_id"`
+	Revision      int64    `json:"revision"`
+	Source        string   `json:"source"`
+	Modules       []Module `json:"modules"`
 }
 type Module struct {
 	ID           int64    `json:"id"`
@@ -29,6 +31,7 @@ type Module struct {
 	Lessons      []Lesson `json:"lessons"`
 }
 type Lesson struct {
+	AccessMode     string  `json:"access_mode,omitempty"`
 	ID             int64   `json:"id"`
 	Key            string  `json:"key"`
 	Title          string  `json:"title"`
@@ -164,6 +167,9 @@ func Validate(p *Program) error {
 			}
 			if !oneOf(l.CompletionRule, "manual", "materials", "test", "assignment") {
 				return fmt.Errorf("Выберите правило завершения урока")
+			}
+			if !oneOf(l.AccessMode, "", "schedule", "immediate") {
+				return fmt.Errorf("Выберите порядок открытия урока")
 			}
 			for k := range l.Blocks {
 				b := &l.Blocks[k]

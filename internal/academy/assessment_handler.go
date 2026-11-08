@@ -19,12 +19,13 @@ func (h *Handler) assessmentTx(r *http.Request, id, user int64, lesson, block st
 	if err == nil && e.EffectiveStatus != "active" {
 		err = ErrAccess
 	}
-	if err == nil {
-		err = e.checkLesson(lesson)
-	}
 	var a *Assessment
 	if err == nil {
-		a, err = assessment(r.Context(), tx, e, lesson, block)
+		var historical bool
+		a, historical, err = assessmentForRequest(r, tx, e, lesson, block)
+		if err == nil && !historical {
+			err = e.checkLesson(lesson)
+		}
 	}
 	if err != nil {
 		tx.Rollback()
@@ -39,6 +40,19 @@ func (h *Handler) learningAssessment(w http.ResponseWriter, r *http.Request, e *
 		return
 	}
 	defer tx.Rollback()
+	if len(tail) == 2 && tail[0] == "assets" && (r.Method == "GET" || r.Method == "HEAD") {
+		id, _ := strconv.ParseInt(tail[1], 10, 64)
+		if !lessonAssets(Lesson{Blocks: []Block{{Data: a.Definition}}})[id] {
+			problem(w, sql.ErrNoRows)
+			return
+		}
+		if err = tx.Commit(); err != nil {
+			problem(w, err)
+			return
+		}
+		h.serveAsset(w, r, e.ProgramID, id)
+		return
+	}
 	finish := func() {
 		if err = tx.Commit(); err != nil {
 			problem(w, err)
@@ -92,9 +106,11 @@ func (h *Handler) learningAssessment(w http.ResponseWriter, r *http.Request, e *
 				problem(w, err)
 				return
 			}
+			finish()
+			return
 		}
 		var existing bool
-		if err = tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_effective_test_attempts WHERE enrollment_id=$1 AND assessment_id=$2 AND request_key=$3)`, e.ID, a.ID, body.Key).Scan(&existing); err != nil {
+		if err = tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_effective_test_attempts WHERE enrollment_id=$1 AND request_key=$2)`, e.ID, body.Key).Scan(&existing); err != nil {
 			problem(w, err)
 			return
 		}
@@ -238,14 +254,16 @@ func (h *Handler) assessmentState(w http.ResponseWriter, r *http.Request, e *Enr
 		problem(w, ErrAccess)
 		return
 	}
-	if err = e.checkLesson(lesson); err != nil {
-		problem(w, err)
-		return
-	}
-	a, err := assessment(r.Context(), h.db, e, lesson, block)
+	a, historical, err := assessmentForRequest(r, h.db, e, lesson, block)
 	if err != nil {
 		problem(w, err)
 		return
+	}
+	if !historical {
+		if err = e.checkLesson(lesson); err != nil {
+			problem(w, err)
+			return
+		}
 	}
 	if a.Kind == "assignment" {
 		history, err := submissions(r.Context(), h.db, e.ID, a.ID)
@@ -253,13 +271,33 @@ func (h *Handler) assessmentState(w http.ResponseWriter, r *http.Request, e *Enr
 			problem(w, err)
 			return
 		}
+		selected, _ := strconv.ParseInt(r.URL.Query().Get("submission"), 10, 64)
+		if selected == 0 && len(history) > 0 {
+			selected = history[0].ID
+		}
+		if selected > 0 {
+			var aid int64
+			if err = h.db.QueryRowContext(r.Context(), `SELECT assessment_id FROM academy_assignment_submissions WHERE id=$1 AND enrollment_id=$2`, selected, e.ID).Scan(&aid); err != nil {
+				problem(w, err)
+				return
+			}
+			a, err = historicalAssessment(r.Context(), h.db, e, lesson, block, aid)
+			if err != nil {
+				problem(w, err)
+				return
+			}
+		}
 		var files json.RawMessage
-		err = h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',m.id,'submission_id',m.submission_id,'name',m.name,'mime',m.mime,'size',m.size) ORDER BY m.id),'[]') FROM academy_media_assets m JOIN academy_assignment_submissions s ON s.id=m.submission_id WHERE s.enrollment_id=$1 AND s.assessment_id=$2 AND m.deleted_at IS NULL`, e.ID, a.ID).Scan(&files)
+		err = h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',m.id,'submission_id',m.submission_id,'name',m.name,'mime',m.mime,'size',m.size) ORDER BY m.id),'[]') FROM academy_media_assets m JOIN academy_assignment_submissions s ON s.id=m.submission_id JOIN academy_assessment_versions def ON def.id=s.assessment_id WHERE s.enrollment_id=$1 AND def.program_version_id=$2 AND def.lesson_key=$3 AND def.block_key=$4 AND m.deleted_at IS NULL`, e.ID, e.VersionID, lesson, block).Scan(&files)
 		if err != nil {
 			problem(w, err)
 			return
 		}
-		respond(w, 200, map[string]any{"assessment": a, "submissions": history, "files": files, "deadline_at": func() *time.Time { at, _ := assignmentDeadline(e.Cohort, block); return at }(), "allow_late": func() bool { _, allow := assignmentDeadline(e.Cohort, block); return allow }()})
+		canStartUpdated := false
+		if current, err := assessment(r.Context(), h.db, e, lesson, block); err == nil && current.ID != a.ID && len(history) < current.Policy.MaxAttempts && len(history) > 0 && history[0].Status == "accepted" {
+			canStartUpdated = true
+		}
+		respond(w, 200, map[string]any{"assessment": a, "can_start_updated": canStartUpdated, "submissions": history, "files": files, "deadline_at": func() *time.Time { at, _ := assignmentDeadline(e.Cohort, block); return at }(), "allow_late": func() bool { _, allow := assignmentDeadline(e.Cohort, block); return allow }()})
 		return
 	}
 	attempts, err := testAttempts(r.Context(), h.db, e.ID, a.ID)
@@ -268,16 +306,35 @@ func (h *Handler) assessmentState(w http.ResponseWriter, r *http.Request, e *Enr
 		return
 	}
 	selected, _ := strconv.ParseInt(r.URL.Query().Get("attempt"), 10, 64)
+	if selected == 0 && len(attempts) > 0 {
+		selected = attempts[0].ID
+	}
+	if selected > 0 {
+		var aid int64
+		if err = h.db.QueryRowContext(r.Context(), `SELECT assessment_id FROM academy_test_attempts WHERE id=$1 AND enrollment_id=$2`, selected, e.ID).Scan(&aid); err != nil {
+			problem(w, err)
+			return
+		}
+		a, err = historicalAssessment(r.Context(), h.db, e, lesson, block, aid)
+		if err != nil {
+			problem(w, err)
+			return
+		}
+	}
 	var active *AcademyTestAttempt
 	for i := range attempts {
 		if selected == 0 && i == 0 || attempts[i].ID == selected {
 			active = &attempts[i]
 		}
-		if attempts[i].Status != "finished" || !a.Policy.ShowCorrect {
+		if attempts[i].ID != selected || attempts[i].Status != "finished" || !a.Policy.ShowCorrect {
 			attempts[i].Grades = nil
 		}
 	}
 	questions := []test.Question{}
+	remaining := 0
+	if current, err := assessment(r.Context(), h.db, e, lesson, block); err == nil && current.Kind == "test" {
+		remaining = remainingTestAttempts(current.Policy, len(attempts))
+	}
 	if active != nil {
 		raw, _ := json.Marshal(a.Questions)
 		_ = json.Unmarshal(raw, &questions)
@@ -307,5 +364,5 @@ func (h *Handler) assessmentState(w http.ResponseWriter, r *http.Request, e *Enr
 			return active.ID
 		}
 		return 0
-	}(), "remaining_attempts": remainingTestAttempts(a.Policy, len(attempts))})
+	}(), "remaining_attempts": remaining})
 }

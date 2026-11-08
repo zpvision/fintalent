@@ -132,7 +132,7 @@ func (h *Handler) uploadSessions(w http.ResponseWriter, r *http.Request, course,
 			return
 		}
 		var valid bool
-		e = tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_lessons WHERE program_id=$1 AND key=$2 UNION ALL SELECT 1 FROM academy_modules WHERE program_id=$1 AND key=$2)`, program, in.Entity).Scan(&valid)
+		e = tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_editable_entities WHERE program_id=$1 AND key=$2)`, program, in.Entity).Scan(&valid)
 		if e != nil {
 			problem(w, e)
 			return

@@ -118,6 +118,7 @@ func (h *Handler) adminCorrection(ctx context.Context, tx *sql.Tx, m *adminMutat
 	if err != nil {
 		return nil, err
 	}
+	ctx = context.WithValue(ctx, completionCorrectionKey{}, true)
 	if err = reconcileAssessmentTx(ctx, tx, e, m.Principal.User, lesson); err != nil {
 		return nil, err
 	}

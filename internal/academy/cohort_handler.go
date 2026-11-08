@@ -64,7 +64,7 @@ func (h *Handler) cohortRoute(w http.ResponseWriter, r *http.Request, course, us
 		p = ep.Program
 		if path[1] == "preview" && len(path) == 2 {
 			var tests json.RawMessage
-			er = h.db.QueryRowContext(r.Context(), `SELECT test_metadata FROM academy_version_releases WHERE version_id=$1`, c.VersionID).Scan(&tests)
+			er = h.db.QueryRowContext(r.Context(), `SELECT test_metadata FROM academy_current_version_releases WHERE version_id=$1`, c.VersionID).Scan(&tests)
 			if er != nil {
 				problem(w, er)
 				return
@@ -107,7 +107,7 @@ func (h *Handler) cohortRoute(w http.ResponseWriter, r *http.Request, course, us
 }
 func (h *Handler) cohortList(w http.ResponseWriter, r *http.Request, course, user int64, owner bool) {
 	var raw json.RawMessage
-	err := h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.starts_at DESC,x.id DESC),'[]') FROM(SELECT c.*,v.number version_number,(SELECT COALESCE(round(avg(m.percent)),0) FROM academy_student_metrics m WHERE m.cohort_id=c.id AND academy_can_manage_enrollment(m.enrollment_id,$2,false)) average_progress,(SELECT min(ev.notify_at) FROM academy_cohort_events ev WHERE ev.cohort_id=c.id AND ev.type IN('lesson_unlocked','deadline_approaching') AND NOT ev.cancelled AND ev.delivered_at IS NULL AND ev.notify_at>now()) next_event_at,(SELECT count(*) FROM academy_enrollments e WHERE e.cohort_id=c.id AND academy_can_manage_enrollment(e.id,$2,false)) students,(SELECT count(*) FROM academy_student_metrics sm WHERE sm.cohort_id=c.id AND sm.effective_status='active' AND academy_can_manage_enrollment(sm.enrollment_id,$2,false)) active_students,(SELECT COALESCE(jsonb_agg(jsonb_build_object('name',u.full_name,'role',s.role) ORDER BY u.full_name),'[]') FROM academy_cohort_staff s JOIN users u ON u.id=s.user_id WHERE s.cohort_id=c.id) staff FROM academy_cohorts c JOIN academy_program_versions v ON v.id=c.program_version_id WHERE c.course_id=$1 AND ($3 OR EXISTS(SELECT 1 FROM academy_cohort_staff s WHERE s.cohort_id=c.id AND s.user_id=$2)) ORDER BY c.starts_at DESC,c.id DESC)x`, course, user, owner).Scan(&raw)
+	err := h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.starts_at DESC,x.id DESC),'[]') FROM(SELECT c.*,v.number version_number,(SELECT COALESCE(round(avg(m.percent)),0) FROM academy_student_metrics m WHERE m.cohort_id=c.id AND academy_can_manage_enrollment(m.enrollment_id,$2,false)) average_progress,(SELECT min(ev.notify_at) FROM academy_cohort_events ev WHERE ev.cohort_id=c.id AND ev.type IN('lesson_unlocked','deadline_approaching') AND NOT ev.cancelled AND ev.delivered_at IS NULL AND ev.notify_at>now()) next_event_at,(SELECT count(*) FROM academy_enrollments e WHERE e.cohort_id=c.id AND academy_can_manage_enrollment(e.id,$2,false)) students,(SELECT count(*) FROM academy_student_metrics sm WHERE sm.cohort_id=c.id AND sm.effective_status='active' AND academy_can_manage_enrollment(sm.enrollment_id,$2,false)) active_students,(SELECT COALESCE(jsonb_agg(jsonb_build_object('name',u.full_name,'role',s.role) ORDER BY u.full_name),'[]') FROM academy_cohort_staff s JOIN users u ON u.id=s.user_id WHERE s.cohort_id=c.id) staff FROM academy_cohorts c JOIN academy_current_program_versions v ON v.id=c.program_version_id WHERE c.course_id=$1 AND ($3 OR EXISTS(SELECT 1 FROM academy_cohort_staff s WHERE s.cohort_id=c.id AND s.user_id=$2)) ORDER BY c.starts_at DESC,c.id DESC)x`, course, user, owner).Scan(&raw)
 	if err != nil {
 		problem(w, err)
 		return
@@ -162,7 +162,7 @@ func (h *Handler) saveCohort(w http.ResponseWriter, r *http.Request, course, use
 	err = tx.QueryRowContext(r.Context(), `SELECT id FROM courses WHERE id=$1 AND(owner_id=$2 OR $3) FOR UPDATE`, course, user, adminPrincipal(r.Context()).Can("cohorts")).Scan(&lock)
 	var published bool
 	if err == nil {
-		err = tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_version_releases WHERE course_id=$1 AND version_id=$2)`, course, c.VersionID).Scan(&published)
+		err = tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_current_version_releases WHERE course_id=$1 AND version_id=$2)`, course, c.VersionID).Scan(&published)
 	}
 	if err != nil {
 		problem(w, err)

@@ -34,7 +34,7 @@ func (h *Handler) assignmentAction(w http.ResponseWriter, r *http.Request, tx *s
 			}
 		}
 		var exists bool
-		if err = tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_effective_assignment_submissions WHERE enrollment_id=$1 AND assessment_id=$2 AND request_key=$3)`, e.ID, a.ID, body.Key).Scan(&exists); err != nil {
+		if err = tx.QueryRowContext(r.Context(), `SELECT EXISTS(SELECT 1 FROM academy_effective_assignment_submissions WHERE enrollment_id=$1 AND request_key=$2)`, e.ID, body.Key).Scan(&exists); err != nil {
 			problem(w, err)
 			return
 		}
@@ -44,7 +44,12 @@ func (h *Handler) assignmentAction(w http.ResponseWriter, r *http.Request, tx *s
 		}
 		if len(history) > 0 {
 			previous := history[0]
-			if oneOf(previous.Status, "submitted", "in_review", "accepted") {
+			var previousDefinition int64
+			if err = tx.QueryRowContext(r.Context(), `SELECT assessment_id FROM academy_assignment_submissions WHERE id=$1 AND enrollment_id=$2`, previous.ID, e.ID).Scan(&previousDefinition); err != nil {
+				problem(w, err)
+				return
+			}
+			if oneOf(previous.Status, "submitted", "in_review") || previous.Status == "accepted" && previousDefinition == a.ID {
 				fail(w, 409, "Предыдущая работа уже принята или находится на проверке")
 				return
 			}
