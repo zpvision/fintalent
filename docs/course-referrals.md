@@ -15,13 +15,16 @@ Implementation files:
   `scripts/course-referrals-browser-check.cjs`.
 - Documentation: this file and `docs/CODEX_CONTEXT.md`.
 
-Course payments, orders, YooKassa, author settlements and refunds do not exist
+Online course checkout, orders, YooKassa, author settlements and refunds do not exist
 in this repository yet. This feature records acquisition and **interest**, not
 sales. No payment, enrollment, notification, or money movement is created by
 clicking “Выбрать курс”. The intended 12% / 20% rates are not currently charged.
 When course checkout is implemented, its server must resolve the permanent
 attribution and freeze the rate and rounded amounts in the order; it must not
 trust a client-supplied source or commission.
+
+Manual confirmation of external payment, enrollment/invitation and frozen
+per-course commission rates are described in `docs/course-manual-payments.md`.
 
 ## Data and lifecycle
 

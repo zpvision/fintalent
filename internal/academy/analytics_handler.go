@@ -31,6 +31,10 @@ func (h *Handler) analyticsRoute(w http.ResponseWriter, r *http.Request, course,
 	if len(path) > 0 {
 		section = path[0]
 	}
+	if section == "interests" {
+		h.markInterestPaid(w, r, course, actor, path[1:])
+		return
+	}
 	if section == "reports" {
 		h.analyticsReports(w, r, course, actor, path[1:])
 		return
@@ -235,6 +239,15 @@ func (h *Handler) analyticsRoute(w http.ResponseWriter, r *http.Request, course,
 		data = d.communications()
 		rows = data["rows"].([]analyticsRow)
 		delete(data, "rows")
+	}
+	if d.Owner && oneOf(section, "overview", "students") {
+		data["manual_payments"], err = h.interestPaymentSummary(ctx, d)
+		if err != nil {
+			analyticsProblem(w, err)
+			return
+		}
+		// The existing administrative analytics namespace is read-only.
+		data["can_mark_paid"] = !administrative(ctx)
 	}
 	if detail != "" && section != "activity" && len(rows) == 0 {
 		analyticsProblem(w, sql.ErrNoRows)

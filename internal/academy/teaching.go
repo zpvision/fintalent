@@ -217,28 +217,7 @@ func (h *Handler) students(w http.ResponseWriter, r *http.Request, course, user 
 			problem(w, err)
 			return
 		}
-		var student int64
-		if err = tx.QueryRowContext(r.Context(), `SELECT id FROM users WHERE id=$1 AND NOT is_blocked AND NOT is_system`, v.UserID).Scan(&student); err != nil {
-			problem(w, err)
-			return
-		}
-		var version int64
-		if err = tx.QueryRowContext(r.Context(), `SELECT version_id FROM academy_version_releases WHERE course_id=$1 AND version_id=$2`, course, v.VersionID).Scan(&version); err != nil {
-			fail(w, 400, "Сначала опубликуйте выбранную версию учебной программы")
-			return
-		}
-		var id int64
-		err = tx.QueryRowContext(r.Context(), `SELECT id FROM academy_enrollments WHERE course_id=$1 AND user_id=$2 AND program_version_id=$3 AND cohort_id IS NULL AND access_status IN ('active','suspended') ORDER BY id DESC LIMIT 1`, course, student, version).Scan(&id)
-		existing := err == nil
-		if errorsNoRows(err) {
-			err = tx.QueryRowContext(r.Context(), `INSERT INTO academy_enrollments(course_id,user_id,program_version_id,expires_at,request_key,enrolled_by) VALUES($1,$2,$3,$4,$5,$6) ON CONFLICT(request_key) DO NOTHING RETURNING id`, course, student, version, v.ExpiresAt, v.RequestKey, nullable(user)).Scan(&id)
-			if errorsNoRows(err) {
-				err = tx.QueryRowContext(r.Context(), `SELECT id FROM academy_enrollments WHERE request_key=$1 AND course_id=$2 AND user_id=$3 AND program_version_id=$4`, v.RequestKey, course, student, version).Scan(&id)
-			}
-			if err == nil {
-				err = event(r.Context(), tx, &Enrollment{ID: id}, user, "enrolled", "enrolled", "", map[string]any{"version_id": version, "expires_at": v.ExpiresAt})
-			}
-		}
+		id, existing, err := ensureIndependentEnrollment(r.Context(), tx, course, v.UserID, v.VersionID, user, v.ExpiresAt, v.RequestKey)
 		if err != nil {
 			problem(w, err)
 			return

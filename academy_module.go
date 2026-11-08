@@ -43,6 +43,9 @@ var academyObjectStorageSchema string
 //go:embed migrations/085_academy_publication_defaults.sql
 var academyPublicationDefaultsSchema string
 
+//go:embed migrations/092_course_manual_payments.sql
+var academyManualPaymentsSchema string
+
 func prepareAcademyDatabase(ctx context.Context) error {
 	_, err := db.ExecContext(ctx, academySchema)
 	if err != nil {
@@ -81,6 +84,10 @@ func prepareAcademyDatabase(ctx context.Context) error {
 		return err
 	}
 	_, err = db.ExecContext(ctx, academyStorageOwnersSchema)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, academyManualPaymentsSchema)
 	return err
 }
 func academyStorageRoot() string {
@@ -112,6 +119,7 @@ func registerAcademyRoutes(gate func(http.HandlerFunc) http.HandlerFunc) func(ht
 	h.SetStorage(academyStorageOptions())
 	h.SetCommunicationBase(applicationBaseURL())
 	h.SetAdminResolver(resolveAcademyAdministrator)
+	h.SetPaidInvitationEnqueuer(enqueueAcademyPaidInvitation)
 	h.Register(http.DefaultServeMux)
 	http.HandleFunc("/academy/unsubscribe/", serveFrontendPage("static/courses-unavailable.html"))
 	http.HandleFunc("/profile/academy/notifications", gate(serveFrontendPage("static/courses-unavailable.html")))

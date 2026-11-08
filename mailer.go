@@ -74,6 +74,8 @@ type profiMarketOrderEmailData struct {
 }
 
 type eventNotificationEmailData struct {
+	SecondaryText string
+	SecondaryURL  string
 	RecipientName string
 	Badge         string
 	Title         string

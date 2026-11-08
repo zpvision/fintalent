@@ -118,6 +118,8 @@ Legacy frontend остаётся набором HTML/CSS/vanilla JS-файлов
 
 ## Course referral attribution
 
+Migration 092 adds default and per-course commission terms in integer basis points, copied at course creation. External payment confirmation on an authenticated interest freezes its source/rate and enrolls through `ensureIndependentEnrollment` in one transaction with the existing notification outbox invitation. Individual unpaid interests can have an administrator-set commission override. Confirmed snapshots are immutable; course/default changes never recalculate them. Author confirmation is idempotent, respects restricted access, and is distinct from online checkout. See `docs/course-manual-payments.md`.
+
 `internal/courses/referrals.go` and `referral_tracking.go`, migration 091: owner-managed immutable, soft-deleted per-course links; first-source account attribution has no TTL. A hashed opaque guest cookie binds course-specific claims at normal login/registration, then rotates. `course_interests` records “Выбрать курс” independently of enrollments/payments. Academy student analytics filters sources before pagination; owner/admin acquisition totals and leads are distinct from scoped curator student data. No course checkout/YooKassa/order/settlement implementation exists yet: interest is never a sale and commissions are not charged. Details and isolated test DSN: `docs/course-referrals.md`.
 
 ## Academy object storage

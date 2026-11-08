@@ -21,6 +21,7 @@ type Handler struct {
 	base           string
 	analyticsSlots chan struct{}
 	admin          func(*http.Request) (AdminPrincipal, error)
+	paidInvitation PaidInvitationEnqueuer
 }
 
 func New(db *sql.DB, user func(*http.Request) (int64, error), gate func(http.HandlerFunc) http.HandlerFunc, root string) *Handler {

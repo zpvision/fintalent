@@ -27,6 +27,7 @@
                 {{if .Details}}<div style="margin-top:9px;white-space:pre-line;font-size:14px;line-height:1.65;color:#52637f;">{{.Details}}</div>{{end}}
               </td></tr></table>
               <table role="presentation" cellspacing="0" cellpadding="0" style="margin-top:24px;"><tr><td style="border-radius:11px;background:{{.Accent}};"><a href="{{.ButtonURL}}" style="display:inline-block;padding:14px 21px;color:#fff;text-decoration:none;font-size:14px;line-height:18px;font-weight:750;">{{.ButtonText}} →</a></td></tr></table>
+              {{if .SecondaryURL}}<p style="margin:18px 0 0;font-size:14px;line-height:20px;"><a href="{{.SecondaryURL}}" style="color:#2563df;text-decoration:none;">{{.SecondaryText}}</a></p>{{end}}
               {{if .Footer}}<p style="margin:23px 0 0;color:#8a96aa;font-size:12px;line-height:18px;">{{.Footer}}</p>{{end}}
             </td></tr>
           </table>
