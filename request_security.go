@@ -125,6 +125,12 @@ func requestSecurity(next http.Handler) http.Handler {
 		}
 		if unsafe && strings.HasPrefix(r.URL.Path, "/api/") {
 			limit, bucket := 120, "write:"
+			if r.URL.Path == "/api/courses/referrals/visit" {
+				limit, bucket = 60, "course-referral:"
+			}
+			if r.URL.Path == "/api/courses/interest" {
+				limit, bucket = 30, "course-interest:"
+			}
 			if r.URL.Path == "/api/public/feedback" {
 				limit, bucket = 3, "feedback:"
 			}

@@ -99,6 +99,9 @@ func (h *Handler) loadAnalytics(ctx context.Context, course, actor int64, f Anal
 	if d.Students == nil {
 		d.Students = []*AnalyticsStudent{}
 	}
+	if err = h.loadStudentSources(ctx, tx, d); err != nil {
+		return nil, err
+	}
 	ids := []int64{}
 	for _, s := range d.Students {
 		ids = append(ids, s.ID)

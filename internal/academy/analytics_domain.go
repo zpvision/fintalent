@@ -11,6 +11,7 @@ import (
 )
 
 type AnalyticsFilters struct {
+	Source        string `json:"source"`
 	Cohort        int64  `json:"cohort"`
 	Version       int64  `json:"version"`
 	Curator       int64  `json:"curator"`
@@ -31,7 +32,14 @@ type AnalyticsFilters struct {
 }
 
 func parseAnalyticsFilters(q url.Values, now time.Time) (AnalyticsFilters, error) {
-	f := AnalyticsFilters{Period: q.Get("period"), From: q.Get("from"), To: q.Get("to"), Timezone: q.Get("timezone"), Status: q.Get("status"), Compare: q.Get("compare"), Search: strings.TrimSpace(q.Get("search")), StudentFilter: q.Get("student_filter"), Page: 1, Size: 50, Days: 14}
+	f := AnalyticsFilters{Source: q.Get("source"), Period: q.Get("period"), From: q.Get("from"), To: q.Get("to"), Timezone: q.Get("timezone"), Status: q.Get("status"), Compare: q.Get("compare"), Search: strings.TrimSpace(q.Get("search")), StudentFilter: q.Get("student_filter"), Page: 1, Size: 50, Days: 14}
+	if f.Source != "" && f.Source != "platform" {
+		id, e := strconv.ParseInt(f.Source, 10, 64)
+		if e != nil || id <= 0 {
+			return f, ErrInvalid
+		}
+		f.Source = strconv.FormatInt(id, 10)
+	}
 	for name, p := range map[string]*int64{"cohort": &f.Cohort, "version": &f.Version, "curator": &f.Curator, "enrollment": &f.Enrollment} {
 		if s := q.Get(name); s != "" {
 			v, e := strconv.ParseInt(s, 10, 64)
@@ -100,7 +108,7 @@ func parseAnalyticsFilters(q url.Values, now time.Time) (AnalyticsFilters, error
 }
 func (f AnalyticsFilters) values() url.Values {
 	q := url.Values{}
-	for k, v := range map[string]string{"period": f.Period, "from": f.From, "to": f.To, "timezone": f.Timezone, "status": f.Status, "compare": f.Compare, "search": f.Search, "student_filter": f.StudentFilter} {
+	for k, v := range map[string]string{"source": f.Source, "period": f.Period, "from": f.From, "to": f.To, "timezone": f.Timezone, "status": f.Status, "compare": f.Compare, "search": f.Search, "student_filter": f.StudentFilter} {
 		q.Set(k, v)
 	}
 	for k, v := range map[string]int64{"cohort": f.Cohort, "version": f.Version, "curator": f.Curator, "enrollment": f.Enrollment} {
@@ -148,6 +156,8 @@ type AnalyticsRisk struct {
 	Overdue      int      `json:"overdue"`
 }
 type AnalyticsStudent struct {
+	SourceID        int64         `json:"source_id"`
+	SourceName      string        `json:"source_name"`
 	ID              int64         `json:"enrollment_id"`
 	User            int64         `json:"user_id"`
 	Name            string        `json:"name"`
@@ -557,6 +567,9 @@ func (d *analyticsDataset) prepare() {
 	}
 }
 func analyticsStudentMatch(s *AnalyticsStudent, f AnalyticsFilters, settings AnalyticsSettings) bool {
+	if f.Source == "platform" && s.SourceID != 0 || f.Source != "" && f.Source != "platform" && strconv.FormatInt(s.SourceID, 10) != f.Source {
+		return false
+	}
 	if f.ProgressMin > 0 && (s.Progress == nil || *s.Progress < float64(f.ProgressMin)) {
 		return false
 	}

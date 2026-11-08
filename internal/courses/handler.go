@@ -69,6 +69,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/courses/my/", h.Gate(h.owned))
 	mux.HandleFunc("/api/courses/view/", h.Gate(h.public))
 	mux.HandleFunc("/api/courses/favorites/", h.Gate(h.favorite))
+	mux.HandleFunc("/api/courses/referrals/visit", h.Gate(h.referralVisit))
+	mux.HandleFunc("/api/courses/interest", h.Gate(h.courseInterest))
 	mux.HandleFunc("/api/admin/courses", h.adminList)
 	mux.HandleFunc("/api/admin/courses/", h.adminAction)
 }
@@ -180,8 +182,17 @@ func (h *Handler) owned(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id, action := pathID(r.URL.Path, "/api/courses/my/")
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/courses/my/"), "/")
+	if len(parts) == 3 && parts[1] == "referrals" {
+		id, _ = strconv.ParseInt(parts[0], 10, 64)
+		action = "referrals/" + parts[2]
+	}
 	if id <= 0 {
 		fail(w, 404, "Курс не найден")
+		return
+	}
+	if action == "referrals" || strings.HasPrefix(action, "referrals/") {
+		h.referrals(w, r, id, uid, action)
 		return
 	}
 	if action != "" {
@@ -322,6 +333,15 @@ func (h *Handler) adminAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id, action := pathID(r.URL.Path, "/api/admin/courses/")
+	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/admin/courses/"), "/")
+	if len(parts) == 3 && parts[1] == "referrals" {
+		id, _ = strconv.ParseInt(parts[0], 10, 64)
+		action = "referrals/" + parts[2]
+	}
+	if id > 0 && (action == "referrals" || strings.HasPrefix(action, "referrals/")) {
+		h.referrals(w, r, id, 0, action)
+		return
+	}
 	if id <= 0 {
 		fail(w, 404, "Курс не найден")
 		return

@@ -163,6 +163,20 @@ func (h *Handler) analyticsRoute(w http.ResponseWriter, r *http.Request, course,
 	case "funnel":
 		data["funnel"] = d.overview()["funnel"]
 	case "students":
+		data["sources"], err = h.studentSources(ctx, d)
+		if err != nil {
+			analyticsProblem(w, err)
+			return
+		}
+		data["source_statistics_scope"] = "all_time"
+		data["payments_available"] = false
+		if d.Owner {
+			data["interests"], err = h.courseInterests(ctx, d)
+			if err != nil {
+				analyticsProblem(w, err)
+				return
+			}
+		}
 		for _, s := range d.Students {
 			rows = append(rows, analyticsRow{"student": s})
 		}

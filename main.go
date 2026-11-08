@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"FinTalent/internal/courses"
 	testhandler "FinTalent/internal/testmodule/handler"
 	testrepository "FinTalent/internal/testmodule/repository"
 	testservice "FinTalent/internal/testmodule/service"
@@ -420,11 +421,16 @@ func registerUser(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	if err := courses.BindReferralGuest(ctx, db, r, userID); err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, "Аккаунт создан. Не удалось сохранить источник курса — повторите вход")
+		return
+	}
 	if err := createSessionForCredentials(w, userID, string(hash), emailAddress); err != nil {
 		log.Printf("Ошибка создания сессии: %v", err)
 		writeJSON(w, http.StatusInternalServerError, "Аккаунт создан, но не удалось выполнить вход")
 		return
 	}
+	courses.ClearReferralGuestCookie(w, r)
 	if err := enqueueNotification(r.Context(), db, "welcome", fullName, emailAddress, "", nil, "welcome:"+emailAddress); err != nil {
 		log.Printf("Не удалось отправить приветственное письмо пользователю %d: %v", userID, err)
 	}
@@ -451,6 +457,10 @@ func loginUser(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, "Ваш аккаунт заблокирован")
 		return
 	}
+	if err := courses.BindReferralGuest(ctx, db, r, userID); err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, "Не удалось сохранить источник курса. Повторите вход")
+		return
+	}
 	if err := createSessionForCredentials(w, userID, passwordHash, emailAddress); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			writeJSON(w, http.StatusUnauthorized, "Данные входа изменились. Войдите снова")
@@ -460,6 +470,7 @@ func loginUser(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusServiceUnavailable, "Не удалось выполнить вход")
 		return
 	}
+	courses.ClearReferralGuestCookie(w, r)
 	writeJSON(w, http.StatusOK, "Вход выполнен")
 }
 
