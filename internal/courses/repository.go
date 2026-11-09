@@ -201,6 +201,16 @@ func SaveAdministrative(ctx context.Context, tx *sql.Tx, id int64, v *Input) err
 	return saveCourseFields(ctx, tx, id, v)
 }
 func saveCourseFields(ctx context.Context, tx *sql.Tx, id int64, v *Input) error {
+	var approved bool
+	if err := tx.QueryRowContext(ctx, "SELECT published_at IS NOT NULL AND status IN ('published','moderation','draft') FROM courses WHERE id=$1", id).Scan(&approved); err != nil {
+		return err
+	}
+	if approved {
+		if err := publicationAllowed(ctx, tx, id); err != nil {
+			return err
+		}
+	}
+
 	var e error
 	if v.CategoryID != nil {
 		var ok bool
@@ -229,7 +239,7 @@ func saveCourseFields(ctx context.Context, tx *sql.Tx, id int64, v *Input) error
 		}
 		outcomes = string(raw)
 	}
-	_, e = tx.ExecContext(ctx, `UPDATE courses SET title=$1,description=$2,category_id=$3,level=$4,cover_image=$5,promo_url=$6,price=$7,old_price=$8,hours=$9,access_months=$10,certificate=$11,chat=$12,updates=$13,any_device=$14,corporate=$15,bonuses_color=$17,learning_outcomes=COALESCE($18::jsonb,learning_outcomes),revision=revision+1,updated_at=NOW(),status=CASE WHEN status IN ('published','moderation') THEN 'draft' ELSE status END WHERE id=$16`, v.Title, v.Description, v.CategoryID, v.Level, v.CoverImage, v.PromoURL, v.Price, v.OldPrice, v.Hours, v.AccessMonths, v.Certificate, v.Chat, v.Updates, v.AnyDevice, v.Corporate, id, v.BonusesColor, outcomes)
+	_, e = tx.ExecContext(ctx, `UPDATE courses SET title=$1,description=$2,category_id=$3,level=$4,cover_image=$5,promo_url=$6,price=$7,old_price=$8,hours=$9,access_months=$10,certificate=$11,chat=$12,updates=$13,any_device=$14,corporate=$15,bonuses_color=$17,learning_outcomes=COALESCE($18::jsonb,learning_outcomes),revision=revision+1,updated_at=NOW(),status=CASE WHEN published_at IS NOT NULL AND status IN ('published','moderation','draft') THEN 'published' WHEN status IN ('published','moderation') THEN 'draft' ELSE status END WHERE id=$16`, v.Title, v.Description, v.CategoryID, v.Level, v.CoverImage, v.PromoURL, v.Price, v.OldPrice, v.Hours, v.AccessMonths, v.Certificate, v.Chat, v.Updates, v.AnyDevice, v.Corporate, id, v.BonusesColor, outcomes)
 	if e != nil {
 		return e
 	}

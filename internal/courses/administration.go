@@ -89,6 +89,9 @@ func transitionCourse(ctx context.Context, tx *sql.Tx, id, uid int64, action str
 	switch {
 	case action == "submit" && !admin && (state.Status == "draft" || state.Status == "hidden"):
 		target = "moderation"
+		if state.PublishedAt != nil {
+			target = "published"
+		}
 	case action == "hide" && (state.Status == "published" || state.Status == "moderation"):
 		target = "hidden"
 	case action == "approve" && admin && state.Status == "moderation":

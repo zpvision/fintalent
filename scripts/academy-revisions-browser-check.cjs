@@ -21,7 +21,11 @@ const temp=fs.mkdtempSync(path.join(os.tmpdir(),'ft-revisions-ui-')),sleep=ms=>n
   await cmd('Runtime.enable');await cmd('Page.enable')
   await navigate(`/profile/courses/${course}/academy?version=${version}`)
   await wait(`document.querySelector('select[aria-label="Версия программы"]')?.value==='${version}'`)
-  // Open the existing module, then its lesson through the actual tree.
+  // Selecting a closed module header opens it and selects its editor.
+  await wait(`document.querySelector('.academy-tree-module > summary')`)
+  await evaluate(`(()=>{const module=document.querySelector('.academy-tree-module');module.open=false;module.querySelector('summary').click()})()`)
+  await wait(`document.querySelector('.academy-module-editor') && document.querySelector('.academy-tree-module.current')?.open`)
+  // Open its lesson through the actual tree.
   await wait(`document.querySelector('.academy-tree-column')?.innerText.includes('Lesson')`)
   await evaluate(`Array.from(document.querySelectorAll('.academy-tree-column button')).find(b=>b.textContent.includes('Lesson')).click()`)
   await wait(`document.querySelector('.academy-lesson-heading input')`)
