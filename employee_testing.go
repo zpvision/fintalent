@@ -813,12 +813,12 @@ func publicEmployeeTest(w http.ResponseWriter, r *http.Request) {
 
 func employeeTestInfo(w http.ResponseWriter, r *http.Request, token string) {
 	var id, testID, versionID int64
-	var employee, title, status string
+	var employee, title, status, description string
 	var attempt sql.NullInt64
 	var attemptStarted sql.NullTime
 	var limit, questionCount int
 	var shuffleAnswers bool
-	if db.QueryRowContext(r.Context(), `SELECT i.id,i.test_id,i.test_version_id,e.full_name,v.title,i.status,i.attempt_id,i.started_at,COALESCE((SELECT (a.context->>'time_limit_seconds')::int FROM test_attempts a WHERE a.id=i.attempt_id),t.time_limit_seconds,0),(SELECT COUNT(*) FROM test_questions q WHERE q.test_version_id=i.test_version_id),v.shuffle_answers FROM company_test_invitations i JOIN company_test_employees e ON e.id=i.employee_id JOIN test_versions v ON v.id=i.test_version_id JOIN tests t ON t.id=i.test_id WHERE i.token=$1 AND i.status<>'revoked' AND i.expires_at>NOW() AND EXISTS(SELECT 1 FROM users owner WHERE owner.id=i.owner_user_id AND NOT owner.is_blocked AND NOT owner.is_system)`, token).Scan(&id, &testID, &versionID, &employee, &title, &status, &attempt, &attemptStarted, &limit, &questionCount, &shuffleAnswers) != nil {
+	if db.QueryRowContext(r.Context(), `SELECT i.id,i.test_id,i.test_version_id,e.full_name,v.title,i.status,i.attempt_id,i.started_at,COALESCE((SELECT (a.context->>'time_limit_seconds')::int FROM test_attempts a WHERE a.id=i.attempt_id),t.time_limit_seconds,0),(SELECT COUNT(*) FROM test_questions q WHERE q.test_version_id=i.test_version_id),v.shuffle_answers,v.description FROM company_test_invitations i JOIN company_test_employees e ON e.id=i.employee_id JOIN test_versions v ON v.id=i.test_version_id JOIN tests t ON t.id=i.test_id WHERE i.token=$1 AND i.status<>'revoked' AND i.expires_at>NOW() AND EXISTS(SELECT 1 FROM users owner WHERE owner.id=i.owner_user_id AND NOT owner.is_blocked AND NOT owner.is_system)`, token).Scan(&id, &testID, &versionID, &employee, &title, &status, &attempt, &attemptStarted, &limit, &questionCount, &shuffleAnswers, &description) != nil {
 		jsonError(w, 404, "Ссылка недействительна")
 		return
 	}
@@ -854,7 +854,7 @@ func employeeTestInfo(w http.ResponseWriter, r *http.Request, token string) {
 			remaining = max(0, limit-int(time.Since(attemptStarted.Time).Seconds()))
 		}
 	}
-	jsonResponse(w, 200, map[string]any{"employee_name": employee, "test_title": title, "status": status, "attempt_id": attempt.Int64, "attempt_started_at": startedAt, "time_limit_seconds": limit, "remaining_seconds": remaining, "question_count": questionCount, "answered_question_ids": answeredQuestionIDs, "questions": questions})
+	jsonResponse(w, 200, map[string]any{"employee_name": employee, "test_title": title, "test_description": description, "status": status, "attempt_id": attempt.Int64, "attempt_started_at": startedAt, "time_limit_seconds": limit, "remaining_seconds": remaining, "question_count": questionCount, "answered_question_ids": answeredQuestionIDs, "questions": questions})
 }
 
 func employeeTestStart(w http.ResponseWriter, r *http.Request, token string) {
