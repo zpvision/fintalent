@@ -19,8 +19,15 @@ const temp=fs.mkdtempSync(path.join(os.tmpdir(),'ft-revisions-ui-')),sleep=ms=>n
   const click=async text=>{await wait(`Array.from(document.querySelectorAll('button')).some(b=>b.textContent.trim()===${JSON.stringify(text)}&&!b.disabled)`);await evaluate(`Array.from(document.querySelectorAll('button')).find(b=>b.textContent.trim()===${JSON.stringify(text)}&&!b.disabled).click()`)}
   const navigate=async url=>{await cmd('Page.navigate',{url:base+url});await sleep(500)}
   await cmd('Runtime.enable');await cmd('Page.enable')
-  await navigate(`/profile/courses/${course}/academy?version=${version}`)
+  await navigate(`/profile/courses/${course}/academy/?version=${version}`)
   await wait(`document.querySelector('select[aria-label="Версия программы"]')?.value==='${version}'`)
+  await wait(`document.querySelector('.academy-section-nav a[aria-current="page"]')?.textContent.includes('Программа и уроки')`)
+  await evaluate(`window.__academyHeader=document.querySelector('.academy-course-header');window.__siteHeader=document.querySelector('.ft-site-header');document.querySelector('.academy-section-nav a[href="/profile/courses/${course}/academy/cohorts"]').click()`)
+  await wait(`document.querySelector('.cohort-page-heading h2')?.textContent==='Потоки обучения'`)
+  if(!await evaluate(`window.__academyHeader===document.querySelector('.academy-course-header') && window.__siteHeader===document.querySelector('.ft-site-header') && document.querySelectorAll('.academy-course-header').length===1 && document.querySelector('.academy-section-nav a[aria-current="page"]')?.textContent.includes('Потоки')`))throw Error('Academy shell remounted or active cohort tab is missing')
+  await evaluate(`document.querySelector('.academy-section-nav a[href="/profile/courses/${course}/academy"]').click()`)
+  await wait(`document.querySelector('select[aria-label="Версия программы"]')?.value==='${version}'`)
+  if(!await evaluate(`window.__academyHeader===document.querySelector('.academy-course-header') && document.querySelector('.academy-section-nav a[aria-current="page"]')?.textContent.includes('Программа и уроки')`))throw Error('Program tab or persistent header regressed')
   // Selecting a closed module header opens it and selects its editor.
   await wait(`document.querySelector('.academy-tree-module > summary')`)
   await evaluate(`(()=>{const module=document.querySelector('.academy-tree-module');module.querySelector('summary').click()})()`)

@@ -1,7 +1,14 @@
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
+import { useContext } from 'react'
+import { AcademyShellContext } from '../../layouts/AcademyShellContext'
 import Icon from '../../components/Icon'
 
 import { statuses } from '../courses/shared'
 export default function AcademyCourseHeader({ course, id, section = 'program' }) {
+  const inShell = useContext(AcademyShellContext), { pathname } = useLocation()
+  const base = `/profile/courses/${id}/academy`
+  if (pathname === base || pathname === base + '/') section = 'program'
+  else if (pathname.startsWith(base + '/')) { const part = pathname.slice(base.length + 1).split('/')[0]; section = ({crm:'students',students:'students'})[part] || part }
+  if (inShell) return null
   return <><header className="academy-course-header"><div className="academy-course-identity">{course.cover_image ? <img src={course.cover_image} alt="" /> : <i><Icon name="book" /></i>}<div><small>FINTALENT ACADEMY</small><h1>{course.title || 'Ваш новый курс'}</h1><span className={`course-badge ${course.status}`}>Лендинг: {statuses[course.status]}</span></div></div>{course.can_manage !== false && <div className="academy-header-actions"><Link className="course-secondary" to={`/profile/courses/${id}/preview`}>Посмотреть лендинг ↗</Link><Link className="course-primary" to={`/profile/courses/${id}/edit`}>Редактировать лендинг</Link></div>}</header><nav className="academy-section-nav" aria-label="Кабинет курса">{course.can_manage !== false && <Link className={section === 'program' ? 'current' : ''} aria-current={section === 'program' ? 'page' : undefined} to={`/profile/courses/${id}/academy`}><Icon name="book" /> Программа и уроки</Link>}<Link className={section === 'cohorts' ? 'current' : ''} aria-current={section === 'cohorts' ? 'page' : undefined} to={`/profile/courses/${id}/academy/cohorts`}><Icon name="users" /> Потоки</Link><Link className={section === 'students' ? 'current' : ''} aria-current={section === 'students' ? 'page' : undefined} to={`/profile/courses/${id}/academy/crm`}><Icon name="users" /> Ученики</Link><Link className={section === 'reviews' ? 'current' : ''} aria-current={section === 'reviews' ? 'page' : undefined} to={`/profile/courses/${id}/academy/reviews`}><Icon name="check" /> Задания и проверки</Link>{(course.can_manage !== false || course.can_communicate) && <><Link className={section === 'communications' ? 'current' : ''} aria-current={section === 'communications' ? 'page' : undefined} to={`/profile/courses/${id}/academy/communications`}><Icon name="message" /> Рассылки</Link><Link className={section === 'automations' ? 'current' : ''} aria-current={section === 'automations' ? 'page' : undefined} to={`/profile/courses/${id}/academy/automations`}><Icon name="workflow" /> Автоматизации</Link></>}<Link className={section === 'analytics' ? 'current' : ''} aria-current={section === 'analytics' ? 'page' : undefined} to={`/profile/courses/${id}/academy/analytics`}><Icon name="chart" /> Аналитика</Link><p>{section === 'program' ? 'Учебные материалы независимы от программы лендинга' : 'Обучение · потоки и прогресс'}</p></nav></>
 }

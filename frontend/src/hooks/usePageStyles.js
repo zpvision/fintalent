@@ -1,4 +1,6 @@
-import { useLayoutEffect } from 'react'
+import { createContext, useContext, useLayoutEffect } from 'react'
+
+export const PageStylesContext = createContext(null)
 
 let nextStyleOwner = 0
 const activeStyleOwners = new Set()
@@ -15,9 +17,11 @@ function finishLoadingWhenReady() {
 }
 
 export default function usePageStyles(stylesheets) {
+  const inheritedStyles = useContext(PageStylesContext)
   const key = stylesheets.join('\u0000')
 
   useLayoutEffect(() => {
+    if (inheritedStyles && key.split('\u0000').every(href => inheritedStyles.includes(href))) return
     const owner = ++nextStyleOwner
     activeStyleOwners.add(owner)
     pendingStyleOwners.add(owner)
@@ -93,5 +97,5 @@ export default function usePageStyles(stylesheets) {
         finishLoadingWhenReady()
       })
     }
-  }, [key])
+  }, [key, inheritedStyles])
 }
