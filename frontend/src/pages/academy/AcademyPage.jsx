@@ -22,7 +22,7 @@ function AcademyWorkspace() {
   const [workspace, setWorkspace] = useState(null), [active, setActive] = useState(''), [moduleKey, setModuleKey] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState(''), [settings, setSettings] = useState(false), [mobileTree, setMobileTree] = useState(false), [preview, setPreview] = useState(false), [picker, setPicker] = useState(null), [assets, setAssets] = useState([])
   const dragged = useRef(null), heading = useRef(null)
   const running = useRef(false)
-  usePageStyles([...styles, '/static/course-editor-theme.css?v=1', '/static/academy.css?v=5', '/static/academy-assessments.css?v=1'])
+  usePageStyles([...styles, '/static/course-editor-theme.css?v=1', '/static/academy.css?v=6', '/static/academy-assessments.css?v=1'])
   useDocumentPage({ title: `${workspace?.course.title || 'Курс'} · Академия — FinTalent` })
   useEffect(() => {
     let alive = true

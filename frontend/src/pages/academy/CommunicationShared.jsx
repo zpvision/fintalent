@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { communicationAPI } from '../../api/communications'
 import AcademyDialog from './AcademyDialog'
-export const communicationStyles = ['/static/academy.css?v=5', '/static/academy-learning.css?v=1', '/static/academy-cohorts.css?v=2', '/static/academy-communications.css?v=1']
+export const communicationStyles = ['/static/academy.css?v=6', '/static/academy-learning.css?v=1', '/static/academy-cohorts.css?v=2', '/static/academy-communications.css?v=1']
 export const campaignNames = { draft: 'Черновик', scheduled: 'Запланирована', sending: 'Отправляется', completed: 'Завершена', partial: 'Частично отправлена', failed: 'Ошибка', cancelled: 'Отменена' }
 export const deliveryNames = { queued: 'В очереди', sending: 'Отправляется', sent: 'Отправлено', delivered: 'Подтверждено провайдером', failed: 'Ошибка', cancelled: 'Отменено' }
 export const automationNames = { draft: 'Черновик', active: 'Активен', paused: 'Приостановлен', archived: 'Архив' }

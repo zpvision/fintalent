@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { learningAPI } from '../../api/learning'
 export const cohortNames = { draft: 'Черновик', scheduled: 'Запланирован', active: 'Активен', completed: 'Завершён', archived: 'Архив' }
 export const cohortTypes = { group: 'Групповой', corporate: 'Корпоративный', individual: 'Индивидуальный' }
-export const cohortStyles = ['/static/academy.css?v=5', '/static/academy-learning.css?v=1', '/static/academy-assessments.css?v=1', '/static/academy-cohorts.css?v=2']
+export const cohortStyles = ['/static/academy.css?v=6', '/static/academy-learning.css?v=1', '/static/academy-assessments.css?v=1', '/static/academy-cohorts.css?v=2']
 export function zonedDate(value, zone = 'Europe/Moscow') { if (!value) return '—'; try { return new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short', timeZone: zone }).format(new Date(value)) } catch { return '—' } }
 export function localInZone(value, zone) { if (!value) return ''; const parts = new Intl.DateTimeFormat('sv-SE', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: zone }).formatToParts(new Date(value)); const p = Object.fromEntries(parts.map(v => [v.type, v.value])); return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}` }
 export function CohortEmpty({ title, children, action }) { return <section className="cohort-empty"><img src="/static/academy/cohort-start.png" alt="" /><div><small>FINTALENT ACADEMY</small><h2>{title}</h2><p>{children}</p>{action}</div></section> }

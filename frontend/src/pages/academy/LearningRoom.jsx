@@ -19,7 +19,7 @@ function Room({ preview = false }) {
   const [collapsed, setCollapsed] = useState({})
   const navigate = useNavigate(), flushers = useRef(new Map())
   const flight = useRef(false), heading = useRef(null), alive = useRef(true), current = useRef(null)
-  usePageStyles([...styles, '/static/academy.css?v=5', '/static/academy-assessments.css?v=1', '/static/academy-learning.css?v=1','/static/academy-cohorts.css?v=2'])
+  usePageStyles([...styles, '/static/academy.css?v=6', '/static/academy-assessments.css?v=1', '/static/academy-learning.css?v=1','/static/academy-cohorts.css?v=2'])
   useDocumentPage({ title: `${room?.enrollment?.title || room?.course?.title || 'Учебная комната'} — FinTalent` })
   const fetchRoom = () => preview ? cohortId?cohortAPI.preview(id,cohortId):query.get('revision') ? academyAPI.revisionPreview(id, versionId, query.get('revision')) : query.get('draft') === '1' ? academyAPI.versionPreview(id, versionId) : learningAPI.preview(id, versionId) : learningAPI.room(enrollmentId)
   async function refreshDeniedAccess() {

@@ -100,6 +100,11 @@ func (h *Handler) meta(w http.ResponseWriter, r *http.Request) {
 	respond(w, 200, map[string]any{"categories": raw, "features": features, "lesson_types": lessonTypes})
 }
 func (h *Handler) list(w http.ResponseWriter, r *http.Request, where string, args ...any) {
+	// These counters belong to the author's dashboard, never the public catalog.
+	privateCounters := ""
+	if r.URL.Path == "/api/courses/my" {
+		privateCounters = `||jsonb_build_object('student_count',(SELECT count(DISTINCT e.user_id) FROM academy_enrollments e WHERE e.course_id=c.id),'unpaid_interest_count',(SELECT count(*) FROM course_interests i WHERE i.course_id=c.id AND i.user_id IS NOT NULL AND i.paid_at IS NULL))`
+	}
 	limit := 200
 	if r.URL.Path == "/api/courses" && r.URL.Query().Has("limit") {
 		value, err := strconv.Atoi(r.URL.Query().Get("limit"))
@@ -109,7 +114,7 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request, where string, arg
 		}
 		limit = value
 	}
-	rows, e := h.db.QueryContext(r.Context(), `SELECT to_jsonb(c)||jsonb_build_object('category',COALESCE(d.value,''),'author_name',u.full_name,'min_price',CASE WHEN c.pricing_mode='tariffs' THEN (SELECT MIN(t.price) FROM course_tariffs t WHERE t.course_id=c.id) ELSE c.price END) FROM courses c JOIN users u ON u.id=c.owner_id LEFT JOIN dictionary_items d ON d.id=c.category_id WHERE `+where+` ORDER BY c.updated_at DESC,c.id DESC LIMIT `+strconv.Itoa(limit), args...)
+	rows, e := h.db.QueryContext(r.Context(), `SELECT to_jsonb(c)||jsonb_build_object('category',COALESCE(d.value,''),'author_name',u.full_name,'min_price',CASE WHEN c.pricing_mode='tariffs' THEN (SELECT MIN(t.price) FROM course_tariffs t WHERE t.course_id=c.id) ELSE c.price END)`+privateCounters+` FROM courses c JOIN users u ON u.id=c.owner_id LEFT JOIN dictionary_items d ON d.id=c.category_id WHERE `+where+` ORDER BY c.updated_at DESC,c.id DESC LIMIT `+strconv.Itoa(limit), args...)
 	if e != nil {
 		dbError(w, e)
 		return

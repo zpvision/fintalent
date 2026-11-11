@@ -74,6 +74,25 @@ const temp=fs.mkdtempSync(path.join(os.tmpdir(),'ft-revisions-ui-')),sleep=ms=>n
    if(await evaluate(`document.documentElement.scrollWidth>innerWidth+1`))throw Error('CRM overflow at '+width)
    const shot=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});fs.writeFileSync(path.join(temp,`crm-${width}.png`),Buffer.from(shot.data,'base64'))
   }
+  await wait(`document.querySelector('.academy-section-nav .academy-menu-counter')?.textContent==='1'`)
+  await evaluate(`document.querySelector('.academy-section-nav a[href="/profile/courses/${course}/academy/analytics"]').click()`)
+  await wait(`document.querySelector('.analytics-tabs .academy-menu-counter')?.textContent==='1'`)
+  await evaluate(`Array.from(document.querySelectorAll('.analytics-tabs button')).find(b=>b.textContent.startsWith('Ученики')).click()`)
+  await wait(`new URLSearchParams(location.search).get('interest_payment')==='unpaid' && document.querySelector('.acquisition-paid input')`)
+  await evaluate(`document.querySelector('.acquisition-paid input').click()`)
+  await wait(`document.querySelector('.analytics-payment-dialog[open]')`)
+  await click('Оплата получена')
+  await wait(`!document.querySelector('.analytics-payment-dialog[open]') && !document.querySelector('.academy-menu-counter')`)
+  await navigate('/profile/courses')
+  await wait(`document.querySelector('.course-card-stats')`)
+  if(!await evaluate(`document.querySelector('.course-card-stats').textContent.includes('Всего учеников: 1') && document.querySelector('.course-card-stats').textContent.includes('Новые заявки: 0')`))throw Error('Dashboard counters missing')
+  for(const width of [360,900,1440]){
+   await cmd('Emulation.setDeviceMetricsOverride',{width,height:950,deviceScaleFactor:1,mobile:false});await sleep(150)
+   if(await evaluate(`document.documentElement.scrollWidth>innerWidth+1`))throw Error('Dashboard overflow at '+width)
+   const heights=await evaluate(`(()=>{const card=document.querySelector('.course-list-card'),body=card.querySelector('.course-card-body'),academy=card.querySelector('.course-card-academy'),landing=card.querySelector('.course-card-landing'),stats=card.querySelector('.course-card-stats');const compact=card.getBoundingClientRect().height;const previous=[body,academy,landing,stats].map(el=>el.getAttribute('style'));body.style.gap='20px';academy.style.padding='18px';academy.style.gap='16px';landing.style.paddingBottom='20px';stats.style.display='none';const old=card.getBoundingClientRect().height;[body,academy,landing,stats].forEach((el,i)=>previous[i]===null?el.removeAttribute('style'):el.setAttribute('style',previous[i]));return {compact,old}})()`)
+   if(heights.compact>heights.old+1)throw Error('Card became taller at '+width+': '+JSON.stringify(heights))
+   const shot=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});fs.writeFileSync(path.join(temp,`dashboard-${width}.png`),Buffer.from(shot.data,'base64'))
+  }
   if(errors.length)throw Error(errors.join('\n'))
   console.log(JSON.stringify({browser:'Edge headless',api:'real isolated PostgreSQL',draft_hidden:true,publish_visible:true,independent_copy:true,old_version_editable:true,widths:[360,900,1440],screenshots:temp}))
  }finally{ws?.close();browser.kill()}

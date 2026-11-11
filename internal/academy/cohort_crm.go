@@ -34,7 +34,7 @@ func (h *Handler) CoursePage(page http.HandlerFunc) http.HandlerFunc {
 }
 func (h *Handler) cohortWorkspace(w http.ResponseWriter, r *http.Request, course, user int64, owner bool) {
 	var raw json.RawMessage
-	err := h.db.QueryRowContext(r.Context(), `SELECT jsonb_build_object('id',id,'title',title,'cover_image',cover_image,'status',status,'can_manage',$2::boolean,'can_communicate',($2::boolean OR EXISTS(SELECT 1 FROM academy_cohort_staff s JOIN academy_cohorts ch ON ch.id=s.cohort_id WHERE ch.course_id=$1 AND s.user_id=$3 AND s.can_communicate))) FROM courses WHERE id=$1`, course, owner, user).Scan(&raw)
+	err := h.db.QueryRowContext(r.Context(), `SELECT jsonb_build_object('id',id,'title',title,'cover_image',cover_image,'status',status,'unpaid_interest_count',CASE WHEN $2 THEN (SELECT count(*) FROM course_interests i WHERE i.course_id=$1 AND i.user_id IS NOT NULL AND i.paid_at IS NULL) ELSE NULL END,'can_manage',$2::boolean,'can_communicate',($2::boolean OR EXISTS(SELECT 1 FROM academy_cohort_staff s JOIN academy_cohorts ch ON ch.id=s.cohort_id WHERE ch.course_id=$1 AND s.user_id=$3 AND s.can_communicate))) FROM courses WHERE id=$1`, course, owner, user).Scan(&raw)
 	if err != nil {
 		problem(w, err)
 		return

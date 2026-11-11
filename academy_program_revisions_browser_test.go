@@ -1,7 +1,9 @@
 package main
 
 import (
+	"FinTalent/internal/courses"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -21,11 +23,25 @@ func TestAcademyProgramRevisionBrowser(t *testing.T) {
 		t.Skip("opt in to headless browser integration")
 	}
 	f := newProgramRevisionFixture(t)
+	if _, err := f.DB.Exec(`UPDATE users SET courses_access=true WHERE id=$1`, f.Owner); err != nil {
+		t.Fatal(err)
+	}
 	enrollment := int64(0)
 	if err := f.DB.QueryRow(`INSERT INTO academy_enrollments(course_id,user_id,program_version_id,enrolled_by,request_key) VALUES($1,$2,$3,$4,'browser-learner') RETURNING id`, f.Course, f.Student, f.Version, f.Owner).Scan(&enrollment); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := f.DB.Exec(`INSERT INTO course_interests(course_id,user_id) VALUES($1,$2)`, f.Course, f.Student); err != nil {
+		t.Fatal(err)
+	}
+	// No SMTP worker runs in this fixture; retain only a synthetic outbox record.
+	f.Handler.SetPaidInvitationEnqueuer(func(ctx context.Context, tx *sql.Tx, _, _, _, _ int64) (int64, error) {
+		var id int64
+		err := tx.QueryRowContext(ctx, `INSERT INTO notification_outbox(kind,recipient_email,status) VALUES('test_browser','browser@example.invalid','failed') RETURNING id`).Scan(&id)
+		return id, err
+	})
 	static := http.StripPrefix("/static/", http.FileServer(http.Dir("static")))
+	courseMux := http.NewServeMux()
+	courses.New(f.DB, func(*http.Request) (int64, error) { return f.Owner, nil }, func(*http.Request) bool { return false }).Register(courseMux)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/me" {
 			w.Header().Set("Content-Type", "application/json")
@@ -44,6 +60,10 @@ func TestAcademyProgramRevisionBrowser(t *testing.T) {
 			}
 			r.Header.Set("X-Test-User", strconv.FormatInt(actor, 10))
 			f.Mux.ServeHTTP(w, r)
+			return
+		}
+		if r.URL.Path == "/api/courses/my" {
+			courseMux.ServeHTTP(w, r)
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/api/") {

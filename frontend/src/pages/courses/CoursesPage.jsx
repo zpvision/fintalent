@@ -34,6 +34,7 @@ export default function CoursesPage({ mine = false }) {
             <button type="button" className="course-secondary course-card-publish" disabled={busy === c.id} onClick={() => act(c)}>{c.status === 'published' ? 'Снять с публикации' : c.status === 'moderation' ? 'Отозвать с модерации' : c.published_at ? 'Опубликовать снова' : 'Отправить на публикацию'}</button>
           </div>
         </section>
+        <div className="course-card-stats" aria-label="Ученики и заявки"><span>Всего учеников: <b>{c.student_count ?? 0}</b></span><span>Новые заявки: <b>{c.unpaid_interest_count ?? 0}</b></span></div>
         <section className={`course-card-academy${academyAvailable ? '' : ' is-locked'}`} aria-label="Академия">
           <div className="course-card-section-heading"><span className="course-card-section-icon"><Icon name="book" /></span><div><h3>Академия</h3><p>Уроки, материалы и ученики</p></div></div>
           {academyAvailable ? <Link className="course-primary" to={`/profile/courses/${c.id}/academy`}>Открыть Академию <span aria-hidden="true">→</span></Link> : <>

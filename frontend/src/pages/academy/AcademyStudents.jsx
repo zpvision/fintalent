@@ -16,7 +16,7 @@ export default function AcademyStudents() {
   const { id } = useParams(), [workspace, setWorkspace] = useState(null), [releases, setReleases] = useState([]), [students, setStudents] = useState([]), [version, setVersion] = useState(''), [grantVersion, setGrantVersion] = useState(''), [query, setQuery] = useState(''), [results, setResults] = useState([]), [chosen, setChosen] = useState(null), [expires, setExpires] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState(''), [card, setCard] = useState(null), [editing, setEditing] = useState(null), [access, setAccess] = useState('active'), [endDate, setEndDate] = useState(''), [searching, setSearching] = useState(false)
   const requestKey = useRef(crypto.randomUUID()), running = useRef(false)
   useEffect(() => { requestKey.current = crypto.randomUUID() }, [chosen?.id, grantVersion, expires])
-  usePageStyles([...styles, '/static/academy.css?v=5', '/static/academy-assessments.css?v=1', '/static/academy-learning.css?v=1'])
+  usePageStyles([...styles, '/static/academy.css?v=6', '/static/academy-assessments.css?v=1', '/static/academy-learning.css?v=1'])
   useDocumentPage({ title: `${workspace?.course.title || 'Курс'} · Ученики — FinTalent` })
   async function load() { const [w, versions, list] = await Promise.all([academyAPI.workspaceSummary(id), learningAPI.releases(id), learningAPI.students(id)]); setWorkspace(w); setReleases(versions); setStudents(list); setVersion(old => versions.some(v => String(v.id) === old) ? old : String(versions[0]?.id || '')); setGrantVersion(old => old || String(versions.find(v => v.published_at)?.id || '')); return versions }
   useEffect(() => { load().catch(e => setError(e.message)) }, [id])
