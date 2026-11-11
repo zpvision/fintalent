@@ -59,6 +59,9 @@ func (h *Handler) staffWorkspaces(w http.ResponseWriter, r *http.Request) {
 	}
 	respond(w, 200, raw)
 }
+
+const crmRowsSQL = `SELECT m.*,ch.name cohort_name,COALESCE((SELECT jsonb_agg(to_jsonb(t) ORDER BY t.name) FROM academy_student_tag_assignments a JOIN academy_student_tags t ON t.id=a.tag_id WHERE a.enrollment_id=m.enrollment_id),'[]') tags,(m.completed_at IS NULL AND(COALESCE(m.last_activity_at,m.enrolled_at)<now()-INTERVAL '7 days' OR m.failed_attempts>=2 OR m.pending>0 OR m.overdue_assignments>0 OR (m.expected_lessons>=3 AND m.completed*2<m.expected_lessons AND ch.starts_at<now()-INTERVAL '1 day') OR EXISTS(SELECT 1 FROM academy_cohort_events ev WHERE ev.enrollment_id=m.enrollment_id AND ev.type='deadline_missed' AND ev.delivered_at IS NOT NULL))) needs_attention FROM academy_student_metrics m LEFT JOIN academy_cohorts ch ON ch.id=m.cohort_id WHERE m.course_id=$1 AND($3=0 OR m.cohort_id=$3) AND academy_can_manage_enrollment(m.enrollment_id,$2,false)`
+
 func (h *Handler) crmStudents(r *http.Request, course, user, cohort int64) (json.RawMessage, error) {
 	// JSON/lateral metrics can exceed PostgreSQL's JIT cost threshold even for
 	// a small course. Avoid compilation overhead for this interactive read only.
@@ -71,7 +74,7 @@ func (h *Handler) crmStudents(r *http.Request, course, user, cohort int64) (json
 		return nil, err
 	}
 	var raw json.RawMessage
-	err = tx.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.enrolled_at DESC,x.enrollment_id DESC),'[]') FROM(SELECT m.*,ch.name cohort_name,COALESCE((SELECT jsonb_agg(to_jsonb(t) ORDER BY t.name) FROM academy_student_tag_assignments a JOIN academy_student_tags t ON t.id=a.tag_id WHERE a.enrollment_id=m.enrollment_id),'[]') tags,(m.completed_at IS NULL AND(COALESCE(m.last_activity_at,m.enrolled_at)<now()-INTERVAL '7 days' OR m.failed_attempts>=2 OR m.pending>0 OR m.overdue_assignments>0 OR (m.expected_lessons>=3 AND m.completed*2<m.expected_lessons AND ch.starts_at<now()-INTERVAL '1 day') OR EXISTS(SELECT 1 FROM academy_cohort_events ev WHERE ev.enrollment_id=m.enrollment_id AND ev.type='deadline_missed' AND ev.delivered_at IS NOT NULL))) needs_attention FROM academy_student_metrics m LEFT JOIN academy_cohorts ch ON ch.id=m.cohort_id WHERE m.course_id=$1 AND($3=0 OR m.cohort_id=$3) AND academy_can_manage_enrollment(m.enrollment_id,$2,false))x`, course, user, cohort).Scan(&raw)
+	err = tx.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.enrolled_at DESC,x.enrollment_id DESC),'[]') FROM (`+crmRowsSQL+`)x`, course, user, cohort).Scan(&raw)
 	if err != nil {
 		return nil, err
 	}
@@ -183,6 +186,14 @@ func (h *Handler) cohortDetail(w http.ResponseWriter, r *http.Request, c *Cohort
 
 func (h *Handler) crmRoute(w http.ResponseWriter, r *http.Request, course, user int64, owner bool, path []string) {
 	if len(path) == 0 && r.Method == "GET" {
+		if r.URL.Query().Get("compact") == "1" {
+			h.crmChoices(w, r, course, user)
+			return
+		}
+		if r.URL.Query().Has("page") {
+			h.crmPage(w, r, course, user)
+			return
+		}
 		raw, err := h.crmStudents(r, course, user, queryInt(r, "cohort"))
 		if err != nil {
 			problem(w, err)

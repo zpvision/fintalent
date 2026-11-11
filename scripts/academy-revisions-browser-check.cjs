@@ -56,6 +56,17 @@ const temp=fs.mkdtempSync(path.join(os.tmpdir(),'ft-revisions-ui-')),sleep=ms=>n
   }
   await navigate(`/profile/learning/${enrollment}`);await wait(`document.querySelector('.learning-room-material')?.textContent.includes('Browser published lesson')||document.querySelector('.learning-room-tree')?.textContent.includes('Browser published lesson')`)
   for(const width of [360,900,1440]){await cmd('Emulation.setDeviceMetricsOverride',{width,height:950,deviceScaleFactor:1,mobile:false});await sleep(150);if(await evaluate(`document.documentElement.scrollWidth>innerWidth+1`))throw Error('Room overflow at '+width)}
+  await navigate(`/profile/courses/${course}/academy/crm`)
+  await wait(`document.querySelector('.cohort-crm-table tbody tr')`)
+  await evaluate(`(()=>{const input=document.querySelector('input[type="search"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'no-such-synthetic-student');input.dispatchEvent(new Event('input',{bubbles:true}))})()`)
+  await wait(`!document.querySelector('.cohort-crm-table') && document.body.textContent.includes('Ученики не найдены')`)
+  await evaluate(`(()=>{const input=document.querySelector('input[type="search"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,'');input.dispatchEvent(new Event('input',{bubbles:true}))})()`)
+  await wait(`document.querySelector('.cohort-crm-table tbody tr')`)
+  for(const width of [360,900,1440]){
+   await cmd('Emulation.setDeviceMetricsOverride',{width,height:950,deviceScaleFactor:1,mobile:false});await sleep(150)
+   if(await evaluate(`document.documentElement.scrollWidth>innerWidth+1`))throw Error('CRM overflow at '+width)
+   const shot=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});fs.writeFileSync(path.join(temp,`crm-${width}.png`),Buffer.from(shot.data,'base64'))
+  }
   if(errors.length)throw Error(errors.join('\n'))
   console.log(JSON.stringify({browser:'Edge headless',api:'real isolated PostgreSQL',draft_hidden:true,publish_visible:true,independent_copy:true,old_version_editable:true,widths:[360,900,1440],screenshots:temp}))
  }finally{ws?.close();browser.kill()}

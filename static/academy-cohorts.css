@@ -4,3 +4,5 @@
 @media(prefers-reduced-motion:reduce){.cohort-card,.cohort-chart i b{transition:none;transform:none}}
 
 .cohort-tag-create>.course-field{flex:1;margin:0;min-width:120px}.cohort-tag-create>.course-secondary{align-self:end;min-height:44px}.cohort-tag-row{display:flex;align-items:center;gap:10px}.cohort-tag-row .cohort-chip{margin-right:auto}.cohort-tag-row .course-secondary{font-size:12px;padding:8px 12px}
+
+.academy-student-navigation{gap:8px;flex-wrap:wrap}.academy-student-navigation>a,.academy-student-navigation>span{display:inline-flex;align-items:center;min-height:40px;padding:8px 14px;border-radius:9px;font-size:12px;text-decoration:none;color:#496b99;background:#f2f6fd}.academy-student-navigation>.current{background:#e3edff;color:#2158a5;font-weight:600}

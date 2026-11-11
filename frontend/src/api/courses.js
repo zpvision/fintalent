@@ -2,6 +2,7 @@ import { apiClient } from './client'
 
 export const courseAPI = {
   meta: () => apiClient.get('/api/courses/meta'),
+  related: (category, exclude) => apiClient.get(`/api/courses?${new URLSearchParams({...(category ? {category} : {}), exclude, limit:2})}`),
   catalog: () => apiClient.get('/api/courses'),
   mine: () => apiClient.get('/api/courses/my'),
   create: () => apiClient.post('/api/courses/my', {}),

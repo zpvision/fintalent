@@ -100,7 +100,16 @@ func (h *Handler) meta(w http.ResponseWriter, r *http.Request) {
 	respond(w, 200, map[string]any{"categories": raw, "features": features, "lesson_types": lessonTypes})
 }
 func (h *Handler) list(w http.ResponseWriter, r *http.Request, where string, args ...any) {
-	rows, e := h.db.QueryContext(r.Context(), `SELECT to_jsonb(c)||jsonb_build_object('category',COALESCE(d.value,''),'author_name',u.full_name,'min_price',CASE WHEN c.pricing_mode='tariffs' THEN (SELECT MIN(t.price) FROM course_tariffs t WHERE t.course_id=c.id) ELSE c.price END) FROM courses c JOIN users u ON u.id=c.owner_id LEFT JOIN dictionary_items d ON d.id=c.category_id WHERE `+where+` ORDER BY c.updated_at DESC,c.id DESC LIMIT 200`, args...)
+	limit := 200
+	if r.URL.Path == "/api/courses" && r.URL.Query().Has("limit") {
+		value, err := strconv.Atoi(r.URL.Query().Get("limit"))
+		if err != nil || value < 1 || value > 200 {
+			fail(w, 400, "Некорректный размер списка")
+			return
+		}
+		limit = value
+	}
+	rows, e := h.db.QueryContext(r.Context(), `SELECT to_jsonb(c)||jsonb_build_object('category',COALESCE(d.value,''),'author_name',u.full_name,'min_price',CASE WHEN c.pricing_mode='tariffs' THEN (SELECT MIN(t.price) FROM course_tariffs t WHERE t.course_id=c.id) ELSE c.price END) FROM courses c JOIN users u ON u.id=c.owner_id LEFT JOIN dictionary_items d ON d.id=c.category_id WHERE `+where+` ORDER BY c.updated_at DESC,c.id DESC LIMIT `+strconv.Itoa(limit), args...)
 	if e != nil {
 		dbError(w, e)
 		return
@@ -126,7 +135,24 @@ func (h *Handler) catalog(w http.ResponseWriter, r *http.Request) {
 		fail(w, 405, "Метод не поддерживается")
 		return
 	}
-	h.list(w, r, "c.status='published' AND NOT u.is_blocked")
+	where := "c.status='published' AND NOT u.is_blocked"
+	args := []any{}
+	for _, field := range []struct{ query, column string }{{"category", "c.category_id"}, {"exclude", "c.id"}} {
+		if value := r.URL.Query().Get(field.query); value != "" {
+			id, err := strconv.ParseInt(value, 10, 64)
+			if err != nil || id < 1 {
+				fail(w, 400, "Некорректный фильтр курсов")
+				return
+			}
+			args = append(args, id)
+			operator := "="
+			if field.query == "exclude" {
+				operator = "<>"
+			}
+			where += fmt.Sprintf(" AND %s%s$%d", field.column, operator, len(args))
+		}
+	}
+	h.list(w, r, where, args...)
 }
 func (h *Handler) mine(w http.ResponseWriter, r *http.Request) {
 	id, ok := h.current(w, r)

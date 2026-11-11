@@ -106,8 +106,33 @@ func (h *Handler) cohortRoute(w http.ResponseWriter, r *http.Request, course, us
 	fail(w, 405, "Метод не поддерживается")
 }
 func (h *Handler) cohortList(w http.ResponseWriter, r *http.Request, course, user int64, owner bool) {
+	tx, err := h.db.BeginTx(r.Context(), &sql.TxOptions{ReadOnly: true})
+	if err != nil {
+		problem(w, err)
+		return
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(r.Context(), "SET LOCAL jit=off"); err != nil {
+		problem(w, err)
+		return
+	}
 	var raw json.RawMessage
-	err := h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.starts_at DESC,x.id DESC),'[]') FROM(SELECT c.*,v.number version_number,(SELECT COALESCE(round(avg(m.percent)),0) FROM academy_student_metrics m WHERE m.cohort_id=c.id AND academy_can_manage_enrollment(m.enrollment_id,$2,false)) average_progress,(SELECT min(ev.notify_at) FROM academy_cohort_events ev WHERE ev.cohort_id=c.id AND ev.type IN('lesson_unlocked','deadline_approaching') AND NOT ev.cancelled AND ev.delivered_at IS NULL AND ev.notify_at>now()) next_event_at,(SELECT count(*) FROM academy_enrollments e WHERE e.cohort_id=c.id AND academy_can_manage_enrollment(e.id,$2,false)) students,(SELECT count(*) FROM academy_student_metrics sm WHERE sm.cohort_id=c.id AND sm.effective_status='active' AND academy_can_manage_enrollment(sm.enrollment_id,$2,false)) active_students,(SELECT COALESCE(jsonb_agg(jsonb_build_object('name',u.full_name,'role',s.role) ORDER BY u.full_name),'[]') FROM academy_cohort_staff s JOIN users u ON u.id=s.user_id WHERE s.cohort_id=c.id) staff FROM academy_cohorts c JOIN academy_current_program_versions v ON v.id=c.program_version_id WHERE c.course_id=$1 AND ($3 OR EXISTS(SELECT 1 FROM academy_cohort_staff s WHERE s.cohort_id=c.id AND s.user_id=$2)) ORDER BY c.starts_at DESC,c.id DESC)x`, course, user, owner).Scan(&raw)
+	scope := `SELECT c.*,v.number version_number FROM academy_cohorts c JOIN academy_program_versions v ON v.id=c.program_version_id WHERE c.course_id=$1 AND($3 OR EXISTS(SELECT 1 FROM academy_cohort_staff s WHERE s.cohort_id=c.id AND s.user_id=$2))`
+	query := `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.starts_at DESC,x.id DESC),'[]') FROM (` + scope + `)x`
+	if r.URL.Query().Get("compact") != "1" {
+		query = `WITH visible AS MATERIALIZED (` + scope + `), metrics AS MATERIALIZED (
+ SELECT m.cohort_id,round(avg(m.percent)) average_progress,count(*) students,count(*) FILTER(WHERE m.effective_status='active') active_students
+ FROM academy_student_metrics m WHERE m.course_id=$1 AND m.cohort_id IN(SELECT id FROM visible) AND academy_can_manage_enrollment(m.enrollment_id,$2,false) GROUP BY m.cohort_id)
+ SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.starts_at DESC,x.id DESC),'[]') FROM(
+ SELECT c.*,COALESCE(m.average_progress,0) average_progress,COALESCE(m.students,0) students,COALESCE(m.active_students,0) active_students,
+ (SELECT min(ev.notify_at) FROM academy_cohort_events ev WHERE ev.cohort_id=c.id AND ev.type IN('lesson_unlocked','deadline_approaching') AND NOT ev.cancelled AND ev.delivered_at IS NULL AND ev.notify_at>now()) next_event_at,
+ (SELECT COALESCE(jsonb_agg(jsonb_build_object('name',u.full_name,'role',s.role) ORDER BY u.full_name),'[]') FROM academy_cohort_staff s JOIN users u ON u.id=s.user_id WHERE s.cohort_id=c.id) staff
+ FROM visible c LEFT JOIN metrics m ON m.cohort_id=c.id)x`
+	}
+	err = tx.QueryRowContext(r.Context(), query, course, user, owner).Scan(&raw)
+	if err == nil {
+		err = tx.Commit()
+	}
 	if err != nil {
 		problem(w, err)
 		return

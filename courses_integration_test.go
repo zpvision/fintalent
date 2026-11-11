@@ -492,6 +492,17 @@ func TestCoursesIsolatedPostgres(t *testing.T) {
 		return rev
 	}()}, 200)
 	publicView := request("GET", publicPath, 0, false, nil, 200)
+	var recommendations []struct {
+		ID int64 `json:"id"`
+	}
+	if err := json.Unmarshal(request("GET", fmt.Sprintf("/api/courses?category=%d&limit=2", category), 0, false, nil, 200), &recommendations); err != nil || len(recommendations) != 1 || recommendations[0].ID != id {
+		t.Fatal("related course filtering", err, recommendations)
+	}
+	if err := json.Unmarshal(request("GET", fmt.Sprintf("/api/courses?category=%d&exclude=%d&limit=2", category, id), 0, false, nil, 200), &recommendations); err != nil || len(recommendations) != 0 {
+		t.Fatal("related course exclusion", err, recommendations)
+	}
+	request("GET", "/api/courses?limit=201", 0, false, nil, 400)
+	request("GET", "/api/courses?category=invalid", 0, false, nil, 400)
 	if !bytes.Contains(publicView, []byte(saved.LearningOutcomes[0])) {
 		t.Fatal("learning outcomes missing from public landing")
 	}

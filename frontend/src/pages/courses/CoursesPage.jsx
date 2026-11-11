@@ -31,7 +31,7 @@ export default function CoursesPage({ mine = false }) {
           <div className="course-card-landing-actions">
             <Link className="course-secondary" to={`/profile/courses/${c.id}/edit`}>Редактировать</Link>
             <Link className="course-secondary" to={`/profile/courses/${c.id}/preview`}>Предпросмотр</Link>
-            <button type="button" className="course-secondary course-card-publish" disabled={busy === c.id} onClick={() => act(c)}>{c.status === 'published' ? 'Снять с публикации' : c.status === 'moderation' ? 'Отозвать с модерации' : 'Отправить на публикацию'}</button>
+            <button type="button" className="course-secondary course-card-publish" disabled={busy === c.id} onClick={() => act(c)}>{c.status === 'published' ? 'Снять с публикации' : c.status === 'moderation' ? 'Отозвать с модерации' : c.published_at ? 'Опубликовать снова' : 'Отправить на публикацию'}</button>
           </div>
         </section>
         <section className={`course-card-academy${academyAvailable ? '' : ' is-locked'}`} aria-label="Академия">
