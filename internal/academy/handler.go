@@ -328,6 +328,10 @@ func (h *Handler) entities(w http.ResponseWriter, r *http.Request, course, user 
 	respond(w, 200, p)
 }
 func (h *Handler) workspace(w http.ResponseWriter, r *http.Request, course, user int64) {
+	if r.URL.Query().Get("summary") == "1" {
+		h.cohortWorkspace(w, r, course, user, true)
+		return
+	}
 	var raw []byte
 	e := h.db.QueryRowContext(r.Context(), `SELECT jsonb_build_object('id',id,'owner_id',owner_id,'can_manage',true,'title',title,'cover_image',cover_image,'status',status,'slug',slug,'landing_modules',(SELECT count(*) FROM course_modules WHERE course_id=c.id),'landing_lessons',(SELECT count(*) FROM course_lessons l JOIN course_modules m ON m.id=l.module_id WHERE m.course_id=c.id)) FROM courses c WHERE id=$1`, course).Scan(&raw)
 	if e != nil {

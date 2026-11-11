@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -145,8 +146,18 @@ func (h *Handler) loadAnalytics(ctx context.Context, course, actor int64, f Anal
 			{`SELECT COALESCE(jsonb_agg(to_jsonb(x)),'[]') FROM(SELECT id,enrollment_id,assessment_id,number,status,submitted_at,score,COALESCE(reviewed_by,0) reviewed_by,reviewed_at,COALESCE(assigned_to,0) assigned_to FROM academy_effective_assignment_submissions WHERE submitted_at IS NOT NULL AND enrollment_id IN(SELECT value::bigint FROM jsonb_array_elements_text($1::jsonb)) ORDER BY id LIMIT 200001)x`, &d.Submissions, 200000},
 			{`SELECT COALESCE(jsonb_agg(to_jsonb(x)),'[]') FROM(SELECT r.id,r.submission_id,COALESCE(r.reviewer_id,0) reviewer_id,COALESCE(u.full_name,'Автоматическая проверка') name,r.action,r.created_at,r.score,r.criterion_scores FROM academy_submission_reviews r JOIN academy_assignment_submissions sub ON sub.id=r.submission_id LEFT JOIN users u ON u.id=r.reviewer_id WHERE sub.enrollment_id IN(SELECT value::bigint FROM jsonb_array_elements_text($1::jsonb)) ORDER BY r.id LIMIT 300001)x`, &d.Reviews, 300000},
 		}
-		for _, q := range queries {
-			if err = analyticsJSON(ctx, tx, q.query, q.target, idJSON); err != nil {
+		// One round trip for the five independent sources, within the same
+		// authorized repeatable-read transaction. Keep every source's row cap.
+		parts := make([]string, len(queries))
+		for i, q := range queries {
+			parts[i] = "(" + q.query + ")"
+		}
+		var sources []json.RawMessage
+		if err = analyticsJSON(ctx, tx, "SELECT jsonb_build_array("+strings.Join(parts, ",")+")", &sources, idJSON); err != nil {
+			return nil, err
+		}
+		for i, q := range queries {
+			if err = json.Unmarshal(sources[i], q.target); err != nil {
 				return nil, err
 			}
 		}

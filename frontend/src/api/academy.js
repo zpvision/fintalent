@@ -1,6 +1,7 @@
 import { apiClient } from './client'
 const base = id => `/api/academy/courses/${id}`
 export const academyAPI = {
+ workspaceSummary: id => apiClient.get(`${base(id)}?summary=1`),
  workspace: id => apiClient.get(base(id)),
  create: (id, source) => apiClient.post(`${base(id)}/program`, { source }),
  save: (id, data) => apiClient.put(`${base(id)}/program`, data),
