@@ -87,6 +87,16 @@ func transitionCourse(ctx context.Context, tx *sql.Tx, id, uid int64, action str
 	_ = json.Unmarshal(raw, &state)
 	target := ""
 	switch {
+	case action == "submit" && !admin && state.Status == "published" && state.PublishedAt != nil:
+		// Saving an approved landing keeps it published. Older clients may
+		// still submit afterwards; acknowledge without another transition.
+		if err = publicationAllowed(ctx, tx, id); err != nil {
+			if errors.Is(err, ErrPublicationRestricted) {
+				return "", TransitionError{409, err.Error()}
+			}
+			return "", err
+		}
+		return "published", nil
 	case action == "submit" && !admin && (state.Status == "draft" || state.Status == "hidden"):
 		target = "moderation"
 		if state.PublishedAt != nil {

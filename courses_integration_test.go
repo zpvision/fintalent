@@ -492,6 +492,16 @@ func TestCoursesIsolatedPostgres(t *testing.T) {
 		return rev
 	}()}, 200)
 	publicView := request("GET", publicPath, 0, false, nil, 200)
+	var beforeRepeat, afterRepeat int64
+	if err := db.QueryRow("SELECT revision FROM courses WHERE id=$1", id).Scan(&beforeRepeat); err != nil {
+		t.Fatal(err)
+	}
+	request("POST", path+"/submit", author, false, map[string]any{}, 200)
+	request("POST", path+"/submit", author, false, map[string]any{}, 200)
+	request("POST", path+"/submit", other, false, map[string]any{}, 404)
+	if err := db.QueryRow("SELECT revision FROM courses WHERE id=$1", id).Scan(&afterRepeat); err != nil || afterRepeat != beforeRepeat {
+		t.Fatal("repeat submit changed published course", err)
+	}
 	var recommendations []struct {
 		ID int64 `json:"id"`
 	}
