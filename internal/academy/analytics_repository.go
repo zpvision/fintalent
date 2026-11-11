@@ -38,6 +38,11 @@ func (h *Handler) loadAnalytics(ctx context.Context, course, actor int64, f Anal
 		return nil, err
 	}
 	defer tx.Rollback()
+	// Interactive analytics expands JSON views into large plans; compiling them
+	// costs seconds on small audiences. Scope this setting to this read only.
+	if _, err = tx.ExecContext(ctx, "SET LOCAL jit = off"); err != nil {
+		return nil, err
+	}
 	d := &analyticsDataset{Course: course, Actor: actor, Filters: f, Now: time.Now(), Programs: map[int64]Program{}, VersionNumbers: map[int64]int{}, Cohorts: map[int64]*Cohort{}}
 	var allowed bool
 	err = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM courses c JOIN users u ON u.id=$2 JOIN users owner ON owner.id=c.owner_id WHERE c.id=$1 AND NOT owner.is_blocked AND NOT u.is_blocked AND NOT u.is_system AND(c.owner_id=$2 OR EXISTS(SELECT 1 FROM academy_cohort_staff s JOIN academy_cohorts ch ON ch.id=s.cohort_id WHERE ch.course_id=c.id AND s.user_id=$2))),EXISTS(SELECT 1 FROM courses WHERE id=$1 AND owner_id=$2),EXISTS(SELECT 1 FROM courses c WHERE c.id=$1 AND(c.owner_id=$2 OR EXISTS(SELECT 1 FROM academy_cohort_staff s JOIN academy_cohorts ch ON ch.id=s.cohort_id WHERE ch.course_id=c.id AND s.user_id=$2 AND s.can_communicate)))`, course, actor).Scan(&allowed, &d.Owner, &d.Communications)
@@ -169,7 +174,7 @@ func (h *Handler) loadAnalytics(ctx context.Context, course, actor int64, f Anal
 	for id := range d.Programs {
 		vids = append(vids, id)
 	}
-	err = analyticsJSON(ctx, tx, `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.id),'[]') FROM(SELECT a.id,COALESCE((SELECT r.number FROM academy_program_revisions r WHERE r.id=a.publication_revision_id),1) publication_number,a.program_version_id,a.lesson_key,a.block_key,a.kind,a.title,a.config,COALESCE((SELECT jsonb_agg(jsonb_build_object('id',q->'id','question',q->'question')) FROM jsonb_array_elements(a.questions) q),'[]') questions FROM academy_assessment_versions a WHERE a.program_version_id IN(SELECT value::bigint FROM jsonb_array_elements_text($1::jsonb)) AND(EXISTS(SELECT 1 FROM academy_current_assessment_versions current WHERE current.id=a.id) OR EXISTS(SELECT 1 FROM academy_test_attempts t WHERE t.assessment_id=a.id) OR EXISTS(SELECT 1 FROM academy_assignment_submissions s WHERE s.assessment_id=a.id)))x`, &d.Assessments, jsonValue(vids))
+	err = analyticsJSON(ctx, tx, `WITH selected_assessments AS MATERIALIZED (SELECT * FROM academy_assessment_versions WHERE program_version_id IN(SELECT value::bigint FROM jsonb_array_elements_text($1::jsonb))), active_assessments AS MATERIALIZED (SELECT current.id FROM academy_current_assessment_versions current WHERE current.program_version_id IN(SELECT value::bigint FROM jsonb_array_elements_text($1::jsonb))) SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.id),'[]') FROM(SELECT a.id,COALESCE((SELECT r.number FROM academy_program_revisions r WHERE r.id=a.publication_revision_id),1) publication_number,a.program_version_id,a.lesson_key,a.block_key,a.kind,a.title,a.config,COALESCE((SELECT jsonb_agg(jsonb_build_object('id',q->'id','question',q->'question')) FROM jsonb_array_elements(a.questions) q),'[]') questions FROM selected_assessments a WHERE (EXISTS(SELECT 1 FROM active_assessments current WHERE current.id=a.id) OR EXISTS(SELECT 1 FROM academy_test_attempts t WHERE t.assessment_id=a.id) OR EXISTS(SELECT 1 FROM academy_assignment_submissions s WHERE s.assessment_id=a.id)))x`, &d.Assessments, jsonValue(vids))
 	if err != nil {
 		return nil, err
 	}
