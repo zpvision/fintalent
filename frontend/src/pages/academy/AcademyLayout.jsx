@@ -10,7 +10,7 @@ import { academyAPI } from '../../api/academy'
 import AcademyCourseHeader from './AcademyCourseHeader'
 
 const shellStyles = [...new Set([...styles, ...cohortStyles, ...communicationStyles,
- '/static/course-editor-theme.css?v=1', '/static/academy.css?v=4',
+ '/static/course-editor-theme.css?v=1', '/static/academy.css?v=5',
  '/static/academy-analytics.css?v=2', '/static/academy-acquisition.css?v=1'])]
 
 // Remains mounted across course tabs; author forms retain their own save guards.

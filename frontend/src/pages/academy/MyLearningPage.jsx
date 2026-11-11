@@ -12,7 +12,7 @@ import AcademyNotifications from './AcademyNotifications'
 
 export default function MyLearningPage() {
   const { coursesAccess } = useAuth(), [items, setItems] = useState([]), [loading, setLoading] = useState(true), [error, setError] = useState(''), [filter, setFilter] = useState('all'), [sort, setSort] = useState('activity')
-  usePageStyles([...profileStyles, '/static/academy.css?v=3', '/static/academy-assessments.css?v=1', '/static/academy-learning.css?v=1'])
+  usePageStyles([...profileStyles, '/static/academy.css?v=5', '/static/academy-assessments.css?v=1', '/static/academy-learning.css?v=1'])
   useDocumentPage({ title: 'Моё обучение — FinTalent' })
   function load() { setLoading(true); setError(''); learningAPI.mine().then(setItems).catch(e => setError(e.message)).finally(() => setLoading(false)) }
   useEffect(() => { load(); window.addEventListener('focus', load); return () => window.removeEventListener('focus', load) }, [])
