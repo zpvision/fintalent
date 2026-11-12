@@ -63,7 +63,7 @@
 .cc-card { min-width: 0; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #dfe7f3; border-radius: 19px; background: #fff; box-shadow: 0 8px 24px #18396607; transition: border-color .2s, box-shadow .2s, transform .2s; }
 .cc-card:hover { transform: translateY(-4px); border-color: #b4ccee; box-shadow: 0 16px 32px #18396614; }
 .cc-cover { display: block; position: relative; aspect-ratio: 12 / 5; overflow: hidden; background: #edf4ff; }
-.cc-cover > img { width: 100%; height: 100%; object-fit: cover; transition: transform .3s; }
+.cc-cover > img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .cc-card:hover .cc-cover > img { transform: scale(1.035); }
 .cc-cover-category { position: absolute; top: 15px; left: 15px; max-width: calc(100% - 88px); padding: 5px 9px; border: 1px solid #ffffffb3; border-radius: 7px; background: #fffffff0; color: #28507f; font-size: 10px; overflow-wrap: anywhere; box-shadow: 0 3px 10px #1734570c; }
 .cc-discount { position: absolute; top: 15px; right: 15px; padding: 5px 8px; border-radius: 7px; background: #e8f8ec; color: #237250; font-size: 11px; font-weight: 800; }
@@ -166,7 +166,7 @@
 .cc-art-finance { top: 0; right: -8px; }
 .cc-art-growth { bottom: 0; left: -8px; }
 .cc-catalog-section { margin-top: 30px; }
-.cc-cover { height: 84px; aspect-ratio: auto; }
+.cc-cover { height: auto; aspect-ratio: 12 / 5; }
 .cc-cover-category { top: 8px; left: 12px; padding: 3px 7px; font-size: 9px; }
 .cc-discount { top: 8px; right: 12px; padding: 3px 6px; font-size: 10px; }
 .cc-cover .cc-card-labels { position: absolute; bottom: 8px; left: 12px; right: 12px; margin: 0; gap: 6px; min-height: 0; }
@@ -191,7 +191,7 @@
 .cc-card-price del { font-size: 11px; }
 .course-catalog .cc-details { min-height: 44px; padding: 9px 14px; }
 .cc-skeleton { padding-bottom: 14px; }
-.cc-skeleton > div { height: 84px; aspect-ratio: auto; margin-bottom: 14px; }
+.cc-skeleton > div { height: auto; aspect-ratio: 12 / 5; margin-bottom: 14px; }
 .cc-skeleton > span { margin: 8px 14px; }
 @media (max-width: 1100px) {
   .cc-hero { padding: 26px; grid-template-columns: minmax(0, 1.4fr) minmax(0, .6fr); }

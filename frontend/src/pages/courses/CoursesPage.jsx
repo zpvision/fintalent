@@ -9,7 +9,7 @@ import { statuses, styles, profileStyles, EmptyArt } from './shared'
 import Icon from '../../components/Icon'
 
 export default function CoursesPage({ mine = false }) {
-  usePageStyles(mine ? profileStyles : [...styles, '/static/course-catalog.css?v=2'])
+  usePageStyles(mine ? profileStyles : [...styles, '/static/course-catalog.css?v=3'])
   useDocumentPage({ title: `${mine ? 'Мои курсы' : 'Курсы'} — FinTalent` })
   const [items, setItems] = useState([]), [error, setError] = useState(''), [loading, setLoading] = useState(true), [busy, setBusy] = useState(0)
   const [category, setCategory] = useState(() => new URLSearchParams(window.location.search).get('category') || '')
