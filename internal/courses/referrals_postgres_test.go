@@ -59,6 +59,13 @@ func TestReferralIsolatedPostgres(t *testing.T) {
 	}
 	exec(string(migration))
 	exec(string(migration))
+	contacts, e := os.ReadFile(filepath.Join("..", "..", "migrations", "095_course_interest_contacts.sql"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	exec(string(contacts))
+	exec(string(contacts))
+	exec(`ALTER TABLE course_interests ADD COLUMN paid_at timestamptz;ALTER TABLE course_tariffs ADD COLUMN title text NOT NULL DEFAULT ''`)
 	h := New(db, func(r *http.Request) (int64, error) {
 		id, _ := strconv.ParseInt(r.Header.Get("X-Test-User"), 10, 64)
 		return id, nil
@@ -120,7 +127,7 @@ func TestReferralIsolatedPostgres(t *testing.T) {
 	visit("course-b", "telegram2026", 0, cookie)
 	interest := func(slug string, user int64, c *http.Cookie) {
 		t.Helper()
-		w := request("POST", "/interest", `{"slug":"`+slug+`","referral_link_id":999,"commission_percent":1}`, user, c)
+		w := request("POST", "/interest", `{"slug":"`+slug+`","referral_link_id":999,"commission_percent":1,"contact_email":"student@example.invalid","contact_phone":"+79991234567"}`, user, c)
 		if w.Code != 204 {
 			t.Fatalf("interest %d %s", w.Code, w.Body.String())
 		}
@@ -196,7 +203,7 @@ func TestReferralIsolatedPostgres(t *testing.T) {
 		}
 	}
 	check(`SELECT count(*) FROM course_referral_attributions WHERE user_id=6 AND course_id=2`, 1)
-	if w := request("POST", "/interest", `{"slug":"draft"}`, 3, nil); w.Code != 404 {
+	if w := request("POST", "/interest", `{"slug":"draft","contact_email":"student@example.invalid","contact_phone":"+79991234567"}`, 3, nil); w.Code != 404 {
 		t.Fatal("draft accepted")
 	}
 	interest("course-b", 9, nil)

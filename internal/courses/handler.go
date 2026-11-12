@@ -72,6 +72,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/courses/referrals/visit", h.Gate(h.referralVisit))
 	mux.HandleFunc("/api/courses/interest", h.Gate(h.courseInterest))
 	mux.HandleFunc("/api/admin/courses", h.adminList)
+	mux.HandleFunc("/api/admin/courses/students", h.adminStudents)
 	mux.HandleFunc("/api/admin/courses/", h.adminAction)
 }
 func (h *Handler) meta(w http.ResponseWriter, r *http.Request) {

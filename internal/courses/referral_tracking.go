@@ -148,6 +148,8 @@ func (h *Handler) courseInterest(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Slug   string `json:"slug"`
 		Tariff int64  `json:"tariff_id"`
+		Email  string `json:"contact_email"`
+		Phone  string `json:"contact_phone"`
 	}
 	if !decode(w, r, &in) {
 		return
@@ -164,6 +166,11 @@ func (h *Handler) courseInterest(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	email, phone, valid := normalizeInterestContacts(in.Email, in.Phone)
+	if !valid {
+		fail(w, 400, "Укажите корректные email и телефон (от 7 до 15 цифр)")
+		return
+	}
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 	tx, e := h.db.BeginTx(ctx, nil)
@@ -174,7 +181,13 @@ func (h *Handler) courseInterest(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback()
 	var course int64
 	var pricing string
-	e = tx.QueryRowContext(ctx, `SELECT c.id,c.pricing_mode FROM courses c JOIN users u ON u.id=c.owner_id WHERE c.slug=$1 AND c.status='published' AND NOT u.is_blocked`, in.Slug).Scan(&course, &pricing)
+	var studentName, tariffName string
+	var selectedPrice int64
+	if e = tx.QueryRowContext(ctx, `SELECT full_name FROM users WHERE id=$1 AND NOT is_blocked`, user).Scan(&studentName); e != nil {
+		dbError(w, e)
+		return
+	}
+	e = tx.QueryRowContext(ctx, `SELECT c.id,c.pricing_mode,c.price FROM courses c JOIN users u ON u.id=c.owner_id WHERE c.slug=$1 AND c.status='published' AND NOT u.is_blocked`, in.Slug).Scan(&course, &pricing, &selectedPrice)
 	if e != nil {
 		dbError(w, e)
 		return
@@ -190,6 +203,14 @@ func (h *Handler) courseInterest(w http.ResponseWriter, r *http.Request) {
 			fail(w, 400, "Тариф не принадлежит этому курсу")
 			return
 		}
+		if e = tx.QueryRowContext(ctx, `SELECT title,price FROM course_tariffs WHERE id=$1 AND course_id=$2`, in.Tariff, course).Scan(&tariffName, &selectedPrice); e != nil {
+			dbError(w, e)
+			return
+		}
+	}
+	if pricing == "tariffs" && in.Tariff == 0 {
+		fail(w, 400, "Выберите тариф курса")
+		return
 	}
 	var source sql.NullInt64
 	e = tx.QueryRowContext(ctx, `SELECT referral_link_id FROM course_referral_attributions WHERE user_id=$1 AND course_id=$2`, user, course).Scan(&source)
@@ -197,7 +218,15 @@ func (h *Handler) courseInterest(w http.ResponseWriter, r *http.Request) {
 		dbError(w, e)
 		return
 	}
-	_, e = tx.ExecContext(ctx, `INSERT INTO course_interests(course_id,user_id,referral_link_id,tariff_id) VALUES($1,$2,$3,NULLIF($4,0)) ON CONFLICT(course_id,user_id) WHERE user_id IS NOT NULL DO UPDATE SET referral_link_id=COALESCE(course_interests.referral_link_id,EXCLUDED.referral_link_id)`, course, user, source, in.Tariff)
+	result, e := tx.ExecContext(ctx, `INSERT INTO course_interests(course_id,user_id,referral_link_id,tariff_id,student_name,contact_email,contact_phone,tariff_name,selected_price) VALUES($1,$2,$3,NULLIF($4,0),$5,$6,$7,$8,$9) ON CONFLICT(course_id,user_id) WHERE user_id IS NOT NULL DO UPDATE SET referral_link_id=COALESCE(course_interests.referral_link_id,EXCLUDED.referral_link_id),tariff_id=EXCLUDED.tariff_id,student_name=EXCLUDED.student_name,contact_email=EXCLUDED.contact_email,contact_phone=EXCLUDED.contact_phone,tariff_name=EXCLUDED.tariff_name,selected_price=EXCLUDED.selected_price WHERE course_interests.paid_at IS NULL`, course, user, source, in.Tariff, studentName, email, phone, tariffName, selectedPrice)
+	if e == nil {
+		var affected int64
+		affected, e = result.RowsAffected()
+		if e == nil && affected == 0 {
+			fail(w, 409, "Заявка уже оплачена. Откройте раздел «Моё обучение»")
+			return
+		}
+	}
 	if e == nil {
 		e = tx.Commit()
 	}

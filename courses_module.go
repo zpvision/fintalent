@@ -37,6 +37,12 @@ var courseLearningOutcomesSchema string
 //go:embed migrations/091_course_referrals.sql
 var courseReferralsSchema string
 
+//go:embed migrations/095_course_interest_contacts.sql
+var courseInterestContactsSchema string
+
+//go:embed migrations/096_course_interest_price.sql
+var courseInterestPriceSchema string
+
 func prepareCoursesDatabase(ctx context.Context) error {
 	_, err := db.ExecContext(ctx, coursesSchema)
 	if err != nil {
@@ -75,6 +81,14 @@ func prepareCoursesDatabase(ctx context.Context) error {
 		return err
 	}
 	_, err = db.ExecContext(ctx, courseReferralsSchema)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, courseInterestContactsSchema)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, courseInterestPriceSchema)
 	return err
 }
 func registerCoursesRoutes() {

@@ -23,6 +23,13 @@ func TestAcademyProgramRevisionBrowser(t *testing.T) {
 		t.Skip("opt in to headless browser integration")
 	}
 	f := newProgramRevisionFixture(t)
+	var publicSlug, ownerName, ownerEmail string
+	if err := f.DB.QueryRow(`UPDATE courses SET status='published' WHERE id=$1 RETURNING slug`, f.Course).Scan(&publicSlug); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.DB.QueryRow(`SELECT full_name,email FROM users WHERE id=$1`, f.Owner).Scan(&ownerName, &ownerEmail); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := f.DB.Exec(`UPDATE users SET courses_access=true WHERE id=$1`, f.Owner); err != nil {
 		t.Fatal(err)
 	}
@@ -45,7 +52,7 @@ func TestAcademyProgramRevisionBrowser(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/me" {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]any{"id": f.Owner, "full_name": "Synthetic Academy author"})
+			json.NewEncoder(w).Encode(map[string]any{"id": f.Owner, "full_name": ownerName, "email": ownerEmail})
 			return
 		}
 		if r.URL.Path == "/api/courses/access" || r.URL.Path == "/api/academy/learning/access" {
@@ -62,7 +69,7 @@ func TestAcademyProgramRevisionBrowser(t *testing.T) {
 			f.Mux.ServeHTTP(w, r)
 			return
 		}
-		if r.URL.Path == "/api/courses/my" {
+		if strings.HasPrefix(r.URL.Path, "/api/courses/") {
 			courseMux.ServeHTTP(w, r)
 			return
 		}
@@ -80,7 +87,7 @@ func TestAcademyProgramRevisionBrowser(t *testing.T) {
 	defer server.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, "node", "scripts/academy-revisions-browser-check.cjs", server.URL, strconv.FormatInt(f.Course, 10), strconv.FormatInt(f.Version, 10), strconv.FormatInt(enrollment, 10))
+	cmd := exec.CommandContext(ctx, "node", "scripts/academy-revisions-browser-check.cjs", server.URL, strconv.FormatInt(f.Course, 10), strconv.FormatInt(f.Version, 10), strconv.FormatInt(enrollment, 10), publicSlug)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("browser check: %v\n%s", err, out)

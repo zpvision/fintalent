@@ -7,6 +7,7 @@
   const labels = { draft: 'Черновик', moderation: 'На модерации', published: 'Опубликован', hidden: 'Скрыт' }
   let selected = 'moderation'
   let area = 'access'
+  let studentsPage = 1
   const request = async (path, body) => {
     const response = await fetch(path, { credentials: 'include', cache: 'no-store', ...(body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}) })
     const value = await response.json(); if (!response.ok) throw Error(value.error || 'Не удалось выполнить запрос'); return value
@@ -52,9 +53,33 @@
       card.append(title,label,description,hint);section.append(card)
     } catch(e){section.replaceChildren(tabs(),node('p',e.message))}
   }
+  async function loadStudents() {
+    section.replaceChildren(tabs(),node('p','Загружаем заявки учеников…'))
+    const page=studentsPage
+    try {
+      const data=await request(`/api/admin/courses/students?page=${page}`)
+      if(area!=='students'||studentsPage!==page)return
+      section.replaceChildren(tabs(),node('h2','Ученики'),node('p','Заявки на курсы и контакты для связи. Для старых заявок без сохранённых контактов показаны доступные данные аккаунта.'))
+      const table=node('table','','users-table'),head=node('thead'),heading=node('tr'),body=node('tbody')
+      for(const label of ['Название курса','Тариф курса','Автор курса','ФИО ученика','Email ученика','Телефон ученика','Дата заявки'])heading.append(node('th',label))
+      head.append(heading);table.append(head)
+      for(const item of data.items){
+        const row=node('tr'),course=node('td'),link=node('a',item.course_title||'Без названия')
+        link.href=`/admin/courses/${item.course_id}/preview`;link.target='_blank';link.rel='noopener noreferrer';course.append(link);row.append(course)
+        for(const value of [item.tariff_name||'Без тарифа',item.author_name,item.student_name,item.contact_email,item.contact_phone||'—',new Date(item.created_at).toLocaleString('ru-RU')])row.append(node('td',value||'—'))
+        body.append(row)
+      }
+      table.append(body);const wrap=node('div','','users-table-wrap');wrap.append(table);section.append(wrap)
+      if(!data.items.length)section.append(node('p','Заявок пока нет.'))
+      const pager=node('div','','pm-admin-tabs'),prev=node('button','← Назад'),next=node('button','Далее →')
+      prev.disabled=page<=1;next.disabled=page*data.page_size>=data.total
+      prev.onclick=()=>{studentsPage--;loadStudents()};next.onclick=()=>{studentsPage++;loadStudents()}
+      pager.append(prev,node('span',`Всего заявок: ${data.total} · Страница ${page}`),next);section.append(pager)
+    }catch(e){if(area==='students')section.replaceChildren(tabs(),node('p',e.message))}
+  }
   function tabs() {
     const tabs = node('div', '', 'pm-admin-tabs')
-    for (const [key, label] of [['access', 'Доступ'], ['courses', 'Курсы и модерация'], ['course_categories', 'Категории курсов'], ['course_features', 'Возможности курса'], ['course_lesson_types', 'Типы уроков']]) {
+    for (const [key, label] of [['access', 'Доступ'], ['courses', 'Курсы и модерация'], ['students', 'Ученики'], ['course_categories', 'Категории курсов'], ['course_features', 'Возможности курса'], ['course_lesson_types', 'Типы уроков']]) {
       const tab = node('button', label, key === area ? 'active' : '')
       tab.onclick = () => { area = key; editor.classList.add('hidden'); load() }
       tabs.append(tab)
@@ -75,13 +100,14 @@
   async function load() {
     list.classList.add('hidden'); editor.classList.add('hidden')
     if (area === 'access') { await loadAccess(); return }
+    if (area === 'students') { await loadStudents(); return }
     if (area === 'courses') { await loadCourses(); section.prepend(tabs()); return }
     try { dictionaries = await api('/api/admin/dictionaries'); renderCourseDictionaries() } catch (e) { notify(e.message, true) }
   }
   const originalRenderList = renderList
   renderList = function () {
     originalRenderList()
-    if (button.classList.contains('active') && !['courses','access'].includes(area)) { list.classList.add('hidden'); renderCourseDictionaries() }
+    if (button.classList.contains('active') && !['courses','access','students'].includes(area)) { list.classList.add('hidden'); renderCourseDictionaries() }
   }
   document.querySelector('#back').addEventListener('click', event => {
     if (!button.classList.contains('active') || area === 'courses') return

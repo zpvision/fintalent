@@ -1,7 +1,7 @@
 // Actual built React + real Academy API/PostgreSQL provided by the Go test.
 // Auth is synthetic. All traffic is restricted to loopback.
 const fs=require('fs'),path=require('path'),os=require('os'),{spawn}=require('child_process')
-const [base,course,version,enrollment]=process.argv.slice(2)
+const [base,course,version,enrollment,publicSlug]=process.argv.slice(2)
 if(!base||new URL(base).hostname!=='127.0.0.1')throw Error('Only isolated loopback server is allowed')
 const temp=fs.mkdtempSync(path.join(os.tmpdir(),'ft-revisions-ui-')),sleep=ms=>new Promise(r=>setTimeout(r,ms))
 ;(async()=>{
@@ -93,6 +93,24 @@ const temp=fs.mkdtempSync(path.join(os.tmpdir(),'ft-revisions-ui-')),sleep=ms=>n
    if(heights.compact>heights.old+1)throw Error('Card became taller at '+width+': '+JSON.stringify(heights))
    const shot=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});fs.writeFileSync(path.join(temp,`dashboard-${width}.png`),Buffer.from(shot.data,'base64'))
   }
+  await navigate(`/courses/${publicSlug}`)
+  await wait(`document.querySelector('.course-purchase button.course-primary')`)
+  await evaluate(`document.querySelector('.course-purchase button.course-primary').click()`)
+  await wait(`document.querySelector('.course-contact-dialog[open]')`)
+  if(!await evaluate(`document.querySelector('.course-contact-dialog input[autocomplete="name"]').disabled && document.querySelector('.course-contact-dialog input[autocomplete="name"]').value.length>0`))throw Error('Application identity is editable or missing')
+  const beforeSubmit=await evaluate(`fetch('/api/courses/my').then(r=>r.json()).then(rows=>rows.find(c=>c.id===Number('${course}')).unpaid_interest_count)`)
+  if(beforeSubmit!==0)throw Error('Opening contact form created an application')
+  await evaluate(`(()=>{for(const [type,value] of [['tel','+7 (999) 123-45-67'],['email','browser-contact@example.invalid']]){const input=document.querySelector('.course-contact-dialog input[type="'+type+'"]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(input,value);input.dispatchEvent(new Event('input',{bubbles:true}))}})()`)
+  for(const width of [360,900,1440]){
+   await cmd('Emulation.setDeviceMetricsOverride',{width,height:950,deviceScaleFactor:1,mobile:false});await sleep(150)
+   const fits=await evaluate(`(()=>{const r=document.querySelector('.course-contact-dialog').getBoundingClientRect();return r.left>=0&&r.right<=innerWidth&&r.top>=0&&r.bottom<=innerHeight})()`)
+   if(!fits)throw Error('Contact modal exceeds viewport at '+width)
+   const shot=await cmd('Page.captureScreenshot',{format:'png',captureBeyondViewport:false});fs.writeFileSync(path.join(temp,`contact-${width}.png`),Buffer.from(shot.data,'base64'))
+  }
+  await evaluate(`document.querySelector('.course-contact-dialog button[type="submit"]').click()`)
+  await wait(`!document.querySelector('.course-contact-dialog') && document.querySelector('.course-interest-success')`)
+  const afterSubmit=await evaluate(`fetch('/api/courses/my').then(r=>r.json()).then(rows=>rows.find(c=>c.id===Number('${course}')).unpaid_interest_count)`)
+  if(afterSubmit!==1)throw Error('Contact submission did not create the application')
   if(errors.length)throw Error(errors.join('\n'))
   console.log(JSON.stringify({browser:'Edge headless',api:'real isolated PostgreSQL',draft_hidden:true,publish_visible:true,independent_copy:true,old_version_editable:true,widths:[360,900,1440],screenshots:temp}))
  }finally{ws?.close();browser.kill()}
