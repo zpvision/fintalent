@@ -4,7 +4,7 @@
 .analytics-unpaid-icon{font-size:25px}.analytics-unpaid-card b,.analytics-unpaid-card small,.analytics-unpaid-card em{display:block}
 .analytics-unpaid-card small{font-size:10px;letter-spacing:.09em;color:#6d87ad}.analytics-unpaid-card b{font-size:18px;margin:4px 0}.analytics-unpaid-card em{font-size:12px;color:#7c8ea7;font-style:normal}.analytics-unpaid-card strong{font-size:36px;color:#2563df;margin-left:auto}
 .acquisition-controls{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:20px}.acquisition-controls .course-field{flex:1;max-width:340px;min-width:180px;margin:0}
-.analytics-acquisition-grid{display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1.35fr);gap:20px;align-items:start;margin-bottom:28px}
+.analytics-acquisition-grid{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,3fr);gap:20px;align-items:start;margin-bottom:28px}
 .analytics-acquisition-grid .acquisition-panel{min-width:0;margin:0;padding:22px;border-radius:20px;border:1px solid #dfe8f5;background:#fff;box-shadow:0 6px 24px #24467506}
 .acquisition-panel>header{display:flex;align-items:center;gap:12px;margin-bottom:14px}.acquisition-panel>header small{font-size:9px;letter-spacing:.09em;color:#8196b3}.acquisition-panel h3{margin-top:4px;font-size:17px}
 .acquisition-panel-icon.green,.acquisition-dialog-icon{color:#178662;background:#eaf8f1}
