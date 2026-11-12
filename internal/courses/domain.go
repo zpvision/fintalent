@@ -150,8 +150,32 @@ func Validate(v *Input, publishing bool) error {
 	if len(v.Benefits) > 4 || len(v.Bonuses) > 30 || len(v.FAQ) > 50 {
 		return fmt.Errorf("Допустимо до 4 преимуществ, 30 бонусов и 50 вопросов")
 	}
-	if publishing && (utf8.RuneCountInString(v.Title) < 5 || utf8.RuneCountInString(v.Description) < 20 || v.CategoryID == nil || v.CoverImage == "" || (v.PricingMode != "tariffs" && v.Hours <= 0) || len(v.Modules) == 0) {
-		return fmt.Errorf("Для публикации заполните название, описание, категорию, обложку, часы обучения и программу")
+	if publishing {
+		var missing, info []string
+		if utf8.RuneCountInString(v.Title) < 5 {
+			info = append(info, "название (не менее 5 символов)")
+		}
+		if utf8.RuneCountInString(v.Description) < 20 {
+			info = append(info, "короткое описание (не менее 20 символов)")
+		}
+		if v.CategoryID == nil {
+			info = append(info, "категория курса")
+		}
+		if v.CoverImage == "" {
+			info = append(info, "обложка курса")
+		}
+		if len(info) > 0 {
+			missing = append(missing, "Шаг 1 «Общая информация»: "+strings.Join(info, ", "))
+		}
+		if len(v.Modules) == 0 {
+			missing = append(missing, "Шаг 3 «Программа курса»: добавьте программу курса")
+		}
+		if v.PricingMode != "tariffs" && v.Hours <= 0 {
+			missing = append(missing, "Шаг 5 «Стоимость и доступ»: укажите часы обучения больше нуля")
+		}
+		if len(missing) > 0 {
+			return fmt.Errorf("Для публикации заполните: %s", strings.Join(missing, "; "))
+		}
 	}
 	check := func(text string, max int, required bool) bool {
 		return utf8.RuneCountInString(text) <= max && (!required || strings.TrimSpace(text) != "")
