@@ -62,6 +62,35 @@ func TestVideoSources(t *testing.T) {
 		}
 	}
 }
+func TestRutubeVideoAccessKey(t *testing.T) {
+	const id = "0123456789abcdef0123456789abcdef"
+	const embed = "https://rutube.ru/play/embed/" + id
+	for _, tc := range []struct{ name, input, want string }{
+		{"private", "https://rutube.ru/video/private/" + id + "/?p=example_key-123", embed + "?p=example_key-123"},
+		{"embedded", embed + "?p=example_key-123", embed + "?p=example_key-123"},
+		{"www", "https://www.rutube.ru/video/private/" + id + "/?p=example_key-123", embed + "?p=example_key-123"},
+		{"public", "https://rutube.ru/video/" + id + "/", embed},
+		{"empty key", "https://rutube.ru/video/" + id + "/?p=", embed},
+		{"other parameters", "https://rutube.ru/video/private/" + id + "/?tracking=ignored&p=example_key-123#ignored", embed + "?p=example_key-123"},
+		{"encoded key", "https://rutube.ru/video/private/" + id + "/?p=key%2Bwith%26symbols%3D", embed + "?p=key%2Bwith%26symbols%3D"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			kind, got := VideoSource(tc.input)
+			if kind != "embed" || got != tc.want {
+				t.Fatalf("VideoSource() = (%q, %q), want (embed, %q)", kind, got, tc.want)
+			}
+			p := fixture()
+			p.Modules[0].Lessons[0].Blocks[0] = Block{Key: Key(), Type: "video", Data: BlockData{URL: tc.input}}
+			if err := Validate(&p); err != nil {
+				t.Fatal(err)
+			}
+			if got := p.Modules[0].Lessons[0].Blocks[0].Data.URL; got != tc.input {
+				t.Fatal("validation changed the original video URL")
+			}
+		})
+	}
+}
+
 func TestFileValidation(t *testing.T) {
 	for _, v := range []struct{ name, body string }{{"bad.png", "<script>x</script>"}, {"a.svg", "<svg/>"}, {"a.docx", "not a zip"}, {"x.exe", "MZ"}} {
 		if _, e := fileType(v.name, []byte(v.body)); e == nil {

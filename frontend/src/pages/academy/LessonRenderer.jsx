@@ -36,7 +36,13 @@ export function videoSource(value) {
     if (host === 'youtu.be' && valid(parts[0])) return ['iframe', `https://www.youtube-nocookie.com/embed/${parts[0]}`]
     if (['youtube.com','www.youtube.com'].includes(host)) { const id = u.searchParams.get('v') || (parts[0] === 'embed' && parts[1]); if (valid(id)) return ['iframe', `https://www.youtube-nocookie.com/embed/${id}`] }
     if (['vimeo.com','player.vimeo.com'].includes(host) && /^\d+$/.test(parts.at(-1))) return ['iframe', `https://player.vimeo.com/video/${parts.at(-1)}`]
-    if (['rutube.ru','www.rutube.ru'].includes(host) && ['video','play'].includes(parts[0]) && valid(parts.at(-1))) return ['iframe', `https://rutube.ru/play/embed/${parts.at(-1)}`]
+    if (['rutube.ru','www.rutube.ru'].includes(host) && ['video','play'].includes(parts[0]) && valid(parts.at(-1))) {
+      const embed = new URL(`https://rutube.ru/play/embed/${parts.at(-1)}`)
+      // Private Rutube videos require the access key in the embedded player too.
+      const key = u.searchParams.get('p')
+      if (key) embed.searchParams.set('p', key)
+      return ['iframe', embed.href]
+    }
     if (/\.(mp4|webm)$/i.test(u.pathname)) return ['video', u.href]
   } catch {}
   return null

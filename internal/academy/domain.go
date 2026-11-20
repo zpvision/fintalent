@@ -119,7 +119,12 @@ func VideoSource(s string) (string, string) {
 	if (host == "rutube.ru" || host == "www.rutube.ru") && len(parts) >= 2 && (parts[0] == "video" || parts[0] == "play") {
 		id := parts[len(parts)-1]
 		if safe.MatchString(id) {
-			return "embed", "https://rutube.ru/play/embed/" + id
+			embed := "https://rutube.ru/play/embed/" + id
+			// Private Rutube videos require the access key in the embedded player too.
+			if key := u.Query().Get("p"); key != "" {
+				embed += "?" + url.Values{"p": {key}}.Encode()
+			}
+			return "embed", embed
 		}
 	}
 	if strings.HasSuffix(strings.ToLower(u.Path), ".mp4") || strings.HasSuffix(strings.ToLower(u.Path), ".webm") {
