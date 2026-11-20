@@ -17,6 +17,7 @@ var objectStorageCSPSource string
 
 func academyStorageOptions() academy.StorageOptions {
 	academyObjectsOnce.Do(func() {
+		defer startupTimer("storage.initialize")()
 		c, e := objectstorage.ConfigFrom(os.Getenv, strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production"))
 		if e != nil {
 			panic(e.Error())
@@ -26,7 +27,10 @@ func academyStorageOptions() academy.StorageOptions {
 			s := objectstorage.NewS3(c)
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
-			if e = s.Check(ctx); e != nil {
+			doneCheck := startupTimer("storage.s3_check")
+			e = s.Check(ctx)
+			doneCheck()
+			if e != nil {
 				panic("Academy S3 is unavailable or bucket access denied")
 			}
 			academyObjects.Primary = s

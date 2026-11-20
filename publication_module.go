@@ -45,6 +45,7 @@ type publicationInput struct {
 var slugCleanup = regexp.MustCompile(`[^a-z0-9]+`)
 
 func preparePublicationDatabase(ctx context.Context) error {
+	defer startupTimer("database.preparePublicationDatabase")()
 	schema, err := publicationMigrationFS.ReadFile("migrations/024_publications.sql")
 	if err != nil {
 		return err
@@ -57,6 +58,7 @@ func preparePublicationDatabase(ctx context.Context) error {
 }
 
 func preparePublicationDemo(ctx context.Context) error {
+	defer startupTimer("database.preparePublicationDemo")()
 	schema, err := publicationMigrationFS.ReadFile("migrations/025_publications_demo.sql")
 	if err != nil {
 		return err

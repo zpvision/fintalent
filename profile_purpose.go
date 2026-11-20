@@ -22,6 +22,7 @@ type profilePurposePayload struct {
 }
 
 func prepareProfilePurposeDatabase(ctx context.Context) error {
+	defer startupTimer("database.prepareProfilePurposeDatabase")()
 	schema, err := profilePurposeMigrationFS.ReadFile("migrations/058_profile_purpose.sql")
 	if err != nil {
 		return err

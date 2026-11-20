@@ -150,6 +150,7 @@ type profiSolutionInput struct {
 }
 
 func prepareProfiMarketDatabase(ctx context.Context) error {
+	defer startupTimer("database.prepareProfiMarketDatabase")()
 	schema, err := profiMarketMigrationFS.ReadFile("migrations/027_profimarket.sql")
 	if err != nil {
 		return err
@@ -303,6 +304,7 @@ func syncProfiMarketCRMs(ctx context.Context) error {
 	return tx.Commit()
 }
 func prepareProfiMarketDemo(ctx context.Context) error {
+	defer startupTimer("database.prepareProfiMarketDemo")()
 	schema, err := profiMarketMigrationFS.ReadFile("migrations/028_profimarket_demo.sql")
 	if err != nil {
 		return err

@@ -22,6 +22,7 @@ var sharedObjectFilesSchema string
 var fileStorageOptions = academyStorageOptions
 
 func prepareSharedObjectFilesDatabase(ctx context.Context) error {
+	defer startupTimer("database.prepareSharedObjectFilesDatabase")()
 	_, e := db.ExecContext(ctx, sharedObjectFilesSchema)
 	return e
 }

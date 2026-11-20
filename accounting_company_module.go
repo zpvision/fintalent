@@ -23,6 +23,7 @@ import (
 var accountingCompanyMigrationFS embed.FS
 
 func prepareAccountingCompanyDatabase(ctx context.Context) error {
+	defer startupTimer("database.prepareAccountingCompanyDatabase")()
 	schema, err := accountingCompanyMigrationFS.ReadFile("migrations/040_accounting_companies.sql")
 	if err != nil {
 		return err
@@ -40,6 +41,7 @@ func prepareAccountingCompanyDatabase(ctx context.Context) error {
 }
 
 func prepareAccountingCompanyDemo(ctx context.Context) error {
+	defer startupTimer("database.prepareAccountingCompanyDemo")()
 	schema, err := accountingCompanyMigrationFS.ReadFile("migrations/041_accounting_companies_demo.sql")
 	if err != nil {
 		return err

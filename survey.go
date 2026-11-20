@@ -44,6 +44,7 @@ type surveyBlockInput struct {
 }
 
 func prepareApplicantSurveyDatabase(ctx context.Context) error {
+	defer startupTimer("database.prepareApplicantSurveyDatabase")()
 	_, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS applicant_survey_blocks (
 		id BIGSERIAL PRIMARY KEY,
 		name VARCHAR(200) NOT NULL,

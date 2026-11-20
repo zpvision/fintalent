@@ -10,6 +10,7 @@ import (
 )
 
 func prepareVacancySurveyDatabase(ctx context.Context) error {
+	defer startupTimer("database.prepareVacancySurveyDatabase")()
 	_, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS vacancy_survey_blocks (
 		id BIGSERIAL PRIMARY KEY,
 		name VARCHAR(200) NOT NULL,

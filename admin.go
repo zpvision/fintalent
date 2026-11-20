@@ -85,6 +85,7 @@ var publicationDictionaries = []struct {
 }
 
 func prepareAdminDatabase(ctx context.Context) error {
+	defer startupTimer("database.prepareAdminDatabase")()
 	_, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS dictionaries (
 		id BIGSERIAL PRIMARY KEY, name VARCHAR(200) NOT NULL UNIQUE,
 		alias VARCHAR(100),

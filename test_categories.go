@@ -19,6 +19,7 @@ type testCategory struct {
 var initialTestCategories = []string{"Бухгалтерский учёт", "Налоговый учёт", "ТМЦ и зарплата", "Финансовый анализ", "МСФО", "Право и отчётность", "1С и программы", "Другое"}
 
 func prepareTestCategories(ctx context.Context) error {
+	defer startupTimer("database.prepareTestCategories")()
 	_, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS test_categories(
 		id BIGSERIAL PRIMARY KEY,
 		name VARCHAR(200) NOT NULL UNIQUE,

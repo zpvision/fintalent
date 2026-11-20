@@ -108,6 +108,7 @@ func registerEmployeeTestingRoutes() {
 }
 
 func prepareEmployeeTestingDatabase(ctx context.Context) error {
+	defer startupTimer("database.prepareEmployeeTestingDatabase")()
 	_, err := db.ExecContext(ctx, employeeTestingMigration)
 	if err != nil {
 		return err

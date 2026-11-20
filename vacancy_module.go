@@ -14,6 +14,7 @@ import (
 var vacancyMigrationFS embed.FS
 
 func prepareVacancyModuleDatabase(ctx context.Context) error {
+	defer startupTimer("database.prepareVacancyModuleDatabase")()
 	schema, err := vacancyMigrationFS.ReadFile("migrations/005_vacancy_module.sql")
 	if err != nil {
 		return err

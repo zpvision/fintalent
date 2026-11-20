@@ -35,6 +35,7 @@ var passwordResetSchema string
 var sixDigitCode = regexp.MustCompile(`^\d{6}$`)
 
 func preparePasswordResetDatabase(ctx context.Context) error {
+	defer startupTimer("database.preparePasswordResetDatabase")()
 	_, err := db.ExecContext(ctx, passwordResetSchema)
 	return err
 }

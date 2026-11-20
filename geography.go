@@ -46,6 +46,7 @@ var additionalFeaturedCities = []string{
 }
 
 func prepareGeographyDatabase(ctx context.Context) error {
+	defer startupTimer("database.prepareGeographyDatabase")()
 	_, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS countries (
 		id BIGSERIAL PRIMARY KEY, name VARCHAR(150) NOT NULL, code CHAR(2) NOT NULL UNIQUE,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

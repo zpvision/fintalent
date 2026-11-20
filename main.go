@@ -62,33 +62,46 @@ func loadLocalEnv(path string) {
 }
 
 func main() {
+	started := time.Now()
+	doneConfig := startupTimer("config")
 	loadLocalEnv(".env")
-	if err := validateProductionConfig(); err != nil {
+	if err := validateStartupMode(); err != nil {
+		doneConfig()
 		log.Fatal(err)
 	}
+	if err := validateProductionConfig(); err != nil {
+		doneConfig()
+		log.Fatal(err)
+	}
+	doneConfig()
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
 		log.Fatal("DATABASE_URL удалённой облачной PostgreSQL обязателен")
 	}
 	var err error
+	donePool := startupTimer("database.open_pool")
 	db, err = sql.Open("pgx", databaseURL)
 	if err == nil {
 		err = configureDatabasePool()
 	}
+	donePool()
 	if err != nil {
+		startupFailure("database.open_pool", err)
 		if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production") {
-			log.Fatalf("Ошибка настройки PostgreSQL: %v", err)
+			log.Fatal("Ошибка настройки PostgreSQL (see startup error_code)")
 		}
-		log.Printf("Ошибка настройки PostgreSQL: %v", err)
+		log.Print("Ошибка настройки PostgreSQL (see startup error_code)")
 	} else if err = prepareDatabase(); err != nil {
+		startupFailure("database.prepare", err)
 		if strings.EqualFold(strings.TrimSpace(os.Getenv("APP_ENV")), "production") {
-			log.Fatalf("Не удалось подготовить PostgreSQL: %v", err)
+			log.Fatal("Не удалось подготовить PostgreSQL (see startup error_code)")
 		}
-		log.Printf("PostgreSQL пока недоступен: %v", err)
+		log.Print("PostgreSQL пока недоступен (see startup error_code)")
 	} else {
 		log.Println("PostgreSQL подключен")
 	}
 
+	doneRoutes := startupTimer("routes")
 	fs := http.FileServer(http.Dir("static"))
 	http.HandleFunc("/health/ready", healthReady)
 	http.HandleFunc("/health/live", func(w http.ResponseWriter, r *http.Request) {
@@ -161,6 +174,8 @@ func main() {
 	http.HandleFunc("/api/test-materials", uploadQuestionMaterial)
 	http.HandleFunc("/api/test-materials/", serveQuestionMaterial)
 
+	doneRoutes()
+	log.Printf("startup stage=pre_http event=end duration_ms=%.3f", float64(time.Since(started).Microseconds())/1000)
 	listenAddress := strings.TrimSpace(os.Getenv("HTTP_ADDR"))
 	if listenAddress == "" {
 		port := strings.TrimSpace(os.Getenv("PORT"))
@@ -212,16 +227,25 @@ func securityHeaders(next http.Handler) http.Handler {
 }
 
 func prepareDatabase() error {
+	defer startupTimer("database.total")()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	if err := db.PingContext(ctx); err != nil {
+	donePing := startupTimer("database.connect_ping")
+	pingErr := db.PingContext(ctx)
+	donePing()
+	if err := pingErr; err != nil {
 		return err
 	}
+	doneConnection := startupTimer("database.lock_connection")
 	lockConn, err := db.Conn(ctx)
+	doneConnection()
 	if err != nil {
 		return err
 	}
-	if _, err = lockConn.ExecContext(ctx, `SELECT pg_advisory_lock(hashtext('fintalent:prepare-database'))`); err != nil {
+	doneLock := startupTimer("database.advisory_lock_wait")
+	_, err = lockConn.ExecContext(ctx, `SELECT pg_advisory_lock(hashtext('fintalent:prepare-database'))`)
+	doneLock()
+	if err != nil {
 		_ = lockConn.Close()
 		return err
 	}
@@ -234,6 +258,8 @@ func prepareDatabase() error {
 		}
 		_ = lockConn.Close()
 	}()
+	doneSchema := startupTimer("database.schema_total")
+	defer doneSchema()
 	_, err = db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS users (
 		id BIGSERIAL PRIMARY KEY, full_name VARCHAR(200) NOT NULL,
 		email VARCHAR(254) NOT NULL UNIQUE, password_hash VARCHAR(60) NOT NULL,

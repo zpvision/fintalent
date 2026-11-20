@@ -82,6 +82,7 @@ type helpMessageView struct {
 }
 
 func prepareHelpDatabase(ctx context.Context) error {
+	defer startupTimer("database.prepareHelpDatabase")()
 	for _, name := range []string{"migrations/045_help_module.sql", "migrations/060_help_request_decline_reason.sql"} {
 		schema, err := helpMigrationFS.ReadFile(name)
 		if err != nil {

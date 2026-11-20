@@ -32,6 +32,7 @@ type okvedEntry struct {
 }
 
 func prepareOKVEDDatabase(ctx context.Context) error {
+	defer startupTimer("database.prepareOKVEDDatabase")()
 	_, err := db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS okved_entries (
 		code VARCHAR(12) PRIMARY KEY,
 		section CHAR(1) NOT NULL,

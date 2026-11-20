@@ -18,6 +18,7 @@ import (
 var contactMessagesFS embed.FS
 
 func prepareContactMessagesDatabase(ctx context.Context) error {
+	defer startupTimer("database.prepareContactMessagesDatabase")()
 	schema, err := contactMessagesFS.ReadFile("migrations/061_contact_messages.sql")
 	if err != nil {
 		return err

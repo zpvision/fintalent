@@ -30,6 +30,7 @@ var testQuestionMaterialsMigrationSQL string
 var attemptResumeVisibilityMigrationSQL string
 
 func prepareTestingDatabase(ctx context.Context) error {
+	defer startupTimer("database.prepareTestingDatabase")()
 	if _, err := db.ExecContext(ctx, testingMigrationSQL); err != nil {
 		return err
 	}

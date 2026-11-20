@@ -44,6 +44,7 @@ var courseInterestContactsSchema string
 var courseInterestPriceSchema string
 
 func prepareCoursesDatabase(ctx context.Context) error {
+	defer startupTimer("database.prepareCoursesDatabase")()
 	_, err := db.ExecContext(ctx, coursesSchema)
 	if err != nil {
 		return err

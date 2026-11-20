@@ -15,6 +15,7 @@ import (
 var notificationOutboxSchema string
 
 func prepareNotificationOutboxDatabase(ctx context.Context) error {
+	defer startupTimer("database.prepareNotificationOutboxDatabase")()
 	_, err := db.ExecContext(ctx, notificationOutboxSchema)
 	return err
 }

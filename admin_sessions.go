@@ -16,6 +16,7 @@ import (
 var adminSessionsSchema string
 
 func prepareAdminSessionsDatabase(ctx context.Context) error {
+	defer startupTimer("database.prepareAdminSessionsDatabase")()
 	_, err := db.ExecContext(ctx, adminSessionsSchema)
 	return err
 }

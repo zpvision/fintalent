@@ -12,6 +12,7 @@ import (
 var clientExchangeMigrationFS embed.FS
 
 func prepareClientExchangeDatabase(ctx context.Context) error {
+	defer startupTimer("database.prepareClientExchangeDatabase")()
 	schema, err := clientExchangeMigrationFS.ReadFile("migrations/039_client_exchange.sql")
 	if err != nil {
 		return err
@@ -66,6 +67,7 @@ func registerClientExchangeRoutes() {
 }
 
 func prepareClientExchangeDemo(ctx context.Context) error {
+	defer startupTimer("database.prepareClientExchangeDemo")()
 	_, err := db.ExecContext(ctx, `DO $$
 	DECLARE seller BIGINT;
 	BEGIN

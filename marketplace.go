@@ -49,6 +49,7 @@ type marketplaceReview struct {
 }
 
 func prepareMarketplaceDatabase(ctx context.Context) error {
+	defer startupTimer("database.prepareMarketplaceDatabase")()
 	if _, err := db.ExecContext(ctx, marketplaceSystemAuthorMigration); err != nil {
 		return fmt.Errorf("prepare marketplace system author: %w", err)
 	}

@@ -53,6 +53,7 @@ var academyProgramRevisionsSchema string
 var academyDefaultAutomationsSchema string
 
 func prepareAcademyDatabase(ctx context.Context) error {
+	defer startupTimer("database.prepareAcademyDatabase")()
 	_, err := db.ExecContext(ctx, academySchema)
 	if err != nil {
 		return err
