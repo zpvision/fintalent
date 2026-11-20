@@ -26,6 +26,12 @@ type academyFocusedFixture struct {
 }
 
 func newAcademyFocusedFixture(t *testing.T) academyFocusedFixture {
+	isolate := newAcademyFocusedDatabase(t)
+	return seedAcademyFocusedFixture(t, isolate)
+}
+
+// Also supports migration tests that must start before any course/version rows.
+func newAcademyFocusedDatabase(t *testing.T) *sql.DB {
 	t.Helper()
 	useLocalSharedStorage(t)
 	if os.Getenv("RUN_COURSES_DB_TESTS") != "1" {
@@ -75,7 +81,12 @@ func newAcademyFocusedFixture(t *testing.T) academyFocusedFixture {
 	if e = prepareCoursesDatabase(context.Background()); e != nil {
 		t.Fatal("migration repeat", e)
 	}
+	return isolated
+}
 
+func seedAcademyFocusedFixture(t *testing.T, isolated *sql.DB) academyFocusedFixture {
+	t.Helper()
+	var e error
 	var owner, student, teacher int64
 	for i, p := range []*int64{&owner, &student, &teacher} {
 		email := fmt.Sprintf("academy-e-%d@example.invalid", i)

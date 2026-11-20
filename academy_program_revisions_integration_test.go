@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net"
 	"os"
 	"strings"
 	"testing"
@@ -9,22 +10,31 @@ import (
 )
 
 // Never falls back to DATABASE_URL: that may be the live production database.
-func newProgramRevisionFixture(t *testing.T, legacy ...bool) academyFocusedFixture {
+func configureProgramRevisionTestDatabase(t *testing.T) {
 	t.Helper()
 	dsn := os.Getenv("ACADEMY_REVISIONS_TEST_DSN")
 	if dsn == "" {
-		t.Skip("dedicated cloud test database is not configured")
+		t.Skip("dedicated test database is not configured")
 	}
 	c, err := pgx.ParseConfig(dsn)
 	if err != nil {
 		t.Fatal("invalid dedicated test DSN")
 	}
-	localTest := (c.Host == "127.0.0.1" || c.Host == "localhost") && c.Port == 55493 && c.Database == "fintalent_revisions_test"
-	if c.Host == "200.169.191.202" || !localTest && (c.Host == "localhost" || c.Host == "127.0.0.1") || !strings.Contains(strings.ToLower(c.Database), "test") {
+	loopback := strings.EqualFold(c.Host, "localhost") || net.ParseIP(c.Host).IsLoopback()
+	if os.Getenv("ACADEMY_REVISIONS_DOCKER") == "1" {
+		if !loopback || c.Port < 1024 || c.Database != "fintalent_revisions_test" || c.User != "fintalent_revision_test" {
+			t.Fatal("Docker test mode requires the isolated loopback test database")
+		}
+	} else if c.Host == "200.169.191.202" || loopback || !strings.Contains(strings.ToLower(c.Database), "test") {
 		t.Fatal("refusing non-test database")
 	}
 	t.Setenv("DATABASE_URL", dsn)
 	t.Setenv("RUN_COURSES_DB_TESTS", "1")
+}
+
+func newProgramRevisionFixture(t *testing.T, legacy ...bool) academyFocusedFixture {
+	t.Helper()
+	configureProgramRevisionTestDatabase(t)
 	if len(legacy) > 0 && legacy[0] {
 		original := academyProgramRevisionsSchema
 		academyProgramRevisionsSchema = ""

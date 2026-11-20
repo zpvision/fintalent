@@ -43,14 +43,24 @@ END $$;
 -- its existing published content becomes revision 1. Never copy the landing.
 INSERT INTO academy_program_revision_heads(version_id)
  SELECT id FROM academy_program_versions ON CONFLICT DO NOTHING;
-INSERT INTO academy_program_version_drafts(version_id,content,updated_by)
- SELECT id,content,created_by FROM academy_program_versions ON CONFLICT DO NOTHING;
-INSERT INTO academy_program_revisions(version_id,number,draft_revision,content,assessment_definitions,test_metadata,published_by,published_at)
- SELECT v.id,1,1,v.content,
-  COALESCE((SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM academy_assessment_versions a WHERE a.program_version_id=v.id),'[]'),
-  r.test_metadata,r.published_by,r.published_at
- FROM academy_program_versions v JOIN academy_version_releases r ON r.version_id=v.id
- ON CONFLICT(version_id,number) DO NOTHING;
+-- Do not plan or evaluate historical JSON aggregates on an initialized database.
+-- The materialized input also bounds aggregation when only some versions are new.
+DO $$ BEGIN
+ IF EXISTS(SELECT 1 FROM academy_version_releases rel
+  WHERE NOT EXISTS(SELECT 1 FROM academy_program_revisions r WHERE r.version_id=rel.version_id AND r.number=1)) THEN
+  WITH missing_publications AS MATERIALIZED (
+   SELECT v.id,v.content,rel.test_metadata,rel.published_by,rel.published_at
+   FROM academy_program_versions v JOIN academy_version_releases rel ON rel.version_id=v.id
+   WHERE NOT EXISTS(SELECT 1 FROM academy_program_revisions r WHERE r.version_id=v.id AND r.number=1)
+  )
+  INSERT INTO academy_program_revisions(version_id,number,draft_revision,content,assessment_definitions,test_metadata,published_by,published_at)
+   SELECT v.id,1,1,v.content,
+    COALESCE((SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM academy_assessment_versions a WHERE a.program_version_id=v.id),'[]'),
+    v.test_metadata,v.published_by,v.published_at
+   FROM missing_publications v
+   ON CONFLICT(version_id,number) DO NOTHING;
+ END IF;
+END $$;
 UPDATE academy_program_revision_heads h SET published_revision_id=r.id
  FROM academy_program_revisions r
  WHERE h.version_id=r.version_id AND r.number=1 AND h.published_revision_id IS NULL;
@@ -110,8 +120,24 @@ CREATE OR REPLACE FUNCTION academy_block_satisfied(eid bigint,version bigint,blo
  ELSE EXISTS(SELECT 1 FROM academy_effective_assignment_submissions s WHERE s.enrollment_id=eid AND s.assessment_id=a.id AND s.status='accepted') END),false)
  FROM academy_assessment_versions a WHERE a.program_version_id=version AND a.block_key=block
 $$;
-UPDATE academy_program_version_drafts d SET test_sources=(SELECT jsonb_object_agg(a.block_key,jsonb_build_object('source_version_id',(a.config->>'test_version_id')::bigint,'title',a.title,'questions',a.questions)) FROM academy_current_assessment_versions a WHERE a.program_version_id=d.version_id AND a.kind='test')
- WHERE d.test_sources='{}' AND EXISTS(SELECT 1 FROM academy_current_assessment_versions a WHERE a.program_version_id=d.version_id AND a.kind='test');
+-- Row creation is the provenance: only drafts INSERTed by this backfill receive
+-- captured tests. An existing '{}' may be an intentional author edit, so never
+-- infer initialization state from JSON, revision numbers or content equality.
+DO $$ BEGIN
+ IF EXISTS(SELECT 1 FROM academy_program_versions v
+  WHERE NOT EXISTS(SELECT 1 FROM academy_program_version_drafts d WHERE d.version_id=v.id)) THEN
+  WITH missing_drafts AS MATERIALIZED (
+   SELECT v.id,v.content,v.created_by FROM academy_program_versions v
+   WHERE NOT EXISTS(SELECT 1 FROM academy_program_version_drafts d WHERE d.version_id=v.id)
+  )
+  INSERT INTO academy_program_version_drafts(version_id,content,updated_by,test_sources)
+   SELECT v.id,v.content,v.created_by,
+    COALESCE((SELECT jsonb_object_agg(a.block_key,jsonb_build_object('source_version_id',(a.config->>'test_version_id')::bigint,'title',a.title,'questions',a.questions))
+     FROM academy_current_assessment_versions a WHERE a.program_version_id=v.id AND a.kind='test'),'{}'::jsonb)
+   FROM missing_drafts v
+   ON CONFLICT(version_id) DO NOTHING;
+ END IF;
+END $$;
 
 CREATE OR REPLACE VIEW academy_student_metrics AS
  SELECT e.id enrollment_id,e.course_id,e.cohort_id,e.user_id,e.program_version_id,e.enrolled_at,e.started_at,e.completed_at,e.last_activity_at,e.expires_at,e.access_status,
