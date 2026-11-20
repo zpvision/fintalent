@@ -256,4 +256,46 @@ func TestAcademyAnalyticsIsolatedPostgres(t *testing.T) {
 	if e := db.QueryRow(`SELECT count(*) FROM academy_communication_audit WHERE entity='report' AND action='downloaded' AND course_id=$1`, f.Course).Scan(&audit); e != nil || audit < 4 {
 		t.Fatal("download audit", audit, e)
 	}
+	// Many publications must not repeatedly expand the full program per historical
+	// assessment. Only current published blocks and assessments with results remain.
+	p.Modules[0].Lessons[0].Blocks = nil
+	for i := 0; i < 40; i++ {
+		p.Modules[0].Lessons[0].Blocks = append(p.Modules[0].Lessons[0].Blocks, academy.Block{
+			Key: fmt.Sprintf("revision-test-%d", i), Type: "test", Data: academy.BlockData{Title: "Current test"},
+		})
+	}
+	p.Modules[0].Lessons[0].Blocks = append(p.Modules[0].Lessons[0].Blocks, academy.Block{
+		Key: "revision-text", Type: "text", Data: academy.BlockData{Text: strings.Repeat("Program content ", 10000)},
+	})
+	raw, _ = json.Marshal(p)
+	if _, e := db.Exec(`WITH revisions AS (
+ INSERT INTO academy_program_revisions(version_id,number,draft_revision,content,assessment_definitions,published_by)
+ SELECT $1,n,n,$2,'[]',$3 FROM generate_series(1,25) n RETURNING id,version_id
+) INSERT INTO academy_assessment_versions(program_version_id,publication_revision_id,lesson_key,block_key,kind,config,title)
+ SELECT r.version_id,r.id,'lesson-alpha','revision-test-'||n,'test','{}','Current test'
+ FROM revisions r CROSS JOIN generate_series(0,39) n`, version, raw, f.Owner); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := db.Exec(`INSERT INTO academy_program_revision_heads(version_id,published_revision_id)
+ SELECT version_id,id FROM academy_program_revisions WHERE version_id=$1 AND number=25
+ ON CONFLICT(version_id) DO UPDATE SET published_revision_id=EXCLUDED.published_revision_id`, version); e != nil {
+		t.Fatal(e)
+	}
+	begin = time.Now()
+	revised := result("/tests?size=100", f.Owner)
+	if revised["total"] != float64(41) {
+		t.Fatal("current assessments or historical results lost", revised["total"])
+	}
+	for _, item := range revised["rows"].([]any) {
+		row := item.(map[string]any)
+		if row["id"] == float64(testID) {
+			if row["attempts"] != float64(2) || row["average"] != float64(50) {
+				t.Fatal("historical results changed", row)
+			}
+		} else if row["publication_number"] != float64(25) {
+			t.Fatal("unused historical publication included", row)
+		}
+	}
+	result("/students?interest_payment=unpaid", f.Owner)
+	t.Logf("25 publications: %s", time.Since(begin))
 }
