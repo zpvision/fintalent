@@ -54,55 +54,81 @@ var academyDefaultAutomationsSchema string
 
 func prepareAcademyDatabase(ctx context.Context) error {
 	defer startupTimer("database.prepareAcademyDatabase")()
+	doneScript := startupTimer("database.academy.schema")
 	_, err := db.ExecContext(ctx, academySchema)
+	doneScript()
 	if err != nil {
 		return err
 	}
+	doneScript = startupTimer("database.academy.learning")
 	_, err = db.ExecContext(ctx, academyLearningSchema)
+	doneScript()
 	if err != nil {
 		return err
 	}
+	doneScript = startupTimer("database.academy.assessment")
 	_, err = db.ExecContext(ctx, academyAssessmentSchema)
+	doneScript()
 	if err != nil {
 		return err
 	}
+	doneScript = startupTimer("database.academy.cohorts")
 	_, err = db.ExecContext(ctx, academyCohortSchema)
+	doneScript()
 	if err != nil {
 		return err
 	}
+	doneScript = startupTimer("database.academy.communications")
 	_, err = db.ExecContext(ctx, academyCommunicationSchema)
+	doneScript()
 	if err != nil {
 		return err
 	}
+	doneScript = startupTimer("database.academy.analytics")
 	_, err = db.ExecContext(ctx, academyAnalyticsSchema)
+	doneScript()
 	if err != nil {
 		return err
 	}
+	doneScript = startupTimer("database.academy.admin")
 	_, err = db.ExecContext(ctx, academyAdminSchema)
+	doneScript()
 	if err != nil {
 		return err
 	}
+	doneScript = startupTimer("database.academy.publication_defaults")
 	_, err = db.ExecContext(ctx, academyPublicationDefaultsSchema)
+	doneScript()
 	if err != nil {
 		return err
 	}
+	doneScript = startupTimer("database.academy.object_storage")
 	_, err = db.ExecContext(ctx, academyObjectStorageSchema)
+	doneScript()
 	if err != nil {
 		return err
 	}
+	doneScript = startupTimer("database.academy.storage_owners")
 	_, err = db.ExecContext(ctx, academyStorageOwnersSchema)
+	doneScript()
 	if err != nil {
 		return err
 	}
+	doneScript = startupTimer("database.academy.manual_payments")
 	_, err = db.ExecContext(ctx, academyManualPaymentsSchema)
+	doneScript()
 	if err != nil {
 		return err
 	}
+	doneScript = startupTimer("database.academy.program_revisions")
 	_, err = db.ExecContext(ctx, academyProgramRevisionsSchema)
+	doneScript()
 	if err != nil {
 		return err
 	}
+	doneScript = startupTimer("database.academy.default_automations")
 	_, err = db.ExecContext(ctx, academyDefaultAutomationsSchema)
+	doneScript()
 	return err
 }
 func academyStorageRoot() string {
