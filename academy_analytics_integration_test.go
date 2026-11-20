@@ -298,4 +298,38 @@ func TestAcademyAnalyticsIsolatedPostgres(t *testing.T) {
 	}
 	result("/students?interest_payment=unpaid", f.Owner)
 	t.Logf("25 publications: %s", time.Since(begin))
+	// Version-list change detection uses the same active assessment scope, without
+	// exposing old captures or expanding historical program JSON per test source.
+	if _, e := db.Exec(`INSERT INTO academy_program_version_drafts(version_id,content,updated_by,test_sources)
+ SELECT $1,$2,$3,jsonb_object_agg(a.block_key,jsonb_build_object('source_version_id',(a.config->>'test_version_id')::bigint,'title',a.title,'questions',a.questions))
+ FROM academy_assessment_versions a JOIN academy_program_revisions r ON r.id=a.publication_revision_id
+ WHERE a.program_version_id=$1 AND r.number=25
+ ON CONFLICT(version_id) DO UPDATE SET content=EXCLUDED.content,test_sources=EXCLUDED.test_sources`, version, raw, f.Owner); e != nil {
+		t.Fatal(e)
+	}
+	checkVersionChanges := func(want bool) {
+		t.Helper()
+		w := request("GET", fmt.Sprintf("/api/academy/courses/%d/versions", f.Course), f.Owner, nil, 200)
+		var items []struct {
+			ID      int64 `json:"id"`
+			Changed bool  `json:"unpublished_changes"`
+		}
+		if e := json.Unmarshal(w.Body.Bytes(), &items); e != nil {
+			t.Fatal(e)
+		}
+		for _, item := range items {
+			if item.ID == version {
+				if item.Changed != want {
+					t.Fatalf("unpublished changes=%v want %v", item.Changed, want)
+				}
+				return
+			}
+		}
+		t.Fatal("version missing")
+	}
+	checkVersionChanges(false)
+	if _, e := db.Exec(`UPDATE academy_program_version_drafts SET test_sources=jsonb_set(test_sources,'{revision-test-0,title}','"Changed captured test"') WHERE version_id=$1`, version); e != nil {
+		t.Fatal(e)
+	}
+	checkVersionChanges(true)
 }

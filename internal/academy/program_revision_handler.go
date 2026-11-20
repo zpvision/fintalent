@@ -220,15 +220,20 @@ func (h *Handler) versionRoute(w http.ResponseWriter, r *http.Request, course, a
 
 func (h *Handler) versionList(w http.ResponseWriter, r *http.Request, course int64) {
 	var raw json.RawMessage
-	err := h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.number DESC),'[]') FROM(
+	err := h.db.QueryRowContext(r.Context(), `WITH current_programs AS MATERIALIZED (
+ SELECT v.id,v.number,v.content,(v.content->>'publication_revision_id')::bigint publication_id
+ FROM academy_current_program_versions v JOIN academy_course_programs cp ON cp.id=v.program_id WHERE cp.course_id=$1
+), selected_assessments AS MATERIALIZED (
+ SELECT a.* FROM academy_assessment_versions a WHERE a.program_version_id IN(SELECT id FROM current_programs)
+), `+currentAssessmentCTEs+` SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.number DESC),'[]') FROM(
  SELECT v.id,v.number,COALESCE(d.revision,1) revision,rel.published_at,
  (rel.version_id IS NULL OR (d.content-'revision'-'version_id'-'publication_revision_id') IS DISTINCT FROM (v.content-'revision'-'version_id'-'publication_revision_id')
- OR EXISTS(SELECT 1 FROM jsonb_each(d.test_sources) source WHERE source.key IN(SELECT b->>'key' FROM jsonb_array_elements(d.content->'modules') m CROSS JOIN LATERAL jsonb_array_elements(m->'lessons') l CROSS JOIN LATERAL jsonb_array_elements(l->'blocks') b WHERE m->>'status'='published' AND l->>'status'='published' AND b->>'type'='test') AND NOT EXISTS(SELECT 1 FROM academy_current_assessment_versions a WHERE a.program_version_id=v.id AND a.block_key=source.key AND jsonb_build_object('source_version_id',(a.config->>'test_version_id')::bigint,'title',a.title,'questions',a.questions)=source.value))) unpublished_changes,
+ OR EXISTS(SELECT 1 FROM jsonb_each(d.test_sources) source WHERE source.key IN(SELECT b->>'key' FROM jsonb_array_elements(d.content->'modules') m CROSS JOIN LATERAL jsonb_array_elements(m->'lessons') l CROSS JOIN LATERAL jsonb_array_elements(l->'blocks') b WHERE m->>'status'='published' AND l->>'status'='published' AND b->>'type'='test') AND NOT EXISTS(SELECT 1 FROM selected_assessments a JOIN active_assessments active ON active.id=a.id WHERE a.program_version_id=v.id AND a.block_key=source.key AND jsonb_build_object('source_version_id',(a.config->>'test_version_id')::bigint,'title',a.title,'questions',a.questions)=source.value))) unpublished_changes,
  (SELECT count(*) FROM academy_cohorts ch WHERE ch.program_version_id=v.id) cohorts,
  (SELECT count(*) FROM academy_enrollments e WHERE e.program_version_id=v.id) students
- FROM academy_current_program_versions v JOIN academy_course_programs cp ON cp.id=v.program_id
+ FROM current_programs v
  LEFT JOIN academy_program_version_drafts d ON d.version_id=v.id LEFT JOIN academy_current_version_releases rel ON rel.version_id=v.id
- WHERE cp.course_id=$1)x`, course).Scan(&raw)
+)x`, course).Scan(&raw)
 	if err != nil {
 		problem(w, err)
 		return

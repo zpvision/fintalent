@@ -179,18 +179,7 @@ func (h *Handler) loadAnalytics(ctx context.Context, course, actor int64, f Anal
 	err = analyticsJSON(ctx, tx, `WITH selected_assessments AS MATERIALIZED (SELECT * FROM academy_assessment_versions WHERE program_version_id IN(SELECT value::bigint FROM jsonb_array_elements_text($1::jsonb))), current_programs AS MATERIALIZED (
  SELECT id,content,(content->>'publication_revision_id')::bigint publication_id
  FROM academy_current_program_versions WHERE id IN(SELECT value::bigint FROM jsonb_array_elements_text($1::jsonb))
-), published_blocks AS MATERIALIZED (
- SELECT v.id version_id,v.publication_id,l->>'key' lesson_key,b->>'key' block_key,b->>'type' kind
- FROM current_programs v CROSS JOIN LATERAL jsonb_array_elements(v.content->'modules') m
- CROSS JOIN LATERAL jsonb_array_elements(m->'lessons') l CROSS JOIN LATERAL jsonb_array_elements(l->'blocks') b
- WHERE m->>'status'='published' AND l->>'status'='published' AND b->>'type' IN('test','assignment')
-), active_assessments AS MATERIALIZED (
- SELECT a.id FROM selected_assessments a JOIN published_blocks b
- ON b.version_id=a.program_version_id AND b.lesson_key=a.lesson_key AND b.block_key=a.block_key AND b.kind=a.kind
- WHERE a.publication_revision_id=b.publication_id OR a.publication_revision_id IS NULL
- AND (b.publication_id=0 OR EXISTS(SELECT 1 FROM academy_program_revisions r WHERE r.id=b.publication_id AND r.version_id=b.version_id AND r.number=1))
- AND NOT EXISTS(SELECT 1 FROM selected_assessments fresh WHERE fresh.program_version_id=a.program_version_id AND fresh.lesson_key=a.lesson_key AND fresh.block_key=a.block_key AND fresh.publication_revision_id=b.publication_id)
-) SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.id),'[]') FROM(SELECT a.id,COALESCE((SELECT r.number FROM academy_program_revisions r WHERE r.id=a.publication_revision_id),1) publication_number,a.program_version_id,a.lesson_key,a.block_key,a.kind,a.title,a.config,COALESCE((SELECT jsonb_agg(jsonb_build_object('id',q->'id','question',q->'question')) FROM jsonb_array_elements(a.questions) q),'[]') questions FROM selected_assessments a WHERE (EXISTS(SELECT 1 FROM active_assessments current WHERE current.id=a.id) OR EXISTS(SELECT 1 FROM academy_test_attempts t WHERE t.assessment_id=a.id) OR EXISTS(SELECT 1 FROM academy_assignment_submissions s WHERE s.assessment_id=a.id)))x`, &d.Assessments, jsonValue(vids))
+), `+currentAssessmentCTEs+` SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.id),'[]') FROM(SELECT a.id,COALESCE((SELECT r.number FROM academy_program_revisions r WHERE r.id=a.publication_revision_id),1) publication_number,a.program_version_id,a.lesson_key,a.block_key,a.kind,a.title,a.config,COALESCE((SELECT jsonb_agg(jsonb_build_object('id',q->'id','question',q->'question')) FROM jsonb_array_elements(a.questions) q),'[]') questions FROM selected_assessments a WHERE (EXISTS(SELECT 1 FROM active_assessments current WHERE current.id=a.id) OR EXISTS(SELECT 1 FROM academy_test_attempts t WHERE t.assessment_id=a.id) OR EXISTS(SELECT 1 FROM academy_assignment_submissions s WHERE s.assessment_id=a.id)))x`, &d.Assessments, jsonValue(vids))
 	if err != nil {
 		return nil, err
 	}
