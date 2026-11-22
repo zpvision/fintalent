@@ -442,7 +442,7 @@ func (h *Handler) finalizeUpload(ctx context.Context, s uploadSession) error {
 	}
 	// Revalidate owner and entity after the network operations (revocation or deletion may race).
 	var allowed bool
-	e = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM courses c JOIN users u ON u.id=c.owner_id JOIN course_access_settings a ON a.id=true WHERE c.id=$1 AND c.owner_id=$2 AND NOT u.is_blocked AND NOT u.is_system AND (a.public_access OR u.courses_access)) AND EXISTS(SELECT 1 FROM academy_lessons WHERE program_id=$3 AND key=$4 UNION ALL SELECT 1 FROM academy_modules WHERE program_id=$3 AND key=$4)`, s.CourseID, s.UserID, s.ProgramID, s.EntityKey).Scan(&allowed)
+	e = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM courses c JOIN users u ON u.id=c.owner_id JOIN course_access_settings a ON a.id=true WHERE c.id=$1 AND c.owner_id=$2 AND NOT u.is_blocked AND NOT u.is_system AND (a.public_access OR u.courses_access)) AND EXISTS(SELECT 1 FROM academy_editable_entities WHERE program_id=$3 AND key=$4)`, s.CourseID, s.UserID, s.ProgramID, s.EntityKey).Scan(&allowed)
 	if e != nil {
 		return e
 	}

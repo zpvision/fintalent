@@ -1,5 +1,10 @@
 import { apiClient } from './client'
 
+const uploadFailureMessage = session => ({
+  permission_changed: 'Урок или модуль больше недоступен либо права на курс изменились. Обновите программу курса и повторите загрузку.',
+  invalid_content: 'Файл не прошёл проверку типа или размера. Проверьте файл и загрузите его повторно.',
+}[session.error_code] || (session.status === 'cancelled' ? 'Загрузка отменена.' : 'Не удалось завершить проверку и сохранение файла. Повторите загрузку.'))
+
 const pause = (ms, signal) => new Promise((resolve, reject) => {
   if (signal.aborted) return reject(new DOMException('Отменено', 'AbortError'))
   const abort = () => { clearTimeout(timer); reject(new DOMException('Отменено', 'AbortError')) }
@@ -47,7 +52,7 @@ export async function uploadAcademyFile(course, entity, file, { signal, progress
   if (session.status === 'initiating') throw Error('Сессия ещё подготавливается. Повторите выбор файла позже.')
   if (['failed', 'cancelled'].includes(session.status) || new Date(session.expires_at) <= new Date()) {
     try { sessionStorage.removeItem(cache) } catch {}
-    throw Error('Предыдущая загрузка закончилась. Выберите файл ещё раз.')
+    throw Error(['failed', 'cancelled'].includes(session.status) ? uploadFailureMessage(session) : 'Предыдущая загрузка закончилась. Выберите файл ещё раз.')
   }
   try { sessionStorage.setItem(cache, id) } catch {}
   let finalizing = session.status === 'finalizing' || session.status === 'ready'
@@ -81,7 +86,7 @@ export async function uploadAcademyFile(course, entity, file, { signal, progress
       session = await apiClient.get(`${base}/uploads/${id}`, options)
       if (session.status === 'finalizing') progress(100, `Проверяем целостность файла · ${Math.floor((session.verified_bytes || 0) / session.size * 100)}%`)
       if (session.status === 'ready' && session.asset) { try { sessionStorage.removeItem(cache) } catch {}; return session.asset }
-      if (['failed', 'cancelled'].includes(session.status)) { try { sessionStorage.removeItem(cache) } catch {}; throw Error('Файл не прошёл проверку типа или размера. Загрузите его повторно.') }
+      if (['failed', 'cancelled'].includes(session.status)) { try { sessionStorage.removeItem(cache) } catch {}; throw Error(uploadFailureMessage(session)) }
       await pause(2000, signal)
     }
     throw Error('Проверка ещё выполняется. Выберите тот же файл позже для получения результата.')

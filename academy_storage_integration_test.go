@@ -173,6 +173,63 @@ func TestAcademyObjectStorageIsolatedPostgres(t *testing.T) {
 	}
 	// A copied upload URL must not allow a different account to obtain content.
 	request("GET", fmt.Sprintf("%s/%d", base, state.Asset.ID), f.Student, nil, 404)
+	t.Run("uploads_to_entities_added_after_publication", func(t *testing.T) {
+		originalEntity := entity
+		defer func() { entity = originalEntity }()
+		moduleKey, lessonKey := academy.Key(), academy.Key()
+		draft, err := json.Marshal(academy.Program{Modules: []academy.Module{{Key: moduleKey, Lessons: []academy.Lesson{{Key: lessonKey, Blocks: []academy.Block{}}}}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		exec := func(q string, args ...any) {
+			t.Helper()
+			if _, err := f.DB.Exec(q, args...); err != nil {
+				t.Fatal(err)
+			}
+		}
+		exec(`INSERT INTO academy_program_version_drafts(version_id,content,updated_by) VALUES($1,$2,$3) ON CONFLICT(version_id) DO UPDATE SET content=EXCLUDED.content`, f.Version, draft, f.Owner)
+		defer exec(`DELETE FROM academy_program_version_drafts WHERE version_id=$1`, f.Version)
+		assertCount(t, `SELECT count(*) FROM academy_lessons WHERE program_id=$1 AND key=$2`, 0, f.Program, lessonKey)
+		assertCount(t, `SELECT count(*) FROM academy_modules WHERE program_id=$1 AND key=$2`, 0, f.Program, moduleKey)
+		for _, target := range []string{moduleKey, lessonKey} {
+			entity = target
+			id := create("new-entity.mp4", len(remote.data))
+			request("POST", base+"/uploads/"+id+"/complete", f.Owner, nil, 202)
+			if err := f.Handler.ProcessUploads(ctx); err != nil {
+				t.Fatal(err)
+			}
+			assertCount(t, `SELECT count(*) FROM academy_upload_sessions WHERE id=$1 AND status='ready' AND asset_id IS NOT NULL AND checksum_offset=size`, 1, id)
+			assertCount(t, `SELECT count(*) FROM academy_asset_links WHERE program_id=$1 AND entity_key=$2`, 1, f.Program, target)
+		}
+		// The same final check must still reject actual deletion or revocation
+		// between reservation and completion, without attaching any asset.
+		for _, change := range []string{"deleted", "blocked", "owner", "access"} {
+			t.Run(change, func(t *testing.T) {
+				entity = lessonKey
+				id := create("revoked.mp4", len(remote.data))
+				request("POST", base+"/uploads/"+id+"/complete", f.Owner, nil, 202)
+				switch change {
+				case "deleted":
+					exec(`UPDATE academy_program_version_drafts SET content='{"modules":[]}' WHERE version_id=$1`, f.Version)
+					defer exec(`UPDATE academy_program_version_drafts SET content=$2 WHERE version_id=$1`, f.Version, draft)
+				case "blocked":
+					exec(`UPDATE users SET is_blocked=true WHERE id=$1`, f.Owner)
+					defer exec(`UPDATE users SET is_blocked=false WHERE id=$1`, f.Owner)
+				case "owner":
+					exec(`UPDATE courses SET owner_id=$2 WHERE id=$1`, f.Course, f.Student)
+					defer exec(`UPDATE courses SET owner_id=$2 WHERE id=$1`, f.Course, f.Owner)
+				case "access":
+					exec(`UPDATE course_access_settings SET public_access=false`)
+					exec(`UPDATE users SET courses_access=false WHERE id=$1`, f.Owner)
+					defer exec(`UPDATE users SET courses_access=true WHERE id=$1`, f.Owner)
+				}
+				if err := f.Handler.ProcessUploads(ctx); err != nil {
+					t.Fatal(err)
+				}
+				assertCount(t, `SELECT count(*) FROM academy_upload_sessions WHERE id=$1 AND status='failed' AND error_code='permission_changed' AND asset_id IS NULL`, 1, id)
+			})
+		}
+	})
 	invalid := create("bad.mp4", len(remote.data)+1)
 	request("POST", base+"/uploads/"+invalid+"/complete", f.Owner, nil, 202)
 	if e := f.Handler.ProcessUploads(ctx); e != nil {
