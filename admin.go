@@ -151,6 +151,7 @@ func registerAdminRoutes() {
 	http.HandleFunc("/api/admin/position-icons", adminPositionIconUpload)
 	http.HandleFunc("/api/admin/users", adminUsers)
 	http.HandleFunc("/api/admin/users/", adminUserAction)
+	http.HandleFunc("/api/admin/user-session/end", adminEndUserSession)
 	http.HandleFunc("/api/admin/community/vacancies", adminCommunityVacancies)
 	http.HandleFunc("/api/admin/community/vacancies/", adminCommunityVacancyAction)
 	http.HandleFunc("/api/admin/community/profiles", adminCommunityProfiles)

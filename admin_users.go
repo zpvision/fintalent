@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -69,6 +70,18 @@ func adminUserAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch parts[1] {
+	case "login":
+		if err := createSessionWithLifetime(w, userID, "", "", time.Hour); err != nil {
+			if err == sql.ErrNoRows {
+				writeJSON(w, http.StatusNotFound, "Пользователь не найден или вход в аккаунт запрещён")
+			} else {
+				writeJSON(w, http.StatusServiceUnavailable, "Не удалось войти как пользователь")
+			}
+			return
+		}
+		// No passwords, email addresses or session tokens in the audit log.
+		log.Printf("admin user login: user_id=%d ip=%s", userID, requestClientIP(r))
+		writeJSON(w, http.StatusOK, "Вход выполнен на один час")
 	case "courses-access":
 		adminUserCourseAccess(w, r, userID)
 	case "profile":
@@ -213,4 +226,19 @@ func adminUserAction(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeJSON(w, http.StatusNotFound, "Действие не найдено")
 	}
+}
+
+func adminEndUserSession(w http.ResponseWriter, r *http.Request) {
+	if !requireAdmin(w, r) || !requirePost(w, r) {
+		return
+	}
+	if cookie, err := r.Cookie(sessionCookie); err == nil {
+		if _, err := db.ExecContext(r.Context(), `DELETE FROM sessions WHERE token_hash=$1`, hashSessionToken(cookie.Value)); err != nil {
+			writeJSON(w, http.StatusServiceUnavailable, "Не удалось завершить вход на сайте")
+			return
+		}
+	}
+	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: "", Path: "/", HttpOnly: true, Secure: secureCookies(), SameSite: http.SameSiteLaxMode, MaxAge: -1})
+	log.Printf("admin user logout: ip=%s", requestClientIP(r))
+	writeJSON(w, http.StatusOK, "Вход на сайте завершён")
 }

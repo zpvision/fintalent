@@ -36,8 +36,9 @@ function renderUsers(){
   controls.querySelector('.users-found').textContent=`Показано: ${visible.length}`;
   usersEmpty.textContent=query?'Пользователи не найдены. Попробуйте изменить запрос.':usersStatus==='blocked'?'Заблокированных пользователей нет.':'Актуальных пользователей пока нет.';
   usersEmpty.classList.toggle('hidden',visible.length!==0);usersSection.querySelector('.users-table-wrap').classList.toggle('hidden',visible.length===0);
-  usersList.innerHTML=visible.map(user=>`<tr class="${user.is_blocked?'blocked':''}" data-id="${user.id}"><td><b>${esc(user.email)}</b>${user.is_blocked?'<small>Аккаунт заблокирован</small>':''}</td><td>${esc(user.full_name)}</td><td class="user-created">${registrationDate(user.created_at)}</td><td>${user.resume_id?`<a class="secondary user-profile" href="/profiles/view/${user.resume_id}" target="_blank" rel="noopener">Открыть профиль ↗</a>`:'<span class="user-profile-empty">Нет опубликованного профиля</span>'}</td><td><button class="secondary user-courses" aria-pressed="${Boolean(user.courses_access)}">${user.courses_access?'Разрешён':'Разрешить'}</button></td><td><button class="secondary user-edit">Изменить</button></td><td><button class="${user.is_blocked?'secondary':'danger'} user-block">${user.is_blocked?'Разблокировать':'Заблокировать'}</button></td><td><button class="secondary user-password">Изменить пароль</button></td></tr>`).join('');
+  usersList.innerHTML=visible.map(user=>`<tr class="${user.is_blocked?'blocked':''}" data-id="${user.id}"><td><b>${esc(user.email)}</b>${user.is_blocked?'<small>Аккаунт заблокирован</small>':''}</td><td>${esc(user.full_name)}</td><td class="user-created">${registrationDate(user.created_at)}</td><td>${user.resume_id?`<a class="secondary user-profile" href="/profiles/view/${user.resume_id}" target="_blank" rel="noopener">Открыть профиль ↗</a>`:'<span class="user-profile-empty">Нет опубликованного профиля</span>'}</td><td><button class="secondary user-courses" aria-pressed="${Boolean(user.courses_access)}">${user.courses_access?'Разрешён':'Разрешить'}</button></td><td><button type="button" class="secondary user-login" ${user.is_blocked?'disabled':''}>Войти как пользователь</button><button class="secondary user-edit">Изменить</button></td><td><button class="${user.is_blocked?'secondary':'danger'} user-block">${user.is_blocked?'Разблокировать':'Заблокировать'}</button></td><td><button class="secondary user-password">Изменить пароль</button></td></tr>`).join('');
   usersList.querySelectorAll('.user-courses').forEach(button=>button.onclick=()=>toggleUserCourses(button));
+  usersList.querySelectorAll('.user-login').forEach(button=>button.onclick=()=>loginAsUser(button));
   usersList.querySelectorAll('.user-edit').forEach(button=>button.onclick=()=>openUserModal(button.closest('tr')));
   usersList.querySelectorAll('.user-block').forEach(button=>button.onclick=()=>toggleUserBlock(button.closest('tr')));
   usersList.querySelectorAll('.user-password').forEach(button=>button.onclick=()=>openPasswordModal(button.closest('tr')));
@@ -64,3 +65,22 @@ async function toggleUserCourses(button){
  const user=adminUsers.find(item=>item.id===Number(button.closest('tr').dataset.id));button.disabled=true;
  try{const result=await api('/api/admin/users/'+user.id+'/courses-access',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({courses_access:!user.courses_access})});user.courses_access=result.courses_access;renderUsers();notify(user.courses_access?'Доступ к курсам разрешён':'Индивидуальный доступ к курсам отключён')}catch(error){notify(error.message,true);button.disabled=false}
 }
+
+async function loginAsUser(button){
+  const user=adminUsers.find(item=>item.id===Number(button.closest('tr').dataset.id));
+  if(!confirm(`Войти как ${user.email} на один час? Вход на сайте изменится во всех вкладках этого браузера. Все действия будут выполняться от имени пользователя. Админка останется доступна по адресу /admin.`))return;
+  button.disabled=true;
+  try{
+    await api(`/api/admin/users/${user.id}/login`,{method:'PUT'});
+    location.assign('/profile');
+  }catch(error){notify(error.message,true);button.disabled=false}
+}
+const endUserSession=document.createElement('button');
+endUserSession.type='button';endUserSession.className='secondary';endUserSession.textContent='Завершить вход на сайте';
+endUserSession.onclick=async()=>{
+  endUserSession.disabled=true;
+  try{await api('/api/admin/user-session/end',{method:'POST'});notify('Вход на сайте завершён. Админская сессия сохранена.')}catch(error){notify(error.message,true)}finally{endUserSession.disabled=false}
+};
+const userSessionHelp=document.createElement('p');
+userSessionHelp.textContent='Вход как пользователь действует один час во всех вкладках браузера. Действия в кабинете изменяют реальные данные. Вернуться в админку: /admin.';
+userSessionHelp.append(' ',endUserSession);usersSection.prepend(userSessionHelp);

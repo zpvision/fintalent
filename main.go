@@ -505,13 +505,17 @@ func createSession(w http.ResponseWriter, userID int64) error {
 }
 
 func createSessionForCredentials(w http.ResponseWriter, userID int64, passwordHash, email string) error {
+	return createSessionWithLifetime(w, userID, passwordHash, email, 30*24*time.Hour)
+}
+
+func createSessionWithLifetime(w http.ResponseWriter, userID int64, passwordHash, email string, lifetime time.Duration) error {
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
 		return err
 	}
 	token := hex.EncodeToString(tokenBytes)
 	hash := sha256.Sum256([]byte(token))
-	expires := time.Now().Add(30 * 24 * time.Hour)
+	expires := time.Now().Add(lifetime)
 	ctx, cancel := contextWithTimeout()
 	defer cancel()
 	tx, err := db.BeginTx(ctx, nil)
@@ -533,7 +537,7 @@ func createSessionForCredentials(w http.ResponseWriter, userID int64, passwordHa
 	if err = tx.Commit(); err != nil {
 		return err
 	}
-	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: token, Path: "/", HttpOnly: true, Secure: secureCookies(), SameSite: http.SameSiteLaxMode, Expires: expires, MaxAge: 30 * 24 * 60 * 60})
+	http.SetCookie(w, &http.Cookie{Name: sessionCookie, Value: token, Path: "/", HttpOnly: true, Secure: secureCookies(), SameSite: http.SameSiteLaxMode, Expires: expires, MaxAge: int(lifetime / time.Second)})
 	return nil
 }
 
