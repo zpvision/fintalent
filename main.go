@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"FinTalent/internal/courses"
+	"FinTalent/internal/diagnostics"
 	testhandler "FinTalent/internal/testmodule/handler"
 	testrepository "FinTalent/internal/testmodule/repository"
 	testservice "FinTalent/internal/testmodule/service"
@@ -65,6 +66,8 @@ func main() {
 	started := time.Now()
 	doneConfig := startupTimer("config")
 	loadLocalEnv(".env")
+	closeJournal := startErrorJournal()
+	defer closeJournal()
 	if err := validateStartupMode(); err != nil {
 		doneConfig()
 		log.Fatal(err)
@@ -146,6 +149,7 @@ func main() {
 	http.HandleFunc("/api/profile/avatar", profileAvatar)
 	registerProfileSettingsRoutes()
 	registerAdminRoutes()
+	registerDiagnosticsRoutes()
 	registerResumeRoutes()
 	registerVacancyModuleRoutes()
 	registerPublicVacancyRoutes()
@@ -186,7 +190,7 @@ func main() {
 	}
 	server := &http.Server{
 		Addr:              listenAddress,
-		Handler:           securityHeaders(requestSecurity(http.DefaultServeMux)),
+		Handler:           diagnostics.Middleware(securityHeaders(requestSecurity(http.DefaultServeMux))),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,
@@ -384,7 +388,8 @@ func servePage(filename string) http.HandlerFunc {
 				http.NotFound(w, r)
 				return
 			}
-			content = []byte(strings.Replace(string(content), "</head>", `<link rel="icon" href="/favicon.ico?v=2" type="image/x-icon"><link rel="stylesheet" href="/static/layout-safety.css"><link rel="stylesheet" href="/static/site-header.css?v=3"><link rel="stylesheet" href="/static/site-background.css?v=1"><link rel="stylesheet" href="/static/accounting-company-responsive.css?v=1"><script src="/static/site-errors.js?v=1"></script></head>`, 1))
+			content = []byte(strings.Replace(string(content), "</head>", `<link rel="icon" href="/favicon.ico?v=2" type="image/x-icon"><link rel="stylesheet" href="/static/layout-safety.css"><link rel="stylesheet" href="/static/site-header.css?v=3"><link rel="stylesheet" href="/static/site-background.css?v=1"><link rel="stylesheet" href="/static/accounting-company-responsive.css?v=1"><script src="/static/site-errors.js?v=2"></script></head>`, 1))
+			content = injectErrorCollector(content)
 			if filepath.Base(filename) == "profile.html" {
 				content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/profile-avatar.js?v=2"></script><script src="/static/profile-client-exchange.js?v=1"></script><script src="/static/profile-accounting-company.js?v=1"></script><script src="/static/profile-help.js?v=3"></script></body>`, 1))
 			}
@@ -551,6 +556,9 @@ func userFromRequest(r *http.Request) (*user, error) {
 	defer cancel()
 	u := &user{}
 	err = db.QueryRowContext(ctx, `SELECT u.id,u.full_name,u.email,COALESCE(u.avatar_url,'') FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=$1 AND s.expires_at>NOW() AND NOT u.is_blocked AND NOT u.is_system`, hex.EncodeToString(hash[:])).Scan(&u.ID, &u.FullName, &u.Email, &u.Avatar)
+	if err == nil {
+		diagnostics.SetUser(r.Context(), u.ID)
+	}
 	return u, err
 }
 

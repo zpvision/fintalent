@@ -1,6 +1,7 @@
 package main
 
 import (
+	"FinTalent/internal/diagnostics"
 	"context"
 	"errors"
 	"log"
@@ -47,4 +48,7 @@ func startupFailure(stage string, err error) {
 		}
 	}
 	log.Printf("startup stage=%s event=failed error_code=%s", stage, code)
+	if errorJournal != nil {
+		errorJournal.Record(diagnostics.Event{Source: "startup", Code: code, Operation: stage, Cause: diagnostics.Cause(err)})
+	}
 }

@@ -1,11 +1,12 @@
 import { navigateInApp } from '../navigation'
 
 export class ApiError extends Error {
-  constructor(message, status, payload) {
-    super(message)
+  constructor(message, status, payload, requestID = '') {
+    super(status >= 500 && requestID ? `${message} Код ошибки: ${requestID}` : message)
     this.name = 'ApiError'
     this.status = status
     this.payload = payload
+    this.requestID = requestID
   }
 }
 
@@ -41,15 +42,21 @@ export async function apiRequest(path, options = {}) {
     requestBody = JSON.stringify(body)
   }
 
-  const response = await fetch(path, {
+  let response
+  try { response = await fetch(path, {
     credentials: 'include',
     ...requestOptions,
     headers: requestHeaders,
     body: requestBody,
-  })
+  }) } catch (error) {
+    if (error.name !== 'AbortError') window.reportFinTalentError?.({ code: 'network_error', route: path, method: requestOptions.method || 'GET' })
+    throw error
+  }
   const payload = response.ok && responseType === 'blob' ? await response.blob() : await parseResponse(response)
 
   if (!response.ok) {
+    const requestID = response.headers.get('X-Request-ID') || ''
+    if (response.status >= 500) window.reportFinTalentError?.({ code: 'api_error', route: path, method: requestOptions.method || 'GET', status: response.status, request_id: requestID })
     if (response.status === 401 && redirectOnUnauthorized && window.location.pathname !== '/login') {
       const next = `${window.location.pathname}${window.location.search}`
       navigateInApp(`/login?next=${encodeURIComponent(next)}`)
@@ -58,6 +65,7 @@ export async function apiRequest(path, options = {}) {
       responseMessage(payload, `Ошибка запроса (${response.status})`),
       response.status,
       payload,
+      requestID,
     )
   }
 

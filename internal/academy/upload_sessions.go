@@ -1,6 +1,7 @@
 package academy
 
 import (
+	"FinTalent/internal/diagnostics"
 	"FinTalent/internal/objectstorage"
 	"bytes"
 	"context"
@@ -333,6 +334,7 @@ func (h *Handler) ProcessUploads(ctx context.Context) error {
 			terminal = true
 		}
 		_, _ = h.db.ExecContext(ctx, `UPDATE academy_upload_sessions SET error_code=$2,lease_until=now()+INTERVAL '30 seconds',status=CASE WHEN $3 THEN 'failed' ELSE status END,expires_at=CASE WHEN $3 THEN now() ELSE expires_at END WHERE id=$1 AND status='finalizing'`, id, code, terminal)
+		reportUploadFailure(s, code, e)
 	}
 	return e
 }
@@ -365,6 +367,9 @@ func (h *Handler) finalizeUpload(ctx context.Context, s uploadSession) error {
 		}
 		if !validateParts(s, parts) {
 			_, e = h.db.ExecContext(ctx, `UPDATE academy_upload_sessions SET status='failed',expires_at=now(),error_code='parts_mismatch' WHERE id=$1`, s.ID)
+			if e == nil {
+				reportUploadFailure(s, "parts_mismatch", nil)
+			}
 			return e
 		}
 		if e = remote.Complete(ctx, key, s.UploadID, parts); e != nil {
@@ -407,6 +412,9 @@ func (h *Handler) finalizeUpload(ctx context.Context, s uploadSession) error {
 	}
 	if !valid {
 		_, e = h.db.ExecContext(ctx, `UPDATE academy_upload_sessions SET status='failed',expires_at=now(),error_code='invalid_content' WHERE id=$1`, s.ID)
+		if e == nil {
+			reportUploadFailure(s, "invalid_content", nil)
+		}
 		return e
 	}
 	checksum, done, e := h.verifyUploadChunk(ctx, s, info)
@@ -451,7 +459,11 @@ func (h *Handler) finalizeUpload(ctx context.Context, s uploadSession) error {
 		if e != nil {
 			return e
 		}
-		return tx.Commit()
+		e = tx.Commit()
+		if e == nil {
+			reportUploadFailure(s, "permission_changed", nil)
+		}
+		return e
 	}
 	var asset int64
 	e = tx.QueryRowContext(ctx, `INSERT INTO academy_media_assets(program_id,entity_key,storage_key,name,mime,size,created_by,storage_driver,checksum,checksum_kind) VALUES($1,$2,$3,$4,$5,$6,$7,'s3',$8,'sha256') RETURNING id`, s.ProgramID, s.EntityKey, s.Key, s.Name, s.MIME, s.Size, s.UserID, checksum).Scan(&asset)
@@ -465,6 +477,10 @@ func (h *Handler) finalizeUpload(ctx context.Context, s uploadSession) error {
 		return e
 	}
 	return tx.Commit()
+}
+
+func reportUploadFailure(s uploadSession, code string, err error) {
+	diagnostics.Emit(diagnostics.Event{Source: "worker", Code: code, Operation: "academy.upload.finalize", UserID: s.UserID, CourseID: s.CourseID, EntityID: s.ID, Cause: diagnostics.Cause(err)})
 }
 
 // Incremental SHA-256 uses bounded streaming RAM and durable hash state. A large

@@ -5,6 +5,7 @@
   const navRoutes = {
     'dictionary-nav': '/admin/dictionaries',
     'users-nav': '/admin/users',
+    'errors-nav': '/admin/errors',
     'publications-nav': '/admin/publications',
     'survey-nav': '/admin/applicant-survey',
     'vacancy-survey-nav': '/admin/vacancy-survey',
@@ -80,7 +81,7 @@
       const detail = parts[1]
       const leaf = parts[2]
       const navBySection = {
-        dictionaries: 'dictionary-nav', users: 'users-nav', publications: 'publications-nav',
+        dictionaries: 'dictionary-nav', users: 'users-nav', errors: 'errors-nav', publications: 'publications-nav',
         'applicant-survey': 'survey-nav', 'vacancy-survey': 'vacancy-survey-nav', testing: 'admin-testing-nav',
         'other-dictionaries': 'other-dictionaries-nav', duties: 'admin-duties-nav',
         'client-exchange': 'client-exchange-nav', 'accounting-companies': 'accounting-company-nav', community: 'community-nav',

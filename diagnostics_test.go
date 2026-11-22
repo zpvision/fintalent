@@ -1,0 +1,88 @@
+package main
+
+import (
+	"FinTalent/internal/diagnostics"
+	"bytes"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+)
+
+func TestFrontendDiagnosticValidationAndOrigin(t *testing.T) {
+	s, err := diagnostics.Open(diagnostics.Config{Dir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := errorJournal
+	errorJournal = s
+	t.Cleanup(func() { errorJournal = old; s.Close() })
+	for _, tc := range []struct {
+		body, origin string
+		status       int
+	}{
+		{`{"code":"javascript_error","route":"/profile?token=secret","stack":"Error: secret-password\n/static/react/assets/index.js:12:3","release":"test"}`, "", 204},
+		{`{"code":"javascript_error","user_id":42}`, "", 400},
+		{`{"code":"arbitrary-private-message"}`, "", 400},
+		{`{"code":"javascript_error"}`, "https://evil.invalid", 403},
+		{strings.Repeat("x", 20000), "", 400},
+	} {
+		r := httptest.NewRequest("POST", "/api/diagnostics/events", strings.NewReader(tc.body))
+		if tc.origin != "" {
+			r.Header.Set("Origin", tc.origin)
+		}
+		w := httptest.NewRecorder()
+		requestSecurity(http.HandlerFunc(frontendErrorEvent)).ServeHTTP(w, r)
+		if w.Code != tc.status {
+			t.Fatalf("got %d want %d: %s", w.Code, tc.status, w.Body.String())
+		}
+	}
+	s.Close()
+	report, err := s.Report(time.Now().Add(-time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Events != 1 || report.Groups[0].Sample.UserID != 0 {
+		t.Fatalf("unexpected accepted events: %+v", report)
+	}
+	if strings.Contains(report.Groups[0].Sample.Stack, "secret") || strings.Contains(report.Groups[0].Sample.Route, "secret") {
+		t.Fatal("sensitive data retained")
+	}
+	if report.MaxBytes != 50<<20 || report.RetentionDays != 14 {
+		t.Fatal("unexpected production storage limits")
+	}
+}
+
+func TestDiagnosticEndpointRateLimit(t *testing.T) {
+	h := requestSecurity(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) }))
+	for i := 0; i < 11; i++ {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest("POST", "/api/diagnostics/events", nil))
+		want := 204
+		if i == 10 {
+			want = 429
+		}
+		if w.Code != want {
+			t.Fatalf("event %d: %d", i, w.Code)
+		}
+	}
+}
+
+func TestDiagnosticReportRequiresAdmin(t *testing.T) {
+	w := httptest.NewRecorder()
+	adminErrorReport(w, httptest.NewRequest("GET", "/api/admin/diagnostics?download=1", nil))
+	if w.Code != 401 {
+		t.Fatal("report accessible without admin session")
+	}
+}
+
+func TestCollectorInjectionAndPrivacy(t *testing.T) {
+	t.Setenv("APP_RELEASE", `release-123`)
+	for _, html := range []string{`<html><head></head></html>`, `<html><head><script src="/static/error-telemetry.js?v=1"></script></head></html>`} {
+		out := injectErrorCollector([]byte(html))
+		if bytes.Count(out, []byte("/static/error-telemetry.js")) != 1 || !bytes.Contains(out, []byte(`content="release-123"`)) {
+			t.Fatal(string(out))
+		}
+	}
+}

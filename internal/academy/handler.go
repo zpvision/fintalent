@@ -1,12 +1,12 @@
 package academy
 
 import (
+	"FinTalent/internal/diagnostics"
 	"FinTalent/internal/objectstorage"
 	"database/sql"
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -41,6 +41,7 @@ func fail(w http.ResponseWriter, status int, message string) {
 	respond(w, status, map[string]string{"error": message})
 }
 func problem(w http.ResponseWriter, e error) {
+	diagnostics.HTTPError(w, e)
 	var in inputError
 	switch {
 	case errors.Is(e, objectstorage.ErrUnavailable):
@@ -60,7 +61,6 @@ func problem(w http.ResponseWriter, e error) {
 	case errors.Is(e, ErrInvalid), errors.As(e, &in):
 		fail(w, 400, e.Error())
 	default:
-		log.Printf("academy: %v", e)
 		fail(w, 500, "Не удалось сохранить учебную программу. Ваши правки остаются в редакторе")
 	}
 }

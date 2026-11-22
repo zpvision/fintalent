@@ -1,6 +1,7 @@
 package academy
 
 import (
+	"FinTalent/internal/diagnostics"
 	"FinTalent/internal/objectstorage"
 	"context"
 	"database/sql"
@@ -392,6 +393,9 @@ func ProcessAnalyticsReports(ctx context.Context, db *sql.DB, root string, optio
 		}
 		if e != nil || !principal.Can("analytics") {
 			_, er := db.ExecContext(ctx, "UPDATE academy_report_jobs SET status='failed',error_code='permission_changed',lease_key=NULL WHERE id=$1 AND lease_key=$2", job.ID, job.Lease)
+			if er == nil {
+				diagnostics.Emit(diagnostics.Event{Source: "worker", Code: "permission_changed", Operation: "academy.report.generate", UserID: job.Actor, CourseID: job.Course, EntityID: strconv.FormatInt(job.ID, 10), Cause: diagnostics.Cause(e)})
+			}
 			return er
 		}
 		ctx = adminScope(ctx, principal)
@@ -450,6 +454,9 @@ func ProcessAnalyticsReports(ctx context.Context, db *sql.DB, root string, optio
 		return e
 	}
 	if n == 0 || status != "ready" {
+		if n > 0 && status == "failed" {
+			diagnostics.Emit(diagnostics.Event{Source: "worker", Code: code, Operation: "academy.report.generate", UserID: job.Actor, CourseID: job.Course, EntityID: strconv.FormatInt(job.ID, 10)})
+		}
 		return h.queueDelete("reports/"+job.Storage, job.Driver)
 	}
 

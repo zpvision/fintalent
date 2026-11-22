@@ -134,6 +134,9 @@ func requestSecurity(next http.Handler) http.Handler {
 			if r.URL.Path == "/api/public/feedback" {
 				limit, bucket = 3, "feedback:"
 			}
+			if r.URL.Path == "/api/diagnostics/events" {
+				limit, bucket = 10, "diagnostics:"
+			}
 			if r.URL.Path == "/api/login" || r.URL.Path == "/api/register" || r.URL.Path == "/api/admin/login" || strings.HasPrefix(r.URL.Path, "/api/password-reset/") {
 				limit, bucket = 10, "auth:"
 				select {

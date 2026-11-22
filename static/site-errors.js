@@ -1,4 +1,6 @@
 (function(){
+  if (window.__finTalentSiteErrors) return;
+  window.__finTalentSiteErrors=true;
   const style=document.createElement('link');style.rel='stylesheet';style.href='/static/site-errors.css?v=1';document.head.append(style);
   let lastMessage='',lastShown=0;
   function messageOf(value){
@@ -27,13 +29,14 @@
     const url=typeof input==='string'?input:input?.url||'';
     try{
       const response=await nativeFetch(input,options);
+      if(response.status>=500)window.reportFinTalentError?.({code:'api_error',route:url,method:options?.method||input?.method||'GET',status:response.status,request_id:response.headers.get('X-Request-ID')||''});
       const expectedUnauthorized=response.status===401&&(url.includes('/api/me')||url.includes('/api/admin/session'));
       if(!response.ok&&!expectedUnauthorized){
         let payload;try{payload=await response.clone().json()}catch{try{payload=await response.clone().text()}catch{}}
         window.showFinTalentError(messageOf(payload)||`Ошибка сервера ${response.status}`);
       }
       return response;
-    }catch(error){window.showFinTalentError(error?.message||'Нет соединения с сервером');throw error}
+    }catch(error){if(error.name!=='AbortError'){window.reportFinTalentError?.({code:'network_error',route:url,method:options?.method||input?.method||'GET'});window.showFinTalentError(error?.message||'Нет соединения с сервером')}throw error}
   };
   window.addEventListener('unhandledrejection',event=>{const message=messageOf(event.reason);if(message&&message!=='Ошибка')window.showFinTalentError(message)});
   window.addEventListener('error',event=>{if(event.error?.message)window.showFinTalentError(event.error.message)});
