@@ -54,13 +54,21 @@ const server = http.createServer((req, res) => {
       }
       const link = document.createElement('link'); link.rel = 'stylesheet'; Object.defineProperty(link, 'href', {value:'https://fonts.googleapis.com/css2?family=PRIVATE_FONT'}); document.body.append(link);
       link.dispatchEvent(new Event('error', { bubbles: true }));
+      for (const host of ['mc.yandex.ru', 'mc.yandex.com']) {
+        const script = document.createElement('script'); script.type = 'application/json';
+        Object.defineProperty(script, 'src', {value:'https://PRIVATE_USER:PRIVATE_PASSWORD@' + host + '/metrika/tag.js?id=PRIVATE_COUNTER#PRIVATE_FRAGMENT'});
+        document.body.append(script); script.dispatchEvent(new Event('error', { bubbles: true }));
+        window.reportFinTalentError({code:'resource_error',resource_url:'https://' + host + '/metrika/tag.js?id=PRIVATE_OTHER',resource_type:'script'});
+      }
       window.reportFinTalentError({code:'resource_error',resource_url:'/static/uploads/PRIVATE_UPLOAD.js?token=PRIVATE_TOKEN',resource_type:'script'});
       window.reportFinTalentError({code:'resource_error',resource_url:'https://PRIVATE_TENANT.example.com/PRIVATE_PATH.js',resource_type:'script'})`)
-    for (let n = 0; n < 100 && received.length < 7; n++) await sleep(50)
+    for (let n = 0; n < 100 && received.length < 9; n++) await sleep(50)
     const resources = received.filter(event => event.code === 'resource_error')
     if (!resources.some(event => event.resource_url === '/static/missing-first.js' && event.resource_type === 'script') ||
         !resources.some(event => event.resource_url === '/static/missing-second.js') ||
         !resources.some(event => event.resource_url === 'https://fonts.googleapis.com/css2' && event.resource_type === 'stylesheet') ||
+        resources.filter(event => event.resource_url === 'https://mc.yandex.ru/metrika/tag.js' && event.resource_type === 'script').length !== 1 ||
+        resources.filter(event => event.resource_url === 'https://mc.yandex.com/metrika/tag.js' && event.resource_type === 'script').length !== 1 ||
         !resources.some(event => event.resource_url === '/:redacted') ||
         !resources.some(event => event.resource_url === '/external/:redacted') ||
         resources.some(event => event.page_route !== '/profile' || event.route !== '/profile') ||

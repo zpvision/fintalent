@@ -17,6 +17,7 @@
       if (url.origin === location.origin) {
         return asset && ((path.startsWith('/static/') && !path.startsWith('/static/uploads/')) || path === '/favicon.ico') ? path : '/:redacted'
       }
+      if (['mc.yandex.ru', 'mc.yandex.com'].includes(url.hostname)) return url.origin + (path === '/metrika/tag.js' ? path : '/:redacted')
       if (url.hostname === 'fonts.googleapis.com') return url.origin + (['/css', '/css2'].includes(path) ? path : '/:redacted')
       if (['fonts.gstatic.com', 'cdn.jsdelivr.net', 'unpkg.com'].includes(url.hostname)) return url.origin + (asset ? path : '/:redacted')
       return '/external/:redacted'

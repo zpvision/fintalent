@@ -151,7 +151,7 @@ func adminErrorReport(w http.ResponseWriter, r *http.Request) {
 func injectErrorCollector(content []byte) []byte {
 	tag := `<meta name="fintalent-release" content="` + applicationRelease() + `">`
 	if !strings.Contains(string(content), "/static/error-telemetry.js") {
-		tag += `<script src="/static/error-telemetry.js?v=2"></script>`
+		tag += `<script src="/static/error-telemetry.js?v=3"></script>`
 	}
 	return []byte(strings.Replace(string(content), "<head>", "<head>"+tag, 1))
 }

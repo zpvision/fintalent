@@ -95,19 +95,26 @@ func TestFrontendResourceDiagnosticRoundTrip(t *testing.T) {
 	old := errorJournal
 	errorJournal = s
 	t.Cleanup(func() { errorJournal = old; s.Close() })
-	body := `{"code":"resource_error","route":"/profile","page_route":"/profile?token=PRIVATE","resource_url":"https://fonts.googleapis.com/css2?family=PRIVATE","resource_type":"stylesheet"}`
-	w := httptest.NewRecorder()
-	frontendErrorEvent(w, httptest.NewRequest("POST", "/api/diagnostics/events", strings.NewReader(body)))
-	if w.Code != 204 {
-		t.Fatalf("resource event rejected: %d %s", w.Code, w.Body.String())
+	for _, body := range []string{
+		`{"code":"resource_error","route":"/profile","page_route":"/profile?token=PRIVATE","resource_url":"https://fonts.googleapis.com/css2?family=PRIVATE","resource_type":"stylesheet"}`,
+		`{"code":"resource_error","route":"/profile","page_route":"/profile?token=PRIVATE","resource_url":"https://mc.yandex.ru/metrika/tag.js?id=PRIVATE#PRIVATE","resource_type":"script"}`,
+	} {
+		w := httptest.NewRecorder()
+		frontendErrorEvent(w, httptest.NewRequest("POST", "/api/diagnostics/events", strings.NewReader(body)))
+		if w.Code != 204 {
+			t.Fatalf("resource event rejected: %d %s", w.Code, w.Body.String())
+		}
 	}
 	s.Close()
 	r, err := s.Report(time.Now().Add(-time.Hour))
-	if err != nil || r.Events != 1 {
+	if err != nil || r.Events != 2 || len(r.Groups) != 2 {
 		t.Fatalf("missing resource event: %+v %v", r, err)
 	}
-	e := r.Groups[0].Sample
-	if e.PageRoute != "/profile" || e.ResourceURL != "https://fonts.googleapis.com/css2" || e.ResourceType != "stylesheet" || e.Status != 0 {
-		t.Fatalf("incorrect resource context: %+v", e)
+	wantTypes := map[string]string{"https://fonts.googleapis.com/css2": "stylesheet", "https://mc.yandex.ru/metrika/tag.js": "script"}
+	for _, group := range r.Groups {
+		e := group.Sample
+		if e.PageRoute != "/profile" || wantTypes[e.ResourceURL] == "" || e.ResourceType != wantTypes[e.ResourceURL] || e.Status != 0 {
+			t.Fatalf("incorrect resource context: %+v", e)
+		}
 	}
 }

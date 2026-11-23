@@ -79,6 +79,10 @@ func SafeResourceURL(raw string) string {
 			origin += ":" + u.Port()
 		}
 		switch host {
+		case "mc.yandex.ru", "mc.yandex.com":
+			if u.Path == "/metrika/tag.js" {
+				return origin + u.Path
+			}
 		case "fonts.googleapis.com":
 			if u.Path == "/css" || u.Path == "/css2" {
 				return origin + u.Path
