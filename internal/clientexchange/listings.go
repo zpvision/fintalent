@@ -148,6 +148,15 @@ func (h *Handler) updateListing(ctx context.Context, id int64, in ListingInput) 
 		return err
 	}
 	defer tx.Rollback()
+	if err = h.updateListingTx(ctx, tx, id, in); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func (h *Handler) updateListingTx(ctx context.Context, tx *sql.Tx, id int64, in ListingInput) error {
+	normalizeIndustryIDs(&in)
+	normalizeTransferReasonIDs(&in)
 	result, err := tx.ExecContext(ctx, `UPDATE client_exchange_listings SET title=$2,client_inn=$3,client_legal_name=$4,industry_id=$5,employee_range_id=$6,tax_system_id=$7,revenue_range_id=$8,accounting_state_id=$9,transfer_reason_id=$10,transfer_type_id=$11,transfer_reason_comment=$12,transfer_price=$13,monthly_commission_percent=$14,commission_months=$15,current_monthly_fee=$16,operations_per_month=$17,banks_count=$18,has_vat=$19,foreign_trade=$20,bargain_allowed=$21,region=$22,city=$23,client_since=$24,desired_transfer_date=$25,comment=$26,current_step=$27,updated_at=NOW() WHERE id=$1 AND status NOT IN('buyer_selected','transfer_in_progress','transferred') AND deleted_at IS NULL`, id, clean(in.Title, 240), strings.TrimSpace(in.ClientINN), clean(in.ClientLegalName, 500), in.IndustryID, in.EmployeeRangeID, in.TaxSystemID, in.RevenueRangeID, in.AccountingStateID, in.TransferReasonID, in.TransferTypeID, clean(in.TransferReasonComment, 2000), in.TransferPrice, in.MonthlyCommission, in.CommissionMonths, in.CurrentMonthlyFee, in.OperationsPerMonth, in.BanksCount, in.HasVAT, in.ForeignTrade, in.BargainAllowed, clean(in.Region, 200), clean(in.City, 200), nullableDate(in.ClientSince), nullableDate(in.DesiredTransferDate), clean(in.Comment, 5000), clamp(in.CurrentStep, 1, 6))
 	if err != nil {
 		return errors.New("не удалось сохранить объявление")
@@ -158,7 +167,7 @@ func (h *Handler) updateListing(ctx context.Context, id int64, in ListingInput) 
 	if err = h.saveOptionsTx(ctx, tx, id, in); err != nil {
 		return err
 	}
-	return tx.Commit()
+	return nil
 }
 
 func (h *Handler) listingAction(w http.ResponseWriter, r *http.Request, u UserIdentity, id int64, action string) {
@@ -272,22 +281,35 @@ func loadListingInput(ctx context.Context, source listingReader, id int64) (List
 	if err != nil {
 		return x, err
 	}
-	rows, rowsErr := source.QueryContext(ctx, `SELECT item_id FROM client_exchange_listing_options WHERE listing_id=$1 AND kind='industry' ORDER BY item_id`, id)
+	rows, rowsErr := source.QueryContext(ctx, `SELECT kind,item_id FROM client_exchange_listing_options WHERE listing_id=$1 ORDER BY kind,item_id`, id)
 	if rowsErr != nil {
 		return x, rowsErr
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var industryID int64
-		if err := rows.Scan(&industryID); err != nil {
+		var kind string
+		var itemID int64
+		if err := rows.Scan(&kind, &itemID); err != nil {
 			return x, err
 		}
-		x.IndustryIDs = append(x.IndustryIDs, industryID)
+		switch kind {
+		case "industry":
+			x.IndustryIDs = append(x.IndustryIDs, itemID)
+		case "transfer_reason":
+			x.TransferReasonIDs = append(x.TransferReasonIDs, itemID)
+		case "marketplace":
+			x.MarketplaceIDs = append(x.MarketplaceIDs, itemID)
+		case "edo_provider":
+			x.EDOProviderIDs = append(x.EDOProviderIDs, itemID)
+		case "accounting_program":
+			x.AccountingProgramIDs = append(x.AccountingProgramIDs, itemID)
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return x, err
 	}
 	normalizeIndustryIDs(&x)
+	normalizeTransferReasonIDs(&x)
 	return x, err
 }
 

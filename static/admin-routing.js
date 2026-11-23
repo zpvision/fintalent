@@ -13,6 +13,7 @@
     'other-dictionaries-nav': '/admin/other-dictionaries/categories',
     'admin-duties-nav': '/admin/duties/categories',
     'client-exchange-nav': '/admin/client-exchange/employee_range',
+    'client-exchange-listings-nav': '/admin/client-exchange/listings',
     'accounting-company-nav': '/admin/accounting-companies/directions',
     'community-nav': '/admin/community/companies',
     'help-topics-nav': '/admin/help-topics',
@@ -87,7 +88,7 @@
         'client-exchange': 'client-exchange-nav', 'accounting-companies': 'accounting-company-nav', community: 'community-nav',
         'help-topics': 'help-topics-nav', profimarket: 'profimarket-admin-nav', courses: 'courses-admin-nav', academy:'academy-admin-nav',
       }
-      const navID = navBySection[section] || 'dictionary-nav'
+      const navID = section === 'client-exchange' && detail === 'listings' ? 'client-exchange-listings-nav' : navBySection[section] || 'dictionary-nav'
       const navButton = await waitForNavHandler(navID)
       navButton.click()
 
@@ -109,7 +110,7 @@
           select.value = category
           select.dispatchEvent(new Event('change'))
         }
-      } else if (section === 'client-exchange' && detail) {
+      } else if (section === 'client-exchange' && detail && detail !== 'listings') {
         await clickWhenReady(`#client-exchange-admin [data-kind="${CSS.escape(detail)}"]`)
       } else if (section === 'accounting-companies' && detail) {
         await clickWhenReady(`#accounting-company-admin [data-kind="${CSS.escape(detail)}"]`)

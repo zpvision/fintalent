@@ -2,8 +2,8 @@
   const nav = document.querySelector(".sidebar nav");
   if (!nav) return;
 
-  document.head.insertAdjacentHTML("beforeend", '<link rel="stylesheet" href="/static/admin-client-exchange.css?v=2">');
-  nav.insertAdjacentHTML("beforeend", '<small>КЛИЕНТСКАЯ БИРЖА</small><button id="client-exchange-nav">◇ <span>Справочники биржи</span></button>');
+  document.head.insertAdjacentHTML("beforeend", '<link rel="stylesheet" href="/static/admin-client-exchange.css?v=3">');
+  nav.insertAdjacentHTML("beforeend", '<small>КЛИЕНТСКАЯ БИРЖА</small><button id="client-exchange-listings-nav">▤ <span>Карточки пользователей</span></button><button id="client-exchange-nav">◇ <span>Справочники биржи</span></button>');
 
   const workspace = document.querySelector(".workspace");
   workspace.insertAdjacentHTML("beforeend", '<section id="client-exchange-admin" class="ce-admin-section"><div class="ce-admin-head"><div><h2>Клиентская биржа → Справочники</h2><p>Независимые значения используются только внутри модуля.</p></div><button class="primary" id="ce-admin-new">＋ Добавить значение</button></div><div class="ce-admin-kinds"></div><div class="ce-admin-table"></div></section>');

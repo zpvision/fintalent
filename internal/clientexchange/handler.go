@@ -53,6 +53,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/client-exchange/notifications", h.notifications)
 	mux.HandleFunc("/api/admin/client-exchange/dictionaries", h.adminDictionaries)
 	mux.HandleFunc("/api/admin/client-exchange/dictionaries/", h.adminDictionary)
+	mux.HandleFunc("/api/admin/client-exchange/listings", h.adminListings)
+	mux.HandleFunc("/api/admin/client-exchange/listings/", h.adminListing)
 }
 
 func respond(w http.ResponseWriter, status int, data any) {
