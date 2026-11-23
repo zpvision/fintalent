@@ -1,6 +1,7 @@
 (() => {
   const nav = document.querySelector('.sidebar nav'), workspace = document.querySelector('.workspace')
   if (!nav || !workspace) return
+  const studentStyles=document.createElement('link');studentStyles.rel='stylesheet';studentStyles.href='/static/admin-course-students.css?v=1';document.head.append(studentStyles)
   const button = document.createElement('button')
   button.id = 'courses-admin-nav'; const navLabel = document.createElement('span'); navLabel.textContent = 'Курсы'; button.append(document.createTextNode('▤ '), navLabel); nav.append(button)
   const section = document.createElement('section'); section.id = 'admin-courses'; section.className = 'hidden'; workspace.insertBefore(section, document.querySelector('#dictionary-editor'))
@@ -8,6 +9,9 @@
   let selected = 'moderation'
   let area = 'access'
   let studentsPage = 1
+  let studentsRequest = 0
+  let studentFilters = {author_id:'',student_name:'',email:''}
+  const money = value => value==null?'—':new Intl.NumberFormat('ru-RU',{style:'currency',currency:'RUB',maximumFractionDigits:2}).format(Number(value)/100)
   const request = async (path, body) => {
     const response = await fetch(path, { credentials: 'include', cache: 'no-store', ...(body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}) })
     const value = await response.json(); if (!response.ok) throw Error(value.error || 'Не удалось выполнить запрос'); return value
@@ -55,27 +59,54 @@
   }
   async function loadStudents() {
     section.replaceChildren(tabs(),node('p','Загружаем заявки учеников…'))
-    const page=studentsPage
+    const page=studentsPage,version=++studentsRequest
     try {
-      const data=await request(`/api/admin/courses/students?page=${page}`)
-      if(area!=='students'||studentsPage!==page)return
+      const query=new URLSearchParams({...studentFilters,page:String(page)})
+      const data=await request(`/api/admin/courses/students?${query}`)
+      if(area!=='students'||studentsPage!==page||version!==studentsRequest)return
+      if(page>1&&!data.items.length){studentsPage=Math.max(1,Math.ceil(data.total/data.page_size));return loadStudents()}
       section.replaceChildren(tabs(),node('h2','Ученики'),node('p','Заявки на курсы и контакты для связи. Для старых заявок без сохранённых контактов показаны доступные данные аккаунта.'))
+      const overall=node('div','','course-students-totals');overall.dataset.overall=''
+      for(const [label,value] of [['Всего заявок',data.overall.applications],['Всего учеников',data.overall.students],['Общая сумма тарифов по заявкам',money(data.overall.total_price)]]){const card=node('div');card.append(node('small',label),node('strong',String(value)));overall.append(card)}
+      section.append(overall,node('p','Ученики считаются без повторов по аккаунту. Сумма тарифов — стоимость заявок, а не подтверждённая выручка.','course-students-hint'))
+      const form=node('form','','course-students-filters')
+      const authorLabel=node('label','Автор курса'),authorSelect=node('select');authorSelect.name='author_id'
+      const allAuthors=node('option','Все авторы');allAuthors.value='';authorSelect.append(allAuthors)
+      for(const author of data.authors){const option=node('option',author.name);option.value=String(author.id);authorSelect.append(option)}
+      if(studentFilters.author_id&&!data.authors.some(a=>String(a.id)===studentFilters.author_id)){const option=node('option','Выбранный автор');option.value=studentFilters.author_id;authorSelect.append(option)}
+      authorSelect.value=studentFilters.author_id;authorLabel.append(authorSelect);form.append(authorLabel)
+      for(const [key,label,placeholder,max] of [['student_name','ФИО ученика','Имя или часть ФИО',200],['email','Email ученика','Email или его часть',254]]){const field=node('label',label),input=node('input');input.name=key;input.type='search';input.placeholder=placeholder;input.maxLength=max;input.value=studentFilters[key];field.append(input);form.append(field)}
+      const find=node('button','Найти','secondary'),reset=node('button','Сбросить','secondary');find.type='submit';reset.type='button';form.append(find,reset)
+      form.onsubmit=event=>{event.preventDefault();studentFilters=Object.fromEntries([...new FormData(form)].map(([key,value])=>[key,value.trim()]));studentsPage=1;loadStudents()}
+      reset.onclick=()=>{studentFilters={author_id:'',student_name:'',email:''};studentsPage=1;loadStudents()}
+      section.append(form)
+      const found=node('p',`Найдено заявок: ${data.total} · Учеников: ${data.summary.students} · Сумма тарифов: ${money(data.summary.total_price)}`,'course-students-found');found.setAttribute('role','status');found.dataset.filtered='';section.append(found)
+      for(const [stats,label] of [[data.overall,'Всего'],[data.summary,'По фильтрам']])if(stats.unknown_prices||stats.current_prices)section.append(node('p',`${label}: ${stats.current_prices} заявок рассчитано по текущей цене (историческая цена не сохранена); ${stats.unknown_prices} заявок без известной цены не включено в сумму.`,'course-students-hint'))
       const table=node('table','','users-table'),head=node('thead'),heading=node('tr'),body=node('tbody')
-      for(const label of ['Название курса','Тариф курса','Автор курса','ФИО ученика','Email ученика','Телефон ученика','Дата заявки'])heading.append(node('th',label))
+      for(const label of ['Название курса','Выбранный тариф','Сумма тарифа','Автор курса','ФИО ученика','Email ученика','Телефон ученика','Дата заявки','Действия'])heading.append(node('th',label))
       head.append(heading);table.append(head)
       for(const item of data.items){
-        const row=node('tr'),course=node('td'),link=node('a',item.course_title||'Без названия')
+        const row=node('tr'),course=node('td'),link=node('a',item.course_title||'Без названия');row.dataset.applicationId=String(item.id)
         link.href=`/admin/courses/${item.course_id}/preview`;link.target='_blank';link.rel='noopener noreferrer';course.append(link);row.append(course)
-        for(const value of [item.tariff_name||'Без тарифа',item.author_name,item.student_name,item.contact_email,item.contact_phone||'—',new Date(item.created_at).toLocaleString('ru-RU')])row.append(node('td',value||'—'))
+        row.append(node('td',item.tariff_name||'Без тарифа'))
+        const price=node('td',money(item.selected_price));if(item.price_is_current&&item.selected_price!=null)price.append(node('small','Текущая цена'));row.append(price)
+        for(const value of [item.author_name,item.student_name,item.contact_email,item.contact_phone||'—',new Date(item.created_at).toLocaleString('ru-RU')])row.append(node('td',value||'—'))
+        const actions=node('td')
+        if(item.can_delete){const remove=node('button','Удалить','secondary');remove.type='button';remove.dataset.deleteApplication=String(item.id);remove.onclick=async()=>{
+          if(!confirm(`Удалить заявку «${item.student_name}» на курс «${item.course_title}»? Аккаунт ученика и доступ к обучению сохранятся.`))return
+          remove.disabled=true
+          try{await api(`/api/admin/courses/students/${item.id}`,{method:'DELETE'});if(area==='students')await loadStudents()}catch(error){notify(error.message,true);remove.disabled=false}
+        };actions.append(remove)}else{actions.append(node('span','Оплачена / зачислена'));actions.append(node('small','Удаление недоступно'))}
+        row.append(actions)
         body.append(row)
       }
-      table.append(body);const wrap=node('div','','users-table-wrap');wrap.append(table);section.append(wrap)
-      if(!data.items.length)section.append(node('p','Заявок пока нет.'))
+      table.append(body);const wrap=node('div','','users-table-wrap course-students-table');wrap.append(table);section.append(wrap)
+      if(!data.items.length)section.append(node('p','По выбранным фильтрам заявок нет.'))
       const pager=node('div','','pm-admin-tabs'),prev=node('button','← Назад'),next=node('button','Далее →')
       prev.disabled=page<=1;next.disabled=page*data.page_size>=data.total
       prev.onclick=()=>{studentsPage--;loadStudents()};next.onclick=()=>{studentsPage++;loadStudents()}
-      pager.append(prev,node('span',`Всего заявок: ${data.total} · Страница ${page}`),next);section.append(pager)
-    }catch(e){if(area==='students')section.replaceChildren(tabs(),node('p',e.message))}
+      pager.append(prev,node('span',`Найдено заявок: ${data.total} · Страница ${page} из ${Math.max(1,Math.ceil(data.total/data.page_size))}`),next);section.append(pager)
+    }catch(e){if(area==='students'&&version===studentsRequest)section.replaceChildren(tabs(),node('p',e.message))}
   }
   function tabs() {
     const tabs = node('div', '', 'pm-admin-tabs')
