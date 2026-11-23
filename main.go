@@ -388,7 +388,7 @@ func servePage(filename string) http.HandlerFunc {
 				http.NotFound(w, r)
 				return
 			}
-			content = []byte(strings.Replace(string(content), "</head>", `<link rel="icon" href="/favicon.ico?v=2" type="image/x-icon"><link rel="stylesheet" href="/static/layout-safety.css"><link rel="stylesheet" href="/static/site-header.css?v=3"><link rel="stylesheet" href="/static/site-background.css?v=1"><link rel="stylesheet" href="/static/accounting-company-responsive.css?v=1"><script src="/static/site-errors.js?v=3"></script></head>`, 1))
+			content = []byte(strings.Replace(string(content), "</head>", `<link rel="icon" href="/favicon.ico?v=2" type="image/x-icon"><link rel="stylesheet" href="/static/layout-safety.css"><link rel="stylesheet" href="/static/site-header.css?v=5"><link rel="stylesheet" href="/static/site-background.css?v=1"><link rel="stylesheet" href="/static/accounting-company-responsive.css?v=1"><script src="/static/site-errors.js?v=3"></script></head>`, 1))
 			content = injectErrorCollector(content)
 			if filepath.Base(filename) == "profile.html" {
 				content = []byte(strings.Replace(string(content), "</body>", `<script src="/static/profile-avatar.js?v=2"></script><script src="/static/profile-client-exchange.js?v=1"></script><script src="/static/profile-accounting-company.js?v=1"></script><script src="/static/profile-help.js?v=3"></script></body>`, 1))
