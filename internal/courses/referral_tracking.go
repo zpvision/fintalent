@@ -218,14 +218,14 @@ func (h *Handler) courseInterest(w http.ResponseWriter, r *http.Request) {
 		dbError(w, e)
 		return
 	}
-	result, e := tx.ExecContext(ctx, `INSERT INTO course_interests(course_id,user_id,referral_link_id,tariff_id,student_name,contact_email,contact_phone,tariff_name,selected_price) VALUES($1,$2,$3,NULLIF($4,0),$5,$6,$7,$8,$9) ON CONFLICT(course_id,user_id) WHERE user_id IS NOT NULL DO UPDATE SET referral_link_id=COALESCE(course_interests.referral_link_id,EXCLUDED.referral_link_id),tariff_id=EXCLUDED.tariff_id,student_name=EXCLUDED.student_name,contact_email=EXCLUDED.contact_email,contact_phone=EXCLUDED.contact_phone,tariff_name=EXCLUDED.tariff_name,selected_price=EXCLUDED.selected_price WHERE course_interests.paid_at IS NULL`, course, user, source, in.Tariff, studentName, email, phone, tariffName, selectedPrice)
-	if e == nil {
-		var affected int64
-		affected, e = result.RowsAffected()
-		if e == nil && affected == 0 {
-			fail(w, 409, "Заявка уже оплачена. Откройте раздел «Моё обучение»")
-			return
-		}
+	var interestID int64
+	e = tx.QueryRowContext(ctx, `INSERT INTO course_interests(course_id,user_id,referral_link_id,tariff_id,student_name,contact_email,contact_phone,tariff_name,selected_price) VALUES($1,$2,$3,NULLIF($4,0),$5,$6,$7,$8,$9) ON CONFLICT(course_id,user_id) WHERE user_id IS NOT NULL DO UPDATE SET referral_link_id=COALESCE(course_interests.referral_link_id,EXCLUDED.referral_link_id),tariff_id=EXCLUDED.tariff_id,student_name=EXCLUDED.student_name,contact_email=EXCLUDED.contact_email,contact_phone=EXCLUDED.contact_phone,tariff_name=EXCLUDED.tariff_name,selected_price=EXCLUDED.selected_price WHERE course_interests.paid_at IS NULL RETURNING id`, course, user, source, in.Tariff, studentName, email, phone, tariffName, selectedPrice).Scan(&interestID)
+	if e == sql.ErrNoRows {
+		fail(w, 409, "Заявка уже оплачена. Откройте раздел «Моё обучение»")
+		return
+	}
+	if e == nil && h.interestNotifier != nil {
+		e = h.interestNotifier(ctx, tx, InterestNotification{InterestID: interestID, CourseID: course, StudentName: studentName, Email: email, Phone: phone, TariffName: tariffName, Price: selectedPrice})
 	}
 	if e == nil {
 		e = tx.Commit()

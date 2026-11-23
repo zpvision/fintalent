@@ -74,6 +74,8 @@ type profiMarketOrderEmailData struct {
 }
 
 type eventNotificationEmailData struct {
+	FactsTitle    string
+	Facts         []eventNotificationEmailFact
 	SecondaryText string
 	SecondaryURL  string
 	RecipientName string
@@ -87,6 +89,11 @@ type eventNotificationEmailData struct {
 	ButtonURL     string
 	Accent        template.CSS
 	Footer        string
+}
+
+type eventNotificationEmailFact struct {
+	Label string
+	Value string
 }
 
 type employeeTestInvitationEmailData struct {

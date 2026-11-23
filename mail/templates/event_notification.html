@@ -26,6 +26,15 @@
                 <div style="margin-top:7px;font-size:18px;line-height:25px;font-weight:750;color:#142b55;">{{.CardTitle}}</div>
                 {{if .Details}}<div style="margin-top:9px;white-space:pre-line;font-size:14px;line-height:1.65;color:#52637f;">{{.Details}}</div>{{end}}
               </td></tr></table>
+              {{if .Facts}}<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:18px;background:#f3faf7;border:1px solid #dceee5;border-radius:16px;table-layout:fixed;">
+                <tr><td style="padding:20px 22px;">
+                  {{if .FactsTitle}}<div style="margin-bottom:12px;font-size:11px;line-height:16px;color:#467363;font-weight:800;letter-spacing:.6px;text-transform:uppercase;">{{.FactsTitle}}</div>{{end}}
+                  {{range .Facts}}<div style="margin-top:12px;">
+                    <div style="font-size:12px;line-height:18px;color:#6b7f77;">{{.Label}}</div>
+                    <div style="margin-top:3px;font-size:15px;line-height:23px;font-weight:600;color:#193e31;word-break:break-word;overflow-wrap:anywhere;">{{.Value}}</div>
+                  </div>{{end}}
+                </td></tr>
+              </table>{{end}}
               <table role="presentation" cellspacing="0" cellpadding="0" style="margin-top:24px;"><tr><td style="border-radius:11px;background:{{.Accent}};"><a href="{{.ButtonURL}}" style="display:inline-block;padding:14px 21px;color:#fff;text-decoration:none;font-size:14px;line-height:18px;font-weight:750;">{{.ButtonText}} →</a></td></tr></table>
               {{if .SecondaryURL}}<p style="margin:18px 0 0;font-size:14px;line-height:20px;"><a href="{{.SecondaryURL}}" style="color:#2563df;text-decoration:none;">{{.SecondaryText}}</a></p>{{end}}
               {{if .Footer}}<p style="margin:23px 0 0;color:#8a96aa;font-size:12px;line-height:18px;">{{.Footer}}</p>{{end}}

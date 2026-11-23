@@ -1,6 +1,7 @@
 package courses
 
 import (
+	"context"
 	"crypto/rand"
 	"database/sql"
 	"encoding/json"
@@ -15,13 +16,30 @@ import (
 )
 
 type Handler struct {
-	db    *sql.DB
-	user  func(*http.Request) (int64, error)
-	admin func(*http.Request) bool
+	db               *sql.DB
+	user             func(*http.Request) (int64, error)
+	admin            func(*http.Request) bool
+	interestNotifier func(context.Context, *sql.Tx, InterestNotification) error
+}
+
+// InterestNotification contains server-validated contact and tariff snapshots.
+// The notifier queues mail in the application transaction; it never sends SMTP.
+type InterestNotification struct {
+	InterestID  int64
+	CourseID    int64
+	StudentName string
+	Email       string
+	Phone       string
+	TariffName  string
+	Price       int64
+}
+
+func (h *Handler) SetInterestNotifier(notifier func(context.Context, *sql.Tx, InterestNotification) error) {
+	h.interestNotifier = notifier
 }
 
 func New(db *sql.DB, user func(*http.Request) (int64, error), admin func(*http.Request) bool) *Handler {
-	return &Handler{db, user, admin}
+	return &Handler{db: db, user: user, admin: admin}
 }
 func respond(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")

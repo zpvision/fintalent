@@ -100,6 +100,7 @@ func registerCoursesRoutes() {
 		}
 		return u.ID, nil
 	}, isAdmin)
+	h.SetInterestNotifier(enqueueCourseInterestNotification)
 	h.Register(http.DefaultServeMux)
 	academyCoursePage := registerAcademyRoutes(h.Gate)
 	http.HandleFunc("/api/admin/course-access", adminCourseAccess)
