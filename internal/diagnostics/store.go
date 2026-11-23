@@ -32,6 +32,9 @@ type Event struct {
 	CourseID      int64     `json:"course_id,omitempty"`
 	EntityID      string    `json:"entity_id,omitempty"`
 	Route         string    `json:"route,omitempty"`
+	PageRoute     string    `json:"page_route,omitempty"`
+	ResourceURL   string    `json:"resource_url,omitempty"`
+	ResourceType  string    `json:"resource_type,omitempty"`
 	Method        string    `json:"method,omitempty"`
 	Status        int       `json:"status,omitempty"`
 	DurationMS    int64     `json:"duration_ms,omitempty"`
@@ -210,6 +213,9 @@ func (s *Store) Record(e Event) {
 	e.EntityID = Token(e.EntityID, 64)
 	e.Method = Token(e.Method, 12)
 	e.Route = SafePath(e.Route)
+	e.PageRoute = SafePath(e.PageRoute)
+	e.ResourceURL = SafeResourceURL(e.ResourceURL)
+	e.ResourceType = SafeResourceType(e.ResourceType)
 	e.Stack = SafeStack(e.Stack)
 	e.Cause = Token(e.Cause, 100)
 	e.Fingerprint = Fingerprint(e)
@@ -249,7 +255,11 @@ func (s *Store) append(now time.Time, b []byte) error {
 }
 
 func Fingerprint(e Event) string {
-	h := sha256.Sum256([]byte(strings.Join([]string{e.Source, e.Code, e.Operation, e.Route, e.Method, e.Cause, e.Stack}, "\n")))
+	parts := []string{e.Source, e.Code, e.Operation, e.Route, e.Method, e.Cause, e.Stack}
+	if e.ResourceURL != "" || e.ResourceType != "" {
+		parts = append(parts, e.PageRoute, e.ResourceURL, e.ResourceType)
+	}
+	h := sha256.Sum256([]byte(strings.Join(parts, "\n")))
 	return hex.EncodeToString(h[:8])
 }
 

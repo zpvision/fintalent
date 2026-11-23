@@ -77,13 +77,16 @@ func frontendErrorEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var in struct {
-		Code      string `json:"code"`
-		Route     string `json:"route"`
-		Method    string `json:"method"`
-		Status    int    `json:"status"`
-		RequestID string `json:"request_id"`
-		Stack     string `json:"stack"`
-		Release   string `json:"release"`
+		Code         string `json:"code"`
+		Route        string `json:"route"`
+		PageRoute    string `json:"page_route"`
+		ResourceURL  string `json:"resource_url"`
+		ResourceType string `json:"resource_type"`
+		Method       string `json:"method"`
+		Status       int    `json:"status"`
+		RequestID    string `json:"request_id"`
+		Stack        string `json:"stack"`
+		Release      string `json:"release"`
 	}
 	d := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10))
 	d.DisallowUnknownFields()
@@ -103,7 +106,7 @@ func frontendErrorEvent(w http.ResponseWriter, r *http.Request) {
 			userID = u.ID
 		}
 	}
-	errorJournal.Submit(diagnostics.Event{Source: "frontend", Code: in.Code, Operation: "browser", UserID: userID, Route: in.Route, Method: in.Method, Status: in.Status, RequestID: in.RequestID, Stack: in.Stack, ClientRelease: in.Release})
+	errorJournal.Submit(diagnostics.Event{Source: "frontend", Code: in.Code, Operation: "browser", UserID: userID, Route: in.Route, PageRoute: in.PageRoute, ResourceURL: in.ResourceURL, ResourceType: in.ResourceType, Method: in.Method, Status: in.Status, RequestID: in.RequestID, Stack: in.Stack, ClientRelease: in.Release})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -148,7 +151,7 @@ func adminErrorReport(w http.ResponseWriter, r *http.Request) {
 func injectErrorCollector(content []byte) []byte {
 	tag := `<meta name="fintalent-release" content="` + applicationRelease() + `">`
 	if !strings.Contains(string(content), "/static/error-telemetry.js") {
-		tag += `<script src="/static/error-telemetry.js?v=1"></script>`
+		tag += `<script src="/static/error-telemetry.js?v=2"></script>`
 	}
 	return []byte(strings.Replace(string(content), "<head>", "<head>"+tag, 1))
 }

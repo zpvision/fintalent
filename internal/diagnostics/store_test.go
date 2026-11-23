@@ -195,3 +195,40 @@ func TestHTTPPanicAfterWriteAbortsResponse(t *testing.T) {
 	}()
 	Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.Write([]byte("partial")); panic("hidden") })).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/", nil))
 }
+
+func TestResourceLocationsPrivacyAndGrouping(t *testing.T) {
+	for _, tc := range []struct{ raw, want string }{
+		{"/static/react/assets/index-Ab12.js?token=SECRET#PRIVATE", "/static/react/assets/index-Ab12.js"},
+		{"https://user:SECRET@fonts.googleapis.com/css2?family=PRIVATE#PRIVATE", "https://fonts.googleapis.com/css2"},
+		{"http://fonts.googleapis.com:8080/css2?family=PRIVATE", "http://fonts.googleapis.com:8080/css2"},
+		{"https://fonts.gstatic.com/s/inter/v1/font.woff2?token=SECRET", "https://fonts.gstatic.com/s/inter/v1/font.woff2"},
+		{"https://PRIVATE.example.com/private.js", "/external/:redacted"},
+		{"/external/:redacted", "/external/:redacted"},
+		{"/static/uploads/SECRET.js", "/:redacted"},
+		{"/static/%75ploads/SECRET.js", "/:redacted"},
+		{"/static/../private/SECRET.js", "/:redacted"},
+		{"/profile/SECRET", "/:redacted"},
+		{"data:text/javascript,SECRET", "/:redacted"},
+		{"/favicon.ico?v=SECRET", "/favicon.ico"},
+	} {
+		if got := SafeResourceURL(tc.raw); got != tc.want {
+			t.Errorf("SafeResourceURL(%q) = %q, want %q", tc.raw, got, tc.want)
+		}
+	}
+	s := testStore(t, 3)
+	for _, resource := range []string{"/static/first.js?secret=PRIVATE", "/static/first.js?secret=OTHER", "/static/second.js", "https://fonts.googleapis.com/css2?family=PRIVATE"} {
+		s.Record(Event{Source: "frontend", Code: "resource_error", PageRoute: "/profile/42?token=PRIVATE", ResourceURL: resource, ResourceType: "script"})
+	}
+	r, err := s.Report(time.Now().Add(-time.Hour))
+	if err != nil || r.Events != 4 || len(r.Groups) != 3 {
+		t.Fatalf("different resources merged or query variants split: %+v, %v", r, err)
+	}
+	for _, g := range r.Groups {
+		if g.Sample.PageRoute != "/profile/:id" || strings.Contains(g.Sample.ResourceURL, "PRIVATE") || g.Sample.ResourceType != "script" {
+			t.Fatalf("missing context or sensitive data retained: %+v", g.Sample)
+		}
+	}
+	if SafeResourceType("PRIVATE") != "" {
+		t.Fatal("arbitrary resource type retained")
+	}
+}

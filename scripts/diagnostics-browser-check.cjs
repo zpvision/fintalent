@@ -47,9 +47,27 @@ const server = http.createServer((req, res) => {
     for (let n = 0; n < 100 && received.length < 2; n++) await sleep(50)
     await sleep(150)
     if (received.length !== 2) throw Error('Telemetry failure caused retries or recursive reports')
+    rejectEvents = false
+    await evaluate(`history.replaceState(null, '', '/profile?token=PRIVATE_TOKEN#PRIVATE_FRAGMENT');
+      for (const name of ['missing-first.js', 'missing-second.js']) {
+        const script = document.createElement('script'); script.src = '/static/' + name + '?token=PRIVATE_TOKEN'; document.body.append(script)
+      }
+      const link = document.createElement('link'); link.rel = 'stylesheet'; Object.defineProperty(link, 'href', {value:'https://fonts.googleapis.com/css2?family=PRIVATE_FONT'}); document.body.append(link);
+      link.dispatchEvent(new Event('error', { bubbles: true }));
+      window.reportFinTalentError({code:'resource_error',resource_url:'/static/uploads/PRIVATE_UPLOAD.js?token=PRIVATE_TOKEN',resource_type:'script'});
+      window.reportFinTalentError({code:'resource_error',resource_url:'https://PRIVATE_TENANT.example.com/PRIVATE_PATH.js',resource_type:'script'})`)
+    for (let n = 0; n < 100 && received.length < 7; n++) await sleep(50)
+    const resources = received.filter(event => event.code === 'resource_error')
+    if (!resources.some(event => event.resource_url === '/static/missing-first.js' && event.resource_type === 'script') ||
+        !resources.some(event => event.resource_url === '/static/missing-second.js') ||
+        !resources.some(event => event.resource_url === 'https://fonts.googleapis.com/css2' && event.resource_type === 'stylesheet') ||
+        !resources.some(event => event.resource_url === '/:redacted') ||
+        !resources.some(event => event.resource_url === '/external/:redacted') ||
+        resources.some(event => event.page_route !== '/profile' || event.route !== '/profile') ||
+        JSON.stringify(received).includes('PRIVATE_')) throw Error('Resource context, privacy or grouping failed: ' + JSON.stringify(resources))
     await evaluate(`document.querySelector('#error-journal-section select').value='168';document.querySelector('#error-journal-section select').dispatchEvent(new Event('change'))`)
     await sleep(100)
     if (!await evaluate(`document.querySelector('#error-journal-section a').href.includes('hours=168')`)) throw Error('Period selection not reflected in export')
-    console.log('PASS: admin journal at 360/900/1440px; export period; browser privacy; duplicate suppression; failed telemetry does not recurse')
+    console.log('PASS: admin journal at 360/900/1440px; export period; browser privacy; duplicate suppression; failed telemetry does not recurse; distinct failed resources, page context and safe external URLs')
   } finally { ws?.close(); browser.kill(); server.close() }
 })().catch(error => { console.error(error.message); process.exitCode = 1; server.close() })

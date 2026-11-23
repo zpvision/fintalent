@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"reflect"
 	"regexp"
 	"runtime/debug"
@@ -47,6 +48,62 @@ func SafePath(path string) string {
 		}
 	}
 	return strings.Join(parts, "/")
+}
+
+var publicAssetPath = regexp.MustCompile(`^/[a-zA-Z0-9_./-]+\.(?:js|mjs|css|ico|woff|woff2|ttf|otf)$`)
+
+// Keep public asset locations only, never credentials, queries or private uploads.
+// Unknown external hosts may contain tenant identifiers and are not retained.
+func SafeResourceURL(raw string) string {
+	if raw == "" {
+		return ""
+	}
+	if raw == "/external/:redacted" {
+		return raw
+	}
+	if len(raw) > 2048 {
+		return "/:redacted"
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Opaque != "" || u.Scheme != "" && u.Scheme != "https" && u.Scheme != "http" {
+		return "/:redacted"
+	}
+	if u.Host != "" {
+		host := strings.ToLower(u.Hostname())
+		scheme := u.Scheme
+		if scheme == "" {
+			scheme = "https"
+		}
+		origin := scheme + "://" + host
+		if u.Port() != "" {
+			origin += ":" + u.Port()
+		}
+		switch host {
+		case "fonts.googleapis.com":
+			if u.Path == "/css" || u.Path == "/css2" {
+				return origin + u.Path
+			}
+		case "fonts.gstatic.com", "cdn.jsdelivr.net", "unpkg.com":
+			if publicAssetPath.MatchString(u.Path) && !strings.Contains(u.Path, "..") {
+				return origin + u.Path
+			}
+		default:
+			return "/external/:redacted"
+		}
+		return origin + "/:redacted"
+	}
+	if (strings.HasPrefix(u.Path, "/static/") && !strings.HasPrefix(u.Path, "/static/uploads/") || u.Path == "/favicon.ico") && publicAssetPath.MatchString(u.Path) && !strings.Contains(u.Path, "..") {
+		return u.Path
+	}
+	return "/:redacted"
+}
+
+func SafeResourceType(value string) string {
+	switch value {
+	case "script", "stylesheet", "icon", "preload", "modulepreload", "preconnect", "dns-prefetch", "link":
+		return value
+	}
+	return ""
 }
 
 // Keep locations only. Exception text, SQL and argument values are not stored.

@@ -86,3 +86,28 @@ func TestCollectorInjectionAndPrivacy(t *testing.T) {
 		}
 	}
 }
+
+func TestFrontendResourceDiagnosticRoundTrip(t *testing.T) {
+	s, err := diagnostics.Open(diagnostics.Config{Dir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := errorJournal
+	errorJournal = s
+	t.Cleanup(func() { errorJournal = old; s.Close() })
+	body := `{"code":"resource_error","route":"/profile","page_route":"/profile?token=PRIVATE","resource_url":"https://fonts.googleapis.com/css2?family=PRIVATE","resource_type":"stylesheet"}`
+	w := httptest.NewRecorder()
+	frontendErrorEvent(w, httptest.NewRequest("POST", "/api/diagnostics/events", strings.NewReader(body)))
+	if w.Code != 204 {
+		t.Fatalf("resource event rejected: %d %s", w.Code, w.Body.String())
+	}
+	s.Close()
+	r, err := s.Report(time.Now().Add(-time.Hour))
+	if err != nil || r.Events != 1 {
+		t.Fatalf("missing resource event: %+v %v", r, err)
+	}
+	e := r.Groups[0].Sample
+	if e.PageRoute != "/profile" || e.ResourceURL != "https://fonts.googleapis.com/css2" || e.ResourceType != "stylesheet" || e.Status != 0 {
+		t.Fatalf("incorrect resource context: %+v", e)
+	}
+}
