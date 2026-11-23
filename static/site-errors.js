@@ -27,16 +27,17 @@
   const nativeFetch=window.fetch.bind(window);
   window.fetch=async function(input,options){
     const url=typeof input==='string'?input:input?.url||'';
+    const started=performance.now();
     try{
       const response=await nativeFetch(input,options);
-      if(response.status>=500)window.reportFinTalentError?.({code:'api_error',route:url,method:options?.method||input?.method||'GET',status:response.status,request_id:response.headers.get('X-Request-ID')||''});
+      if(response.status>=500)window.reportFinTalentError?.({code:'api_error',route:url,method:options?.method||input?.method||'GET',status:response.status,request_id:response.headers.get('X-Request-ID')||'',duration_ms:Math.round(performance.now()-started)});
       const expectedUnauthorized=response.status===401&&(url.includes('/api/me')||url.includes('/api/admin/session'));
       if(!response.ok&&!expectedUnauthorized){
         let payload;try{payload=await response.clone().json()}catch{try{payload=await response.clone().text()}catch{}}
         window.showFinTalentError(messageOf(payload)||`Ошибка сервера ${response.status}`);
       }
       return response;
-    }catch(error){if(error.name!=='AbortError'){window.reportFinTalentError?.({code:'network_error',route:url,method:options?.method||input?.method||'GET'});window.showFinTalentError(error?.message||'Нет соединения с сервером')}throw error}
+    }catch(error){if(error.name!=='AbortError'){window.reportFinTalentError?.({code:'network_error',route:url,method:options?.method||input?.method||'GET',duration_ms:Math.round(performance.now()-started)});window.showFinTalentError(error?.message||'Нет соединения с сервером')}throw error}
   };
   window.addEventListener('unhandledrejection',event=>{const message=messageOf(event.reason);if(message&&message!=='Ошибка')window.showFinTalentError(message)});
   window.addEventListener('error',event=>{if(event.error?.message)window.showFinTalentError(event.error.message)});

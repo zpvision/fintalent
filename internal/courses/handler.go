@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"FinTalent/internal/diagnostics"
 )
 
 type Handler struct {
@@ -71,12 +73,17 @@ func (h *Handler) current(w http.ResponseWriter, r *http.Request) (int64, bool) 
 	}
 	return id, true
 }
-func dbError(w http.ResponseWriter, e error) {
+func dbError(w http.ResponseWriter, e error, operation ...string) {
 	if errors.Is(e, sql.ErrNoRows) {
 		fail(w, 404, "Курс не найден")
 		return
 	}
-	log.Printf("courses: %v", e)
+	op := "courses.database"
+	if len(operation) > 0 {
+		op = operation[0]
+	}
+	diagnostics.HTTPError(w, e, op)
+	log.Printf("courses: request_id=%s operation=%s cause=%s: %v", w.Header().Get("X-Request-ID"), op, diagnostics.Cause(e), e)
 	fail(w, 500, "Не удалось обработать курс. Попробуйте ещё раз")
 }
 func (h *Handler) Register(mux *http.ServeMux) {

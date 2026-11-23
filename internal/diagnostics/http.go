@@ -43,7 +43,7 @@ func SafePath(path string) string {
 	}
 	parts := strings.Split(path, "/")
 	for i, p := range parts {
-		if p != "" && !routeWords[p] {
+		if p != "" && !routeWords[p] && !(i == 3 && path == "/api/courses/access") {
 			parts[i] = ":id"
 		}
 	}
@@ -151,9 +151,10 @@ func SetUser(ctx context.Context, id int64) {
 
 type response struct {
 	http.ResponseWriter
-	status int
-	cause  string
-	stack  string
+	status    int
+	cause     string
+	stack     string
+	operation string
 }
 
 func (w *response) Unwrap() http.ResponseWriter { return w.ResponseWriter }
@@ -182,11 +183,17 @@ func (w *response) Flush() {
 	}
 	_ = http.NewResponseController(w.ResponseWriter).Flush()
 }
-func (w *response) DiagnosticError(err error) { w.cause = Cause(err) }
-func HTTPError(w http.ResponseWriter, err error) {
+func (w *response) DiagnosticError(err error)            { w.cause = Cause(err) }
+func (w *response) DiagnosticOperation(operation string) { w.operation = Token(operation, 100) }
+func HTTPError(w http.ResponseWriter, err error, operation ...string) {
 	for {
 		if a, ok := w.(interface{ DiagnosticError(error) }); ok {
 			a.DiagnosticError(err)
+			if len(operation) > 0 {
+				if target, ok := w.(interface{ DiagnosticOperation(string) }); ok {
+					target.DiagnosticOperation(operation[0])
+				}
+			}
 			return
 		}
 		u, ok := w.(interface{ Unwrap() http.ResponseWriter })
@@ -209,7 +216,7 @@ func Middleware(next http.Handler) http.Handler {
 		w.Header().Set("X-Request-ID", id)
 		s := &requestState{}
 		r = r.WithContext(context.WithValue(r.Context(), requestKey{}, s))
-		out := &response{ResponseWriter: w}
+		out := &response{ResponseWriter: w, operation: "http"}
 		start := time.Now()
 		defer func() {
 			code, stack := "http_5xx", out.stack
@@ -228,7 +235,7 @@ func Middleware(next http.Handler) http.Handler {
 				}
 			}
 			if code == "panic" || out.status >= 500 {
-				Emit(Event{Source: "backend", Code: code, Operation: "http", RequestID: id, UserID: s.user.Load(), Route: r.URL.Path, Method: r.Method, Status: out.status, DurationMS: time.Since(start).Milliseconds(), Cause: out.cause, Stack: stack})
+				Emit(Event{Source: "backend", Code: code, Operation: out.operation, RequestID: id, UserID: s.user.Load(), Route: r.URL.Path, Method: r.Method, Status: out.status, DurationMS: time.Since(start).Milliseconds(), Cause: out.cause, Stack: stack})
 			}
 			if abort {
 				panic(http.ErrAbortHandler)
@@ -247,4 +254,30 @@ func ParseHours(value string) (time.Duration, error) {
 		return 0, errors.New("hours out of range")
 	}
 	return time.Duration(n) * time.Hour, nil
+}
+
+// ParsePeriod accepts explicit timestamps only with a timezone (RFC3339).
+func ParsePeriod(query url.Values, now time.Time) (time.Time, time.Time, error) {
+	period, err := ParseHours(query.Get("hours"))
+	if err != nil {
+		return time.Time{}, time.Time{}, err
+	}
+	until := now
+	if value := query.Get("until"); value != "" {
+		until, err = time.Parse(time.RFC3339Nano, value)
+		if err != nil {
+			return time.Time{}, time.Time{}, err
+		}
+	}
+	since := until.Add(-period)
+	if value := query.Get("since"); value != "" {
+		since, err = time.Parse(time.RFC3339Nano, value)
+		if err != nil {
+			return time.Time{}, time.Time{}, err
+		}
+	}
+	if !since.Before(until) || until.Sub(since) > 30*24*time.Hour || until.After(now) {
+		return time.Time{}, time.Time{}, errors.New("invalid report interval")
+	}
+	return since.UTC(), until.UTC(), nil
 }

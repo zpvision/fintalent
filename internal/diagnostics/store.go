@@ -38,6 +38,8 @@ type Event struct {
 	Method        string    `json:"method,omitempty"`
 	Status        int       `json:"status,omitempty"`
 	DurationMS    int64     `json:"duration_ms,omitempty"`
+	Online        *bool     `json:"online,omitempty"`
+	Visibility    string    `json:"visibility,omitempty"`
 	Cause         string    `json:"cause,omitempty"`
 	Stack         string    `json:"stack,omitempty"`
 	Fingerprint   string    `json:"fingerprint"`
@@ -218,6 +220,15 @@ func (s *Store) Record(e Event) {
 	e.ResourceType = SafeResourceType(e.ResourceType)
 	e.Stack = SafeStack(e.Stack)
 	e.Cause = Token(e.Cause, 100)
+	if e.Visibility != "visible" && e.Visibility != "hidden" {
+		e.Visibility = ""
+	}
+	if e.DurationMS < 0 {
+		e.DurationMS = 0
+	}
+	if e.DurationMS > 24*60*60*1000 {
+		e.DurationMS = 24 * 60 * 60 * 1000
+	}
 	e.Fingerprint = Fingerprint(e)
 	b, err := json.Marshal(e)
 	if err != nil || len(b)+1 > MaxEventBytes {
@@ -264,6 +275,7 @@ func Fingerprint(e Event) string {
 }
 
 type Group struct {
+	Category      string    `json:"category"`
 	Sample        Event     `json:"sample"`
 	Count         int       `json:"count"`
 	First         time.Time `json:"first"`
@@ -274,6 +286,8 @@ type Group struct {
 }
 type Report struct {
 	Since         time.Time `json:"since"`
+	Until         time.Time `json:"until"`
+	Timezone      string    `json:"timezone"`
 	Groups        []Group   `json:"groups"`
 	Events        int       `json:"events"`
 	Truncated     bool      `json:"truncated"`
@@ -285,9 +299,14 @@ type Report struct {
 }
 
 func (s *Store) Report(since time.Time) (Report, error) {
+	return s.ReportRange(since, time.Now())
+}
+
+// ReportRange filters individual events before grouping; both bounds are inclusive.
+func (s *Store) ReportRange(since, until time.Time) (Report, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	r := Report{Since: since, Groups: []Group{}, MaxBytes: s.cfg.FileBytes * int64(s.cfg.Files), RetentionDays: int(s.cfg.Retention / (24 * time.Hour)), Dropped: s.dropped.Load(), WriteErrors: s.writeErrors.Load()}
+	r := Report{Since: since.UTC(), Until: until.UTC(), Timezone: "UTC", Groups: []Group{}, MaxBytes: s.cfg.FileBytes * int64(s.cfg.Files), RetentionDays: int(s.cfg.Retention / (24 * time.Hour)), Dropped: s.dropped.Load(), WriteErrors: s.writeErrors.Load()}
 	groups := map[string]*Group{}
 	// Read newest files first and keep a recent sample, with bounded groups.
 	for i := 0; i < s.cfg.Files; i++ {
@@ -308,7 +327,7 @@ func (s *Store) Report(since time.Time) (Report, error) {
 		scan.Buffer(make([]byte, 4096), MaxEventBytes)
 		for scan.Scan() {
 			var e Event
-			if json.Unmarshal(scan.Bytes(), &e) != nil || e.Time.Before(since) {
+			if json.Unmarshal(scan.Bytes(), &e) != nil || e.Time.Before(since) || e.Time.After(until) {
 				continue
 			}
 			r.Events++
@@ -318,7 +337,11 @@ func (s *Store) Report(since time.Time) (Report, error) {
 					r.Truncated = true
 					continue
 				}
-				g = &Group{Sample: e, First: e.Time, Last: e.Time, users: map[int64]bool{}}
+				category := "application"
+				if e.Source == "frontend" && e.Code == "resource_error" && (strings.HasPrefix(e.ResourceURL, "https://") || strings.HasPrefix(e.ResourceURL, "http://") || e.ResourceURL == "/external/:redacted") {
+					category = "external_resource"
+				}
+				g = &Group{Category: category, Sample: e, First: e.Time, Last: e.Time, users: map[int64]bool{}}
 				groups[e.Fingerprint] = g
 			}
 			g.Count++

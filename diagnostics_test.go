@@ -25,6 +25,9 @@ func TestFrontendDiagnosticValidationAndOrigin(t *testing.T) {
 		{`{"code":"javascript_error","route":"/profile?token=secret","stack":"Error: secret-password\n/static/react/assets/index.js:12:3","release":"test"}`, "", 204},
 		{`{"code":"javascript_error","user_id":42}`, "", 400},
 		{`{"code":"arbitrary-private-message"}`, "", 400},
+		{`{"code":"network_error","duration_ms":-1}`, "", 400},
+		{`{"code":"network_error","visibility":"private text"}`, "", 400},
+		{`{"code":"network_error","online":"yes"}`, "", 400},
 		{`{"code":"javascript_error"}`, "https://evil.invalid", 403},
 		{strings.Repeat("x", 20000), "", 400},
 	} {
@@ -51,6 +54,30 @@ func TestFrontendDiagnosticValidationAndOrigin(t *testing.T) {
 	}
 	if report.MaxBytes != 50<<20 || report.RetentionDays != 14 {
 		t.Fatal("unexpected production storage limits")
+	}
+}
+
+func TestFrontendNetworkDiagnosticContext(t *testing.T) {
+	s, err := diagnostics.Open(diagnostics.Config{Dir: t.TempDir(), Release: "server-release"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := errorJournal
+	errorJournal = s
+	t.Cleanup(func() { errorJournal = old; s.Close() })
+	w := httptest.NewRecorder()
+	frontendErrorEvent(w, httptest.NewRequest("POST", "/api/diagnostics/events", strings.NewReader(`{"code":"network_error","route":"/api/courses/access","duration_ms":2345,"online":false,"visibility":"hidden","release":"older-client"}`)))
+	if w.Code != 204 {
+		t.Fatalf("rejected context: %d", w.Code)
+	}
+	s.Close()
+	r, err := s.Report(time.Now().Add(-time.Hour))
+	if err != nil || len(r.Groups) != 1 {
+		t.Fatalf("missing event: %+v %v", r, err)
+	}
+	e := r.Groups[0].Sample
+	if e.DurationMS != 2345 || e.Online == nil || *e.Online || e.Visibility != "hidden" || e.ClientRelease != "older-client" || e.Release != "server-release" {
+		t.Fatalf("context lost: %+v", e)
 	}
 }
 

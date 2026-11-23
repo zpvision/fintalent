@@ -87,6 +87,9 @@ func frontendErrorEvent(w http.ResponseWriter, r *http.Request) {
 		RequestID    string `json:"request_id"`
 		Stack        string `json:"stack"`
 		Release      string `json:"release"`
+		DurationMS   int64  `json:"duration_ms"`
+		Online       *bool  `json:"online"`
+		Visibility   string `json:"visibility"`
 	}
 	d := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10))
 	d.DisallowUnknownFields()
@@ -95,7 +98,7 @@ func frontendErrorEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	allowed := map[string]bool{"javascript_error": true, "unhandled_rejection": true, "react_error": true, "network_error": true, "api_error": true, "resource_error": true}
-	if !allowed[in.Code] || in.Status < 0 || in.Status > 599 {
+	if !allowed[in.Code] || in.Status < 0 || in.Status > 599 || in.DurationMS < 0 || in.DurationMS > 24*60*60*1000 || (in.Visibility != "" && in.Visibility != "visible" && in.Visibility != "hidden") {
 		writeJSON(w, 400, "Некорректный тип события")
 		return
 	}
@@ -106,7 +109,7 @@ func frontendErrorEvent(w http.ResponseWriter, r *http.Request) {
 			userID = u.ID
 		}
 	}
-	errorJournal.Submit(diagnostics.Event{Source: "frontend", Code: in.Code, Operation: "browser", UserID: userID, Route: in.Route, PageRoute: in.PageRoute, ResourceURL: in.ResourceURL, ResourceType: in.ResourceType, Method: in.Method, Status: in.Status, RequestID: in.RequestID, Stack: in.Stack, ClientRelease: in.Release})
+	errorJournal.Submit(diagnostics.Event{Source: "frontend", Code: in.Code, Operation: "browser", UserID: userID, Route: in.Route, PageRoute: in.PageRoute, ResourceURL: in.ResourceURL, ResourceType: in.ResourceType, Method: in.Method, Status: in.Status, RequestID: in.RequestID, Stack: in.Stack, ClientRelease: in.Release, DurationMS: in.DurationMS, Online: in.Online, Visibility: in.Visibility})
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -120,9 +123,9 @@ func adminErrorReport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 405, "Метод не поддерживается")
 		return
 	}
-	period, err := diagnostics.ParseHours(r.URL.Query().Get("hours"))
+	since, until, err := diagnostics.ParsePeriod(r.URL.Query(), time.Now())
 	if err != nil {
-		writeJSON(w, 400, "Период от 1 до 720 часов")
+		writeJSON(w, 400, "Укажите период до 30 дней; точные даты — в формате RFC3339 с часовым поясом")
 		return
 	}
 	if errorJournal == nil {
@@ -136,7 +139,7 @@ func adminErrorReport(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, 429, "Отчёт уже формируется")
 		return
 	}
-	report, err := errorJournal.Report(time.Now().Add(-period))
+	report, err := errorJournal.ReportRange(since, until)
 	if err != nil {
 		writeJSON(w, 503, "Не удалось прочитать журнал")
 		return
@@ -151,7 +154,7 @@ func adminErrorReport(w http.ResponseWriter, r *http.Request) {
 func injectErrorCollector(content []byte) []byte {
 	tag := `<meta name="fintalent-release" content="` + applicationRelease() + `">`
 	if !strings.Contains(string(content), "/static/error-telemetry.js") {
-		tag += `<script src="/static/error-telemetry.js?v=3"></script>`
+		tag += `<script src="/static/error-telemetry.js?v=4"></script>`
 	}
 	return []byte(strings.Replace(string(content), "<head>", "<head>"+tag, 1))
 }

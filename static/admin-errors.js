@@ -12,36 +12,60 @@
   const refresh = document.createElement('button'); refresh.type = 'button'; refresh.className = 'secondary'; refresh.textContent = 'Обновить'
   const download = document.createElement('a'); download.className = 'secondary'; download.textContent = 'Скачать JSON'; download.href = '/api/admin/diagnostics?hours=24&download=1'; download.style.cssText = 'display:inline-flex;align-items:center;min-height:44px;text-decoration:none;font:inherit'
   refresh.style.cssText = 'min-height:44px;font:inherit'
-  controls.append(label, refresh, download)
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'местное время'
+  const dates = ['С', 'По'].map(text => {
+    const label = document.createElement('label'); label.textContent = text + ' (' + zone + '): '
+    const input = document.createElement('input'); input.type = 'datetime-local'; input.step = '1'; input.setAttribute('aria-label', text + ' (' + zone + ')')
+    input.style.cssText = 'min-height:44px;max-width:100%;min-width:0;font:inherit;box-sizing:border-box'
+    label.style.cssText = 'max-width:100%;min-width:0'; label.append(input); return { label, input }
+  })
+  const [since, until] = dates.map(item => item.input)
+  controls.append(label, ...dates.map(item => item.label), refresh, download)
   const summary = document.createElement('p'); summary.setAttribute('role', 'status')
   const content = document.createElement('div'); section.append(controls, summary, content)
   const names = { backend: 'Сервер', frontend: 'Браузер', worker: 'Фоновая задача', startup: 'Запуск' }
   const formatTime = value => new Date(value).toLocaleString('ru-RU')
+  let loadID = 0
   async function loadErrors() {
+    const currentLoad = ++loadID
+    download.removeAttribute('href')
     refresh.disabled = true; summary.textContent = 'Загружаем журнал…'
-    download.href = `/api/admin/diagnostics?hours=${period.value}&download=1`
     try {
-      const report = await api(`/api/admin/diagnostics?hours=${period.value}`)
+      const params = new URLSearchParams({ hours: period.value })
+      for (const [name, input] of [['since', since], ['until', until]]) {
+        if (!input.validity.valid) throw Error('Проверьте дату и время')
+        if (input.value) params.set(name, new Date(input.value).toISOString())
+      }
+      const report = await api(`/api/admin/diagnostics?${params}`)
+      if (currentLoad !== loadID) return
+      params.set('since', report.since); params.set('until', report.until)
+      download.href = `/api/admin/diagnostics?${params}&download=1`
       summary.textContent = `Событий: ${report.events}. Групп: ${report.groups.length}. Журнал: ${(report.stored_bytes / 1048576).toFixed(1)} из ${(report.max_bytes / 1048576).toFixed(0)} МБ. Хранение до ${report.retention_days} дней. Пропущено с запуска: ${report.dropped_since_start}. Ошибок записи: ${report.write_errors_since_start}.${report.truncated ? ' Показаны не все группы — сократите период.' : ''}`
+      summary.textContent += ` Интервал: ${formatTime(report.since)} — ${formatTime(report.until)} (${zone}).`
       content.replaceChildren()
       if (!report.groups.length) { const empty = document.createElement('p'); empty.textContent = 'За выбранный период зарегистрированных ошибок нет.'; content.append(empty); return }
-      const wrap = document.createElement('div'); wrap.className = 'users-table-wrap'
-      const table = document.createElement('table'); table.className = 'users-table'
-      const head = document.createElement('thead'), headers = document.createElement('tr')
-      for (const title of ['Последний случай', 'Источник', 'Ошибка', 'Повторов', 'Контекст']) { const th = document.createElement('th'); th.textContent = title; headers.append(th) }
-      head.append(headers); table.append(head)
-      const body = document.createElement('tbody')
-      for (const group of report.groups) {
-        const event = group.sample, row = document.createElement('tr')
-        for (const value of [formatTime(group.last), names[event.source] || event.source, `${event.code} · ${event.operation || event.route || ''}`, group.count]) { const cell = document.createElement('td'); cell.textContent = value; row.append(cell) }
-        const cell = document.createElement('td'), details = document.createElement('details'), title = document.createElement('summary'), pre = document.createElement('pre')
-        title.textContent = `Затронуто пользователей: ${group.affected_users || 0}${group.more_users ? '+' : ''} · последний: ${event.user_id || 'не определён'}`
-        pre.textContent = JSON.stringify({ first: group.first, last: group.last, ...event }, null, 2); pre.style.cssText = 'white-space:pre-wrap;overflow-wrap:anywhere;max-width:480px'
-        details.append(title, pre); cell.append(details); row.append(cell); body.append(row)
+      for (const category of ['application', 'external_resource']) {
+        const groups = report.groups.filter(group => (group.category || 'application') === category)
+        const heading = document.createElement('h2'); heading.textContent = `${category === 'application' ? 'Ошибки приложения' : 'Внешние ресурсы'}: ${groups.reduce((sum, group) => sum + group.count, 0)}`; content.append(heading)
+        if (!groups.length) continue
+        const wrap = document.createElement('div'); wrap.className = 'users-table-wrap'
+        const table = document.createElement('table'); table.className = 'users-table'
+        const head = document.createElement('thead'), headers = document.createElement('tr')
+        for (const title of ['Последний случай', 'Источник', 'Ошибка', 'Повторов', 'Контекст']) { const th = document.createElement('th'); th.textContent = title; headers.append(th) }
+        head.append(headers); table.append(head)
+        const body = document.createElement('tbody')
+        for (const group of groups) {
+          const event = group.sample, row = document.createElement('tr')
+          for (const value of [formatTime(group.last), names[event.source] || event.source, `${event.code} · ${event.operation || event.route || ''}`, group.count]) { const cell = document.createElement('td'); cell.textContent = value; row.append(cell) }
+          const cell = document.createElement('td'), details = document.createElement('details'), title = document.createElement('summary'), pre = document.createElement('pre')
+          title.textContent = `Затронуто пользователей: ${group.affected_users || 0}${group.more_users ? '+' : ''} · последний: ${event.user_id || 'не определён'}`
+          pre.textContent = JSON.stringify({ first: group.first, last: group.last, ...event, version_mismatch: Boolean(event.client_release && event.release && event.client_release !== event.release) }, null, 2); pre.style.cssText = 'white-space:pre-wrap;overflow-wrap:anywhere;max-width:480px'
+          details.append(title, pre); cell.append(details); row.append(cell); body.append(row)
+        }
+        table.append(body); wrap.append(table); content.append(wrap)
       }
-      table.append(body); wrap.append(table); content.append(wrap)
-    } catch (error) { summary.textContent = error.message || 'Не удалось загрузить журнал' }
-    finally { refresh.disabled = false }
+    } catch (error) { if (currentLoad === loadID) summary.textContent = error.message || 'Не удалось загрузить журнал' }
+    finally { if (currentLoad === loadID) refresh.disabled = false }
   }
   button.onclick = () => {
     if (window.__academyOnly) return
@@ -53,5 +77,7 @@
     section.classList.remove('hidden'); void loadErrors()
   }
   nav.addEventListener('click', event => { const target = event.target.closest('button'); if (target && target !== button) section.classList.add('hidden') }, true)
-  refresh.onclick = loadErrors; period.onchange = loadErrors
+  refresh.onclick = loadErrors
+  period.onchange = () => { since.value = ''; until.value = ''; void loadErrors() }
+  since.onchange = until.onchange = loadErrors
 })()

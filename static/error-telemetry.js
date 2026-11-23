@@ -26,7 +26,7 @@
   window.reportFinTalentError = (event = {}) => {
     const now = Date.now()
     if (now - windowStart >= 60000) { windowStart = now; sent = 0; seen.clear() }
-    if (sent >= 10 || navigator.onLine === false) return
+    if (sent >= 10) return
     const payload = {
       code: event.code || 'javascript_error', route: routeOf(event.route),
       page_route: location.pathname,
@@ -34,6 +34,9 @@
       resource_type: ['script', 'stylesheet', 'icon', 'preload', 'modulepreload', 'preconnect', 'dns-prefetch', 'link'].includes(event.resource_type) ? event.resource_type : '',
       method: String(event.method || '').slice(0, 12), status: Number(event.status) || 0,
       request_id: String(event.request_id || '').slice(0, 64),
+      duration_ms: Math.min(86400000, Math.max(0, Math.round(Number(event.duration_ms) || 0))),
+      online: navigator.onLine,
+      visibility: document.visibilityState === 'hidden' ? 'hidden' : 'visible',
       // Locations only; discard the first line containing the exception message.
       stack: (String(event.stack || '').match(/\/(?:static|src)\/[a-zA-Z0-9_./-]+\.(?:js|jsx|mjs|tsx|ts):[0-9]+(?::[0-9]+)?/g) || []).slice(0, 12).join('\n'),
       release,

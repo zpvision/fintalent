@@ -43,20 +43,21 @@ export async function apiRequest(path, options = {}) {
   }
 
   let response
+  const started = performance.now()
   try { response = await fetch(path, {
     credentials: 'include',
     ...requestOptions,
     headers: requestHeaders,
     body: requestBody,
   }) } catch (error) {
-    if (error.name !== 'AbortError') window.reportFinTalentError?.({ code: 'network_error', route: path, method: requestOptions.method || 'GET' })
+    if (error.name !== 'AbortError') window.reportFinTalentError?.({ code: 'network_error', route: path, method: requestOptions.method || 'GET', duration_ms: Math.round(performance.now() - started) })
     throw error
   }
   const payload = response.ok && responseType === 'blob' ? await response.blob() : await parseResponse(response)
 
   if (!response.ok) {
     const requestID = response.headers.get('X-Request-ID') || ''
-    if (response.status >= 500) window.reportFinTalentError?.({ code: 'api_error', route: path, method: requestOptions.method || 'GET', status: response.status, request_id: requestID })
+    if (response.status >= 500) window.reportFinTalentError?.({ code: 'api_error', route: path, method: requestOptions.method || 'GET', status: response.status, request_id: requestID, duration_ms: Math.round(performance.now() - started) })
     if (response.status === 401 && redirectOnUnauthorized && window.location.pathname !== '/login') {
       const next = `${window.location.pathname}${window.location.search}`
       navigateInApp(`/login?next=${encodeURIComponent(next)}`)

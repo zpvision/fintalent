@@ -5,10 +5,14 @@ fs.mkdirSync(output, { recursive: true })
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), received = []
 let rejectEvents = false
 const report = { events: 3, max_bytes: 50 * 1048576, stored_bytes: 12345, retention_days: 14, dropped_since_start: 0, write_errors_since_start: 0, groups: [{ count: 3, first: new Date().toISOString(), last: new Date().toISOString(), sample: { source: 'worker', code: 'permission_changed', operation: 'academy.upload.finalize', user_id: 42, course_id: 10, entity_id: 'synthetic-upload', fingerprint: 'test-fingerprint', release: 'test-release' } }] }
+report.since = new Date(Date.now() - 86400000).toISOString(); report.until = new Date().toISOString(); report.timezone = 'UTC'
+report.groups.push({ category: 'external_resource', count: 1, first: report.since, last: report.until, sample: {source:'frontend',code:'resource_error',resource_url:'https://mc.yandex.ru/metrika/tag.js'} }); report.events++
+const reportQueries = []
 const html = `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/static/admin.css"><link rel="stylesheet" href="/static/admin-users.css"><meta name="fintalent-release" content="test-release"><script src="/static/error-telemetry.js"></script></head><body><div class="admin-app"><aside class="sidebar"><a class="sidebar-brand" href="/"><span>F</span><div><b>FinTalent</b><small>Проверка журнала</small></div></a><nav><button id="dictionary-nav">Справочники</button></nav></aside><main class="workspace"><header><button class="mobile-menu">☰</button><div><h1>Журнал</h1><p>Проверка</p></div></header><section id="dictionary-list"></section></main></div><script>async function api(url){const r=await fetch(url);if(!r.ok)throw Error('Ошибка');return r.json()};document.querySelector('.mobile-menu').onclick=()=>document.querySelector('.sidebar').classList.toggle('open')</script><script src="/static/admin-errors.js"></script></body></html>`
 const server = http.createServer((req, res) => {
-  if (req.url.startsWith('/api/admin/diagnostics')) { res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify(report)) }
+  if (req.url.startsWith('/api/admin/diagnostics')) { reportQueries.push(new URL(req.url, 'http://localhost').searchParams); res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify(report)) }
   if (req.url === '/api/diagnostics/events') { let data = ''; req.on('data', b => { data += b }); req.on('end', () => { received.push(JSON.parse(data)); res.writeHead(rejectEvents ? 503 : 204).end() }); return }
+  if (req.url === '/api/synthetic-network-failure') return req.socket.destroy()
   if (req.url === '/') { res.setHeader('Content-Type', 'text/html; charset=utf-8'); return res.end(html) }
   if (req.url.startsWith('/static/')) { const file = path.join(root, new URL(req.url, 'http://localhost').pathname); if (file.startsWith(path.join(root, 'static') + path.sep) && fs.existsSync(file)) { res.setHeader('Content-Type', file.endsWith('.js') ? 'text/javascript' : 'text/css'); return fs.createReadStream(file).pipe(res) } }
   res.writeHead(404).end()
@@ -36,17 +40,18 @@ const server = http.createServer((req, res) => {
       await cmd('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: width < 500 })
       await sleep(100)
       const check = await evaluate(`({overflow:document.documentElement.scrollWidth>innerWidth,rows:document.querySelectorAll('#error-journal-section tbody tr').length,download:document.querySelector('#error-journal-section a').getAttribute('href')})`)
-      if (check.overflow || check.rows !== 1 || !check.download.includes('download=1')) throw Error('Invalid admin layout: ' + JSON.stringify(check))
+      if (check.overflow || check.rows !== 2 || !check.download.includes('download=1')) throw Error('Invalid admin layout: ' + JSON.stringify(check))
       const shot = await cmd('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(path.join(output, `errors-${width}.png`), Buffer.from(shot.data, 'base64'))
     }
     await evaluate(`window.reportFinTalentError({code:'javascript_error',stack:'Error: PRIVATE_PASSWORD\\n/static/react/assets/index.js:12:3'});window.reportFinTalentError({code:'javascript_error',stack:'Error: PRIVATE_PASSWORD\\n/static/react/assets/index.js:12:3'})`)
     for (let n = 0; n < 100 && received.length === 0; n++) await sleep(50)
     if (received.length !== 1 || JSON.stringify(received).includes('PRIVATE_PASSWORD') || received[0].release !== 'test-release') throw Error('Browser reporting privacy or deduplication failed')
     rejectEvents = true
-    await evaluate(`window.reportFinTalentError({code:'network_error',route:'/api/courses'})`)
+    await evaluate(`window.reportFinTalentError({code:'network_error',route:'/api/courses',duration_ms:1234})`)
     for (let n = 0; n < 100 && received.length < 2; n++) await sleep(50)
     await sleep(150)
     if (received.length !== 2) throw Error('Telemetry failure caused retries or recursive reports')
+    if (received[1].duration_ms !== 1234 || received[1].online !== true || received[1].visibility !== 'visible') throw Error('Network context missing')
     rejectEvents = false
     await evaluate(`history.replaceState(null, '', '/profile?token=PRIVATE_TOKEN#PRIVATE_FRAGMENT');
       for (const name of ['missing-first.js', 'missing-second.js']) {
@@ -76,6 +81,16 @@ const server = http.createServer((req, res) => {
     await evaluate(`document.querySelector('#error-journal-section select').value='168';document.querySelector('#error-journal-section select').dispatchEvent(new Event('change'))`)
     await sleep(100)
     if (!await evaluate(`document.querySelector('#error-journal-section a').href.includes('hours=168')`)) throw Error('Period selection not reflected in export')
-    console.log('PASS: admin journal at 360/900/1440px; export period; browser privacy; duplicate suppression; failed telemetry does not recurse; distinct failed resources, page context and safe external URLs')
+    await evaluate(`const dates = document.querySelectorAll('#error-journal-section input'); dates[0].value='2026-11-23T12:00:00'; dates[1].value='2026-11-23T16:00:00'; dates[1].dispatchEvent(new Event('change'))`)
+    await sleep(100)
+    const expected = await evaluate(`new Date('2026-11-23T12:00:00').toISOString()`)
+    if (reportQueries.at(-1).get('since') !== expected || !reportQueries.at(-1).get('until')) throw Error('Explicit interval missing or timezone incorrect')
+    if (!await evaluate(`document.querySelectorAll('#error-journal-section h2').length === 2 && !document.querySelector('#error-journal-section').textContent.includes('Invalid Date')`)) throw Error('Categories or report timestamps missing')
+    await evaluate(`new Promise((resolve, reject) => { const script = document.createElement('script'); script.src='/static/site-errors.js'; script.onload=resolve; script.onerror=reject; document.body.append(script) })`)
+    await evaluate(`fetch('/api/synthetic-network-failure').catch(() => {})`)
+    for (let n = 0; n < 100 && received.length < 10; n++) await sleep(50)
+    const legacy = received.find(event => event.route === '/api/synthetic-network-failure')
+    if (!legacy || legacy.code !== 'network_error' || typeof legacy.duration_ms !== 'number' || legacy.online !== true || legacy.visibility !== 'visible') throw Error('Legacy fetch diagnostic context missing')
+    console.log('PASS: admin journal at 360/900/1440px; explicit interval and timezone; separate external resources; React/legacy network context; browser privacy; duplicate suppression; failed telemetry does not recurse; distinct failed resources, page context and safe external URLs')
   } finally { ws?.close(); browser.kill(); server.close() }
 })().catch(error => { console.error(error.message); process.exitCode = 1; server.close() })
