@@ -36,7 +36,7 @@ func (h *Handler) referrals(w http.ResponseWriter, r *http.Request, course, user
 	admin := h.admin(r)
 	tx, err := h.db.BeginTx(r.Context(), nil)
 	if err != nil {
-		dbError(w, err)
+		dbError(w, r, err)
 		return
 	}
 	defer tx.Rollback()
@@ -48,7 +48,7 @@ func (h *Handler) referrals(w http.ResponseWriter, r *http.Request, course, user
 		return
 	}
 	if err != nil {
-		dbError(w, err)
+		dbError(w, r, err)
 		return
 	}
 	switch {
@@ -56,7 +56,7 @@ func (h *Handler) referrals(w http.ResponseWriter, r *http.Request, course, user
 		var raw json.RawMessage
 		err = tx.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(to_jsonb(x) ORDER BY x.id),'[]') FROM (SELECT l.id,l.name,l.code,c.slug,c.status FROM course_referral_links l JOIN courses c ON c.id=l.course_id WHERE l.course_id=$1 AND l.deleted_at IS NULL) x`, course).Scan(&raw)
 		if err != nil {
-			dbError(w, err)
+			dbError(w, r, err)
 			return
 		}
 		respond(w, 200, raw)
@@ -81,11 +81,11 @@ func (h *Handler) referrals(w http.ResponseWriter, r *http.Request, course, user
 			return
 		}
 		if err != nil {
-			dbError(w, err)
+			dbError(w, r, err)
 			return
 		}
 		if err = tx.Commit(); err != nil {
-			dbError(w, err)
+			dbError(w, r, err)
 			return
 		}
 		respond(w, 201, map[string]any{"id": id})
@@ -97,7 +97,7 @@ func (h *Handler) referrals(w http.ResponseWriter, r *http.Request, course, user
 		}
 		res, e := tx.ExecContext(r.Context(), `UPDATE course_referral_links SET deleted_at=COALESCE(deleted_at,now()) WHERE id=$1 AND course_id=$2`, id, course)
 		if e != nil {
-			dbError(w, e)
+			dbError(w, r, e)
 			return
 		}
 		n, _ := res.RowsAffected()
@@ -106,7 +106,7 @@ func (h *Handler) referrals(w http.ResponseWriter, r *http.Request, course, user
 			return
 		}
 		if e = tx.Commit(); e != nil {
-			dbError(w, e)
+			dbError(w, r, e)
 			return
 		}
 		respond(w, 200, map[string]bool{"deleted": true})

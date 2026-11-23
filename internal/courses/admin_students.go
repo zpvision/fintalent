@@ -68,7 +68,7 @@ func (h *Handler) adminStudents(w http.ResponseWriter, r *http.Request) {
  'overall',(SELECT jsonb_build_object('applications',count(*),'students',count(DISTINCT user_id),'total_price',COALESCE(sum(selected_price),0),'unknown_prices',count(*) FILTER(WHERE selected_price IS NULL),'current_prices',count(*) FILTER(WHERE price_is_current AND selected_price IS NOT NULL)) FROM applications)
  )`, (page-1)*50, page, authorID, name, email).Scan(&raw)
 	if err != nil {
-		dbError(w, err)
+		dbError(w, r, err)
 		return
 	}
 	respond(w, 200, raw)
@@ -98,7 +98,7 @@ func (h *Handler) adminDeleteStudent(w http.ResponseWriter, r *http.Request) {
 	if err == sql.ErrNoRows {
 		var exists bool
 		if err := h.db.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM course_interests WHERE id=$1 AND user_id IS NOT NULL)`, id).Scan(&exists); err != nil {
-			dbError(w, err)
+			dbError(w, r, err)
 		} else if exists {
 			fail(w, 409, "Оплаченная заявка или заявка с зачислением защищена от удаления")
 		} else {
@@ -107,7 +107,7 @@ func (h *Handler) adminDeleteStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		dbError(w, err)
+		dbError(w, r, err)
 		return
 	}
 	respond(w, 200, map[string]bool{"ok": true})

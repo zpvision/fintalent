@@ -73,7 +73,12 @@ func (h *Handler) current(w http.ResponseWriter, r *http.Request) (int64, bool) 
 	}
 	return id, true
 }
-func dbError(w http.ResponseWriter, e error, operation ...string) {
+func dbError(w http.ResponseWriter, r *http.Request, e error, operation ...string) {
+	if errors.Is(e, context.Canceled) && errors.Is(r.Context().Err(), context.Canceled) {
+		// Abort an abandoned request without writing a false 500 or implicit 200.
+		// net/http handles this sentinel without logging a panic; deferred cleanup still runs.
+		panic(http.ErrAbortHandler)
+	}
 	if errors.Is(e, sql.ErrNoRows) {
 		fail(w, 404, "Курс не найден")
 		return
@@ -109,19 +114,19 @@ func (h *Handler) meta(w http.ResponseWriter, r *http.Request) {
 	var raw json.RawMessage
 	e := h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',i.id,'name',i.value) ORDER BY i.sort_order,i.id),'[]') FROM dictionary_items i JOIN dictionaries d ON d.id=i.dictionary_id WHERE d.alias='course_categories' AND i.active AND i.deleted_at IS NULL`).Scan(&raw)
 	if e != nil {
-		dbError(w, e)
+		dbError(w, r, e)
 		return
 	}
 	var features json.RawMessage
 	e = h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',i.id,'name',i.value,'key',COALESCE(b.feature_key,'')) ORDER BY i.sort_order,i.id),'[]') FROM dictionary_items i JOIN dictionaries d ON d.id=i.dictionary_id LEFT JOIN course_feature_bindings b ON b.dictionary_item_id=i.id WHERE d.alias='course_features' AND i.active AND i.deleted_at IS NULL`).Scan(&features)
 	if e != nil {
-		dbError(w, e)
+		dbError(w, r, e)
 		return
 	}
 	var lessonTypes json.RawMessage
 	e = h.db.QueryRowContext(r.Context(), `SELECT COALESCE(jsonb_agg(jsonb_build_object('id',id,'key',key,'name',name,'icon',icon) ORDER BY sort_order,id),'[]') FROM course_lesson_types WHERE active AND deleted_at IS NULL`).Scan(&lessonTypes)
 	if e != nil {
-		dbError(w, e)
+		dbError(w, r, e)
 		return
 	}
 	respond(w, 200, map[string]any{"categories": raw, "features": features, "lesson_types": lessonTypes})
@@ -143,7 +148,7 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request, where string, arg
 	}
 	rows, e := h.db.QueryContext(r.Context(), `SELECT to_jsonb(c)||jsonb_build_object('category',COALESCE(d.value,''),'author_name',u.full_name,'min_price',CASE WHEN c.pricing_mode='tariffs' THEN (SELECT MIN(t.price) FROM course_tariffs t WHERE t.course_id=c.id) ELSE c.price END)`+privateCounters+` FROM courses c JOIN users u ON u.id=c.owner_id LEFT JOIN dictionary_items d ON d.id=c.category_id WHERE `+where+` ORDER BY c.updated_at DESC,c.id DESC LIMIT `+strconv.Itoa(limit), args...)
 	if e != nil {
-		dbError(w, e)
+		dbError(w, r, e)
 		return
 	}
 	defer rows.Close()
@@ -151,13 +156,13 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request, where string, arg
 	for rows.Next() {
 		var b json.RawMessage
 		if e = rows.Scan(&b); e != nil {
-			dbError(w, e)
+			dbError(w, r, e)
 			return
 		}
 		items = append(items, b)
 	}
 	if e = rows.Err(); e != nil {
-		dbError(w, e)
+		dbError(w, r, e)
 		return
 	}
 	respond(w, 200, items)
@@ -197,7 +202,7 @@ func (h *Handler) mine(w http.ResponseWriter, r *http.Request) {
 	case "POST":
 		tx, e := h.db.BeginTx(r.Context(), nil)
 		if e != nil {
-			dbError(w, e)
+			dbError(w, r, e)
 			return
 		}
 		defer tx.Rollback()
@@ -214,7 +219,7 @@ func (h *Handler) mine(w http.ResponseWriter, r *http.Request) {
 			e = tx.Commit()
 		}
 		if e != nil {
-			dbError(w, e)
+			dbError(w, r, e)
 			return
 		}
 		respond(w, 201, map[string]int64{"id": course})
@@ -265,7 +270,7 @@ func (h *Handler) owned(w http.ResponseWriter, r *http.Request) {
 	case "GET":
 		b, e := h.detail(r.Context(), "c.id=$1 AND c.owner_id=$2", id, uid)
 		if e != nil {
-			dbError(w, e)
+			dbError(w, r, e)
 			return
 		}
 		respond(w, 200, b)
@@ -284,13 +289,13 @@ func (h *Handler) owned(w http.ResponseWriter, r *http.Request) {
 			} else if errors.Is(e, ErrChild) || errors.Is(e, ErrCategory) || errors.Is(e, ErrFeature) || errors.Is(e, ErrLessonType) || errors.Is(e, ErrCustomFeature) {
 				fail(w, 400, e.Error())
 			} else {
-				dbError(w, e)
+				dbError(w, r, e)
 			}
 			return
 		}
 		b, e := h.detail(r.Context(), "c.id=$1 AND c.owner_id=$2", id, uid)
 		if e != nil {
-			dbError(w, e)
+			dbError(w, r, e)
 			return
 		}
 		respond(w, 200, b)
@@ -306,7 +311,7 @@ func (h *Handler) public(w http.ResponseWriter, r *http.Request) {
 	}
 	b, e := h.detail(r.Context(), "c.slug=$1 AND c.status='published' AND NOT owner.is_blocked", slug)
 	if e != nil {
-		dbError(w, e)
+		dbError(w, r, e)
 		return
 	}
 	respond(w, 200, b)
@@ -314,24 +319,24 @@ func (h *Handler) public(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) transition(w http.ResponseWriter, r *http.Request, id, uid int64, action string, admin bool, reason string, expectedRevision int64) {
 	tx, e := h.db.BeginTx(r.Context(), nil)
 	if e != nil {
-		dbError(w, e)
+		dbError(w, r, e)
 		return
 	}
 	defer tx.Rollback()
 	var before json.RawMessage
 	if admin {
 		if e = LockPublication(r.Context(), tx); e != nil {
-			dbError(w, e)
+			dbError(w, r, e)
 			return
 		}
 		var locked int64
 		if e = tx.QueryRowContext(r.Context(), "SELECT id FROM courses WHERE id=$1 FOR UPDATE", id).Scan(&locked); e != nil {
-			dbError(w, e)
+			dbError(w, r, e)
 			return
 		}
 		before, e = AdministrativeCourse(r.Context(), tx, id)
 		if e != nil {
-			dbError(w, e)
+			dbError(w, r, e)
 			return
 		}
 	}
@@ -367,7 +372,7 @@ func (h *Handler) transition(w http.ResponseWriter, r *http.Request, id, uid int
 		} else if errors.Is(e, ErrConflict) {
 			fail(w, 409, e.Error())
 		} else {
-			dbError(w, e)
+			dbError(w, r, e)
 		}
 		return
 	}
@@ -407,7 +412,7 @@ func (h *Handler) adminAction(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" && action == "" {
 		b, e := h.detail(r.Context(), "c.id=$1", id)
 		if e != nil {
-			dbError(w, e)
+			dbError(w, r, e)
 			return
 		}
 		respond(w, 200, b)

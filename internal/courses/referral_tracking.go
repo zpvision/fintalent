@@ -83,7 +83,7 @@ func (h *Handler) referralVisit(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	tx, e := h.db.BeginTx(ctx, nil)
 	if e != nil {
-		dbError(w, e)
+		dbError(w, r, e)
 		return
 	}
 	defer tx.Rollback()
@@ -95,12 +95,12 @@ func (h *Handler) referralVisit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if e != nil {
-		dbError(w, e)
+		dbError(w, r, e)
 		return
 	}
 	hash, token, claimed, e := lockReferralGuest(ctx, tx, r)
 	if e != nil {
-		dbError(w, e)
+		dbError(w, r, e)
 		return
 	}
 	e = tx.QueryRowContext(ctx, `SELECT id FROM course_referral_links WHERE id=$1 AND deleted_at IS NULL FOR SHARE`, link).Scan(&link)
@@ -109,7 +109,7 @@ func (h *Handler) referralVisit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if e != nil {
-		dbError(w, e)
+		dbError(w, r, e)
 		return
 	}
 	user, _ := h.user(r)
@@ -121,7 +121,7 @@ func (h *Handler) referralVisit(w http.ResponseWriter, r *http.Request) {
 		_, e = tx.ExecContext(ctx, `INSERT INTO course_referral_guest_claims(token_hash,course_id,referral_link_id) VALUES($1,$2,$3) ON CONFLICT(token_hash,course_id) DO NOTHING`, hash, course, link)
 	}
 	if e != nil {
-		dbError(w, e)
+		dbError(w, r, e)
 		return
 	}
 	_, e = tx.ExecContext(ctx, `INSERT INTO course_referral_visitors(referral_link_id,visitor) VALUES($1,$2) ON CONFLICT(referral_link_id,visitor) DO UPDATE SET visits=course_referral_visitors.visits+1,last_at=now() WHERE course_referral_visitors.last_at<now()-interval '2 seconds'`, link, visitor)
@@ -129,7 +129,7 @@ func (h *Handler) referralVisit(w http.ResponseWriter, r *http.Request) {
 		e = tx.Commit()
 	}
 	if e != nil {
-		dbError(w, e)
+		dbError(w, r, e)
 		return
 	}
 	visitorCookie(w, r, token)
@@ -175,7 +175,7 @@ func (h *Handler) courseInterest(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	tx, e := h.db.BeginTx(ctx, nil)
 	if e != nil {
-		dbError(w, e)
+		dbError(w, r, e)
 		return
 	}
 	defer tx.Rollback()
@@ -184,19 +184,19 @@ func (h *Handler) courseInterest(w http.ResponseWriter, r *http.Request) {
 	var studentName, tariffName string
 	var selectedPrice int64
 	if e = tx.QueryRowContext(ctx, `SELECT full_name FROM users WHERE id=$1 AND NOT is_blocked`, user).Scan(&studentName); e != nil {
-		dbError(w, e)
+		dbError(w, r, e)
 		return
 	}
 	e = tx.QueryRowContext(ctx, `SELECT c.id,c.pricing_mode,c.price FROM courses c JOIN users u ON u.id=c.owner_id WHERE c.slug=$1 AND c.status='published' AND NOT u.is_blocked`, in.Slug).Scan(&course, &pricing, &selectedPrice)
 	if e != nil {
-		dbError(w, e)
+		dbError(w, r, e)
 		return
 	}
 	if in.Tariff > 0 {
 		var valid bool
 		e = tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM course_tariffs WHERE id=$1 AND course_id=$2)`, in.Tariff, course).Scan(&valid)
 		if e != nil {
-			dbError(w, e)
+			dbError(w, r, e)
 			return
 		}
 		if !valid || pricing != "tariffs" {
@@ -204,7 +204,7 @@ func (h *Handler) courseInterest(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if e = tx.QueryRowContext(ctx, `SELECT title,price FROM course_tariffs WHERE id=$1 AND course_id=$2`, in.Tariff, course).Scan(&tariffName, &selectedPrice); e != nil {
-			dbError(w, e)
+			dbError(w, r, e)
 			return
 		}
 	}
@@ -215,7 +215,7 @@ func (h *Handler) courseInterest(w http.ResponseWriter, r *http.Request) {
 	var source sql.NullInt64
 	e = tx.QueryRowContext(ctx, `SELECT referral_link_id FROM course_referral_attributions WHERE user_id=$1 AND course_id=$2`, user, course).Scan(&source)
 	if e != nil && e != sql.ErrNoRows {
-		dbError(w, e)
+		dbError(w, r, e)
 		return
 	}
 	var interestID int64
@@ -231,7 +231,7 @@ func (h *Handler) courseInterest(w http.ResponseWriter, r *http.Request) {
 		e = tx.Commit()
 	}
 	if e != nil {
-		dbError(w, e)
+		dbError(w, r, e)
 		return
 	}
 	w.WriteHeader(204)

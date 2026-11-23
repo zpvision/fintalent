@@ -24,7 +24,7 @@ func (h *Handler) Gate(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		allowed, err := h.CanAccess(r)
 		if err != nil {
-			dbError(w, err, "courses.access")
+			dbError(w, r, err, "courses.access")
 			return
 		}
 		if !allowed {
@@ -42,7 +42,7 @@ func (h *Handler) access(w http.ResponseWriter, r *http.Request) {
 	}
 	allowed, err := h.CanAccess(r)
 	if err != nil {
-		dbError(w, err, "courses.access")
+		dbError(w, r, err, "courses.access")
 		return
 	}
 	respond(w, 200, map[string]bool{"allowed": allowed})
