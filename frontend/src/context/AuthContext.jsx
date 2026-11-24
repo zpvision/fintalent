@@ -33,16 +33,18 @@ export function AuthProvider({ children }) {
   const [coursesAccessLoading, setCoursesAccessLoading] = useState(true)
   const [learningAccess, setLearningAccess] = useState(false)
  const [teachingAccess,setTeachingAccess]=useState(false)
-  const refreshLearningAccess = useCallback(async () => {
-    try { const result = await apiClient.get('/api/academy/learning/access', { redirectOnUnauthorized: false }); setLearningAccess(result.allowed === true);setTeachingAccess(result.teaching === true) }
-    catch { setLearningAccess(false);setTeachingAccess(false) }
-  }, [])
-  const refreshCoursesAccess = useCallback(async () => {
+  const refreshLearningAccess = useCallback(async (signal) => {
     try {
-      const access = await apiClient.get('/api/courses/access', { redirectOnUnauthorized: false })
-      setCoursesAccess(access.allowed === true)
-    } catch { setCoursesAccess(false) }
-    finally { setCoursesAccessLoading(false) }
+      const result = await apiClient.get('/api/academy/learning/access', { redirectOnUnauthorized: false, signal })
+      if (!signal.aborted) { setLearningAccess(result.allowed === true); setTeachingAccess(result.teaching === true) }
+    } catch { if (!signal.aborted) { setLearningAccess(false); setTeachingAccess(false) } }
+  }, [])
+  const refreshCoursesAccess = useCallback(async (signal) => {
+    try {
+      const access = await apiClient.get('/api/courses/access', { redirectOnUnauthorized: false, signal })
+      if (!signal.aborted) setCoursesAccess(access.allowed === true)
+    } catch { if (!signal.aborted) setCoursesAccess(false) }
+    finally { if (!signal.aborted) setCoursesAccessLoading(false) }
   }, [])
 
   const refresh = useCallback(async () => {
@@ -64,11 +66,17 @@ export function AuthProvider({ children }) {
     refresh()
   }, [refresh])
   useEffect(() => {
-    refreshCoursesAccess()
-    window.addEventListener('focus', refreshCoursesAccess)
-    return () => window.removeEventListener('focus', refreshCoursesAccess)
-  }, [refreshCoursesAccess, user?.id])
-  useEffect(() => { refreshLearningAccess(); window.addEventListener('focus', refreshLearningAccess); return () => window.removeEventListener('focus', refreshLearningAccess) }, [refreshLearningAccess, user?.id])
+    let controller
+    const refreshAccess = () => {
+      controller?.abort()
+      controller = new AbortController()
+      refreshCoursesAccess(controller.signal)
+      refreshLearningAccess(controller.signal)
+    }
+    refreshAccess()
+    window.addEventListener('focus', refreshAccess)
+    return () => { controller.abort(); window.removeEventListener('focus', refreshAccess) }
+  }, [refreshCoursesAccess, refreshLearningAccess, user?.id])
 
   const value = useMemo(() => ({ user, loading, refresh, coursesAccess, coursesAccessLoading, learningAccess,teachingAccess }), [user, loading, refresh, coursesAccess, coursesAccessLoading, learningAccess,teachingAccess])
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

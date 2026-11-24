@@ -44,13 +44,23 @@ export async function apiRequest(path, options = {}) {
 
   let response
   const started = performance.now()
-  try { response = await fetch(path, {
+  const fetchOptions = {
     credentials: 'include',
     ...requestOptions,
     headers: requestHeaders,
     body: requestBody,
-  }) } catch (error) {
-    if (error.name !== 'AbortError') window.reportFinTalentError?.({ code: 'network_error', route: path, method: requestOptions.method || 'GET', duration_ms: Math.round(performance.now() - started) })
+  }
+  try {
+    try { response = await fetch(path, fetchOptions) }
+    catch (error) {
+      // A read may safely recover from a dropped connection. Never replay writes.
+      if ((requestOptions.method || 'GET').toUpperCase() !== 'GET' || error.name === 'AbortError' || requestOptions.signal?.aborted) throw error
+      await new Promise(resolve => setTimeout(resolve, 300))
+      requestOptions.signal?.throwIfAborted()
+      response = await fetch(path, fetchOptions)
+    }
+  } catch (error) {
+    if (error.name !== 'AbortError' && !requestOptions.signal?.aborted) window.reportFinTalentError?.({ code: 'network_error', route: path, method: requestOptions.method || 'GET', duration_ms: Math.round(performance.now() - started) })
     throw error
   }
   const payload = response.ok && responseType === 'blob' ? await response.blob() : await parseResponse(response)

@@ -151,6 +151,7 @@ func SetUser(ctx context.Context, id int64) {
 
 type response struct {
 	http.ResponseWriter
+	ctx       context.Context
 	status    int
 	cause     string
 	stack     string
@@ -183,7 +184,14 @@ func (w *response) Flush() {
 	}
 	_ = http.NewResponseController(w.ResponseWriter).Flush()
 }
-func (w *response) DiagnosticError(err error)            { w.cause = Cause(err) }
+func (w *response) DiagnosticError(err error) {
+	// Only abandon client-cancelled requests. Internal cancellations, timeouts
+	// and unrelated database failures must still be reported.
+	if errors.Is(err, context.Canceled) && errors.Is(w.ctx.Err(), context.Canceled) {
+		panic(http.ErrAbortHandler)
+	}
+	w.cause = Cause(err)
+}
 func (w *response) DiagnosticOperation(operation string) { w.operation = Token(operation, 100) }
 func HTTPError(w http.ResponseWriter, err error, operation ...string) {
 	for {
@@ -216,7 +224,7 @@ func Middleware(next http.Handler) http.Handler {
 		w.Header().Set("X-Request-ID", id)
 		s := &requestState{}
 		r = r.WithContext(context.WithValue(r.Context(), requestKey{}, s))
-		out := &response{ResponseWriter: w, operation: "http"}
+		out := &response{ResponseWriter: w, ctx: r.Context(), operation: "http"}
 		start := time.Now()
 		defer func() {
 			code, stack := "http_5xx", out.stack

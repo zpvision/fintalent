@@ -3,6 +3,7 @@ const fs = require('fs'), path = require('path'), http = require('http'), os = r
 const root = path.resolve(__dirname, '..'), output = path.join(root, '.codex-run', 'diagnostics-preview')
 fs.mkdirSync(output, { recursive: true })
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), received = []
+const styleRequests = new Map()
 let rejectEvents = false
 const report = { events: 3, max_bytes: 50 * 1048576, stored_bytes: 12345, retention_days: 14, dropped_since_start: 0, write_errors_since_start: 0, groups: [{ count: 3, first: new Date().toISOString(), last: new Date().toISOString(), sample: { source: 'worker', code: 'permission_changed', operation: 'academy.upload.finalize', user_id: 42, course_id: 10, entity_id: 'synthetic-upload', fingerprint: 'test-fingerprint', release: 'test-release' } }] }
 report.since = new Date(Date.now() - 86400000).toISOString(); report.until = new Date().toISOString(); report.timezone = 'UTC'
@@ -10,6 +11,14 @@ report.groups.push({ category: 'external_resource', count: 1, first: report.sinc
 const reportQueries = []
 const html = `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/static/admin.css"><link rel="stylesheet" href="/static/admin-users.css"><meta name="fintalent-release" content="test-release"><script src="/static/error-telemetry.js"></script></head><body><div class="admin-app"><aside class="sidebar"><a class="sidebar-brand" href="/"><span>F</span><div><b>FinTalent</b><small>Проверка журнала</small></div></a><nav><button id="dictionary-nav">Справочники</button></nav></aside><main class="workspace"><header><button class="mobile-menu">☰</button><div><h1>Журнал</h1><p>Проверка</p></div></header><section id="dictionary-list"></section></main></div><script>async function api(url){const r=await fetch(url);if(!r.ok)throw Error('Ошибка');return r.json()};document.querySelector('.mobile-menu').onclick=()=>document.querySelector('.sidebar').classList.toggle('open')</script><script src="/static/admin-errors.js"></script></body></html>`
 const server = http.createServer((req, res) => {
+  const pathname = new URL(req.url, 'http://localhost').pathname
+  if (['/static/retry-check.css', '/static/persistent-check.css', '/static/page-check.css'].includes(pathname)) {
+    const count = (styleRequests.get(pathname) || 0) + 1
+    styleRequests.set(pathname, count)
+    res.setHeader('Content-Type', 'text/css')
+    if (pathname !== '/static/retry-check.css' || count === 1) return res.writeHead(503).end()
+    return res.end('body { --recovered-style: 1; }')
+  }
   if (req.url.startsWith('/api/admin/diagnostics')) { reportQueries.push(new URL(req.url, 'http://localhost').searchParams); res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify(report)) }
   if (req.url === '/api/diagnostics/events') { let data = ''; req.on('data', b => { data += b }); req.on('end', () => { received.push(JSON.parse(data)); res.writeHead(rejectEvents ? 503 : 204).end() }); return }
   if (req.url === '/api/synthetic-network-failure') return req.socket.destroy()
@@ -91,6 +100,23 @@ const server = http.createServer((req, res) => {
     for (let n = 0; n < 100 && received.length < 10; n++) await sleep(50)
     const legacy = received.find(event => event.route === '/api/synthetic-network-failure')
     if (!legacy || legacy.code !== 'network_error' || typeof legacy.duration_ms !== 'number' || legacy.online !== true || legacy.visibility !== 'visible') throw Error('Legacy fetch diagnostic context missing')
+    await evaluate(`new Promise((resolve, reject) => { const script = document.createElement('script'); script.src='/static/style-recovery.js'; script.onload=resolve; script.onerror=reject; document.body.append(script) })`)
+    await evaluate(`for (const name of ['retry', 'persistent', 'page']) {
+      const link = document.createElement('link'); link.rel = 'stylesheet'; link.id = name + '-check';
+      if (name === 'page') link.dataset.reactPageStyle = 'true';
+      link.href = '/static/' + name + '-check.css?v=original'; document.head.append(link);
+    }`)
+    for (let n = 0; n < 100; n++) {
+      if (styleRequests.get('/static/persistent-check.css') === 3 && await evaluate(`!!document.querySelector('#retry-check').sheet`)) break
+      await sleep(50)
+    }
+    await sleep(600)
+    if (styleRequests.get('/static/retry-check.css') !== 2 || styleRequests.get('/static/persistent-check.css') !== 3 || styleRequests.get('/static/page-check.css') !== 1) throw Error('Stylesheet recovery or retry bound failed')
+    if (!await evaluate(`document.querySelector('#retry-check').sheet && new URL(document.querySelector('#retry-check').href).searchParams.get('v') === 'original'`)) throw Error('Stylesheet did not recover or version was lost')
+    await evaluate(`window.dispatchEvent(new Event('online'))`)
+    await sleep(600)
+    if (styleRequests.get('/static/persistent-check.css') !== 3) throw Error('Online event bypassed retry bound')
+    console.log('PASS: failed shared stylesheet recovers in place; versions preserved; persistent failures stop after two retries; page styles keep their own loader')
     console.log('PASS: admin journal at 360/900/1440px; explicit interval and timezone; separate external resources; React/legacy network context; browser privacy; duplicate suppression; failed telemetry does not recurse; distinct failed resources, page context and safe external URLs')
   } finally { ws?.close(); browser.kill(); server.close() }
 })().catch(error => { console.error(error.message); process.exitCode = 1; server.close() })
