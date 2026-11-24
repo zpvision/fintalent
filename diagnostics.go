@@ -119,8 +119,21 @@ func adminErrorReport(w http.ResponseWriter, r *http.Request) {
 	if !requireAdmin(w, r) {
 		return
 	}
-	if r.Method != http.MethodGet {
+	if r.Method != http.MethodGet && r.Method != http.MethodDelete {
 		writeJSON(w, 405, "Метод не поддерживается")
+		return
+	}
+	if r.Method == http.MethodDelete {
+		if errorJournal == nil {
+			writeJSON(w, 503, "Журнал недоступен")
+			return
+		}
+		if err := errorJournal.Clear(); err != nil {
+			writeJSON(w, 503, "Не удалось удалить ошибки. Повторите попытку")
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	since, until, err := diagnostics.ParsePeriod(r.URL.Query(), time.Now())

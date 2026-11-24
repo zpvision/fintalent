@@ -5,11 +5,12 @@ fs.mkdirSync(output, { recursive: true })
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms)), received = []
 const styleRequests = new Map()
 let rejectEvents = false
+let rejectClear = false, clearRequests = 0
 const report = { events: 3, max_bytes: 50 * 1048576, stored_bytes: 12345, retention_days: 14, dropped_since_start: 0, write_errors_since_start: 0, groups: [{ count: 3, first: new Date().toISOString(), last: new Date().toISOString(), sample: { source: 'worker', code: 'permission_changed', operation: 'academy.upload.finalize', user_id: 42, course_id: 10, entity_id: 'synthetic-upload', fingerprint: 'test-fingerprint', release: 'test-release' } }] }
 report.since = new Date(Date.now() - 86400000).toISOString(); report.until = new Date().toISOString(); report.timezone = 'UTC'
 report.groups.push({ category: 'external_resource', count: 1, first: report.since, last: report.until, sample: {source:'frontend',code:'resource_error',resource_url:'https://mc.yandex.ru/metrika/tag.js'} }); report.events++
 const reportQueries = []
-const html = `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/static/admin.css"><link rel="stylesheet" href="/static/admin-users.css"><meta name="fintalent-release" content="test-release"><script src="/static/error-telemetry.js"></script></head><body><div class="admin-app"><aside class="sidebar"><a class="sidebar-brand" href="/"><span>F</span><div><b>FinTalent</b><small>Проверка журнала</small></div></a><nav><button id="dictionary-nav">Справочники</button></nav></aside><main class="workspace"><header><button class="mobile-menu">☰</button><div><h1>Журнал</h1><p>Проверка</p></div></header><section id="dictionary-list"></section></main></div><script>async function api(url){const r=await fetch(url);if(!r.ok)throw Error('Ошибка');return r.json()};document.querySelector('.mobile-menu').onclick=()=>document.querySelector('.sidebar').classList.toggle('open')</script><script src="/static/admin-errors.js"></script></body></html>`
+const html = `<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/static/admin.css"><link rel="stylesheet" href="/static/admin-users.css"><meta name="fintalent-release" content="test-release"><script src="/static/error-telemetry.js"></script></head><body><div class="admin-app"><aside class="sidebar"><a class="sidebar-brand" href="/"><span>F</span><div><b>FinTalent</b><small>Проверка журнала</small></div></a><nav><button id="dictionary-nav">Справочники</button></nav></aside><main class="workspace"><header><button class="mobile-menu">☰</button><div><h1>Журнал</h1><p>Проверка</p></div></header><section id="dictionary-list"></section></main></div><script>async function api(url,options){const r=await fetch(url,options);if(!r.ok)throw Error('Ошибка');return r.status===204?{}:r.json()};document.querySelector('.mobile-menu').onclick=()=>document.querySelector('.sidebar').classList.toggle('open')</script><script src="/static/admin-errors.js"></script></body></html>`
 const server = http.createServer((req, res) => {
   const pathname = new URL(req.url, 'http://localhost').pathname
   if (['/static/retry-check.css', '/static/persistent-check.css', '/static/page-check.css'].includes(pathname)) {
@@ -19,7 +20,15 @@ const server = http.createServer((req, res) => {
     if (pathname !== '/static/retry-check.css' || count === 1) return res.writeHead(503).end()
     return res.end('body { --recovered-style: 1; }')
   }
-  if (req.url.startsWith('/api/admin/diagnostics')) { reportQueries.push(new URL(req.url, 'http://localhost').searchParams); res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify(report)) }
+  if (req.url.startsWith('/api/admin/diagnostics')) {
+    if (req.method === 'DELETE') {
+      clearRequests++
+      if (rejectClear) return res.writeHead(503).end()
+      report.events = 0; report.groups = []; report.stored_bytes = 0
+      return setTimeout(() => res.writeHead(204).end(), 100)
+    }
+    reportQueries.push(new URL(req.url, 'http://localhost').searchParams); res.setHeader('Content-Type', 'application/json'); return res.end(JSON.stringify(report))
+  }
   if (req.url === '/api/diagnostics/events') { let data = ''; req.on('data', b => { data += b }); req.on('end', () => { received.push(JSON.parse(data)); res.writeHead(rejectEvents ? 503 : 204).end() }); return }
   if (req.url === '/api/synthetic-network-failure') return req.socket.destroy()
   if (req.url === '/') { res.setHeader('Content-Type', 'text/html; charset=utf-8'); return res.end(html) }
@@ -116,6 +125,23 @@ const server = http.createServer((req, res) => {
     await evaluate(`window.dispatchEvent(new Event('online'))`)
     await sleep(600)
     if (styleRequests.get('/static/persistent-check.css') !== 3) throw Error('Online event bypassed retry bound')
+    await evaluate(`window.confirm = () => false; document.querySelector('#clear-errors').click()`)
+    await sleep(100)
+    if (clearRequests !== 0) throw Error('Cancelled deletion sent a request')
+    rejectClear = true
+    await evaluate(`window.confirm = () => true; document.querySelector('#clear-errors').click()`)
+    for (let n = 0; n < 100; n++) { if (await evaluate(`!document.querySelector('#clear-errors').disabled && document.querySelector('#error-journal-section p[role=status]').textContent === 'Ошибка'`)) break; await sleep(50) }
+    if (clearRequests !== 1 || !await evaluate(`document.querySelectorAll('#error-journal-section tbody tr').length === 2 && !document.querySelector('#clear-errors').disabled`)) throw Error('Failed deletion discarded the report or prevented retry')
+    rejectClear = false
+    const freshGroup = report.groups[0]
+    await evaluate(`document.querySelector('#clear-errors').click(); document.querySelector('#clear-errors').click()`)
+    for (let n = 0; n < 100; n++) { if (await evaluate(`!document.querySelector('#clear-errors').disabled && document.querySelector('#error-journal-section p[role=status]').textContent.includes('Событий: 0.')`)) break; await sleep(50) }
+    if (clearRequests !== 2 || !await evaluate(`!document.querySelector('#error-journal-section tbody tr') && [...document.querySelectorAll('#error-journal-section input')].every(input => !input.value)`)) throw Error('Clear did not refresh the report, reset dates or suppress duplicate clicks')
+    report.events = 1; report.groups = [{ ...freshGroup, count: 1 }]
+    await evaluate(`document.querySelector('#error-journal-section button.secondary').click()`)
+    for (let n = 0; n < 100; n++) { if (await evaluate(`document.querySelectorAll('#error-journal-section tbody tr').length === 1`)) break; await sleep(50) }
+    if (!await evaluate(`document.querySelectorAll('#error-journal-section tbody tr').length === 1`)) throw Error('New errors were not visible after clearing')
+    console.log('PASS: cancel deletion; failed deletion preserves report; successful deletion clears all categories and dates; duplicate clicks blocked; fresh errors load')
     console.log('PASS: failed shared stylesheet recovers in place; versions preserved; persistent failures stop after two retries; page styles keep their own loader')
     console.log('PASS: admin journal at 360/900/1440px; explicit interval and timezone; separate external resources; React/legacy network context; browser privacy; duplicate suppression; failed telemetry does not recurse; distinct failed resources, page context and safe external URLs')
   } finally { ws?.close(); browser.kill(); server.close() }

@@ -12,6 +12,7 @@
   const refresh = document.createElement('button'); refresh.type = 'button'; refresh.className = 'secondary'; refresh.textContent = 'Обновить'
   const download = document.createElement('a'); download.className = 'secondary'; download.textContent = 'Скачать JSON'; download.href = '/api/admin/diagnostics?hours=24&download=1'; download.style.cssText = 'display:inline-flex;align-items:center;min-height:44px;text-decoration:none;font:inherit'
   refresh.style.cssText = 'min-height:44px;font:inherit'
+  const clear = document.createElement('button'); clear.type = 'button'; clear.id = 'clear-errors'; clear.className = 'secondary'; clear.textContent = 'Удалить все ошибки'; clear.style.cssText = 'min-height:44px;font:inherit;color:#b42318'
   const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'местное время'
   const dates = ['С', 'По'].map(text => {
     const label = document.createElement('label'); label.textContent = text + ' (' + zone + '): '
@@ -20,13 +21,15 @@
     label.style.cssText = 'max-width:100%;min-width:0'; label.append(input); return { label, input }
   })
   const [since, until] = dates.map(item => item.input)
-  controls.append(label, ...dates.map(item => item.label), refresh, download)
+  controls.append(label, ...dates.map(item => item.label), refresh, download, clear)
   const summary = document.createElement('p'); summary.setAttribute('role', 'status')
   const content = document.createElement('div'); section.append(controls, summary, content)
   const names = { backend: 'Сервер', frontend: 'Браузер', worker: 'Фоновая задача', startup: 'Запуск' }
   const formatTime = value => new Date(value).toLocaleString('ru-RU')
   let loadID = 0
+  let clearing = false
   async function loadErrors() {
+    if (clearing) return
     const currentLoad = ++loadID
     download.removeAttribute('href')
     refresh.disabled = true; summary.textContent = 'Загружаем журнал…'
@@ -78,6 +81,24 @@
   }
   nav.addEventListener('click', event => { const target = event.target.closest('button'); if (target && target !== button) section.classList.add('hidden') }, true)
   refresh.onclick = loadErrors
+  clear.onclick = async () => {
+    if (clearing || !confirm('Удалить все ошибки за все периоды, включая ошибки внешних ресурсов? Новые ошибки продолжат записываться.')) return
+    clearing = true; ++loadID
+    clear.disabled = refresh.disabled = period.disabled = since.disabled = until.disabled = true
+    download.removeAttribute('href')
+    summary.textContent = 'Удаляем все ошибки…'
+    try {
+      await api('/api/admin/diagnostics', { method: 'DELETE' })
+      content.replaceChildren()
+      since.value = ''; until.value = ''
+      clearing = false
+      await loadErrors()
+    } catch (error) { summary.textContent = error.message || 'Не удалось удалить ошибки' }
+    finally {
+      clearing = false
+      clear.disabled = refresh.disabled = period.disabled = since.disabled = until.disabled = false
+    }
+  }
   period.onchange = () => { since.value = ''; until.value = ''; void loadErrors() }
   since.onchange = until.onchange = loadErrors
 })()

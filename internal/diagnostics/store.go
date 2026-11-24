@@ -61,12 +61,18 @@ type Store struct {
 	writeErrors    atomic.Uint64
 	lastWriteError time.Time
 	// Bound both event rate and disk writes during error storms.
-	window    time.Time
-	accepted  int
-	pending   chan Event
-	stop      chan struct{}
-	done      chan struct{}
-	closeOnce sync.Once
+	window     time.Time
+	accepted   int
+	generation atomic.Uint64
+	pending    chan queuedEvent
+	stop       chan struct{}
+	done       chan struct{}
+	closeOnce  sync.Once
+}
+
+type queuedEvent struct {
+	event      Event
+	generation uint64
 }
 
 var current atomic.Pointer[Store]
@@ -79,6 +85,7 @@ func Emit(e Event) {
 }
 
 func (s *Store) Submit(e Event) {
+	queued := queuedEvent{event: e, generation: s.generation.Load()}
 	select {
 	case <-s.stop:
 		s.dropped.Add(1)
@@ -86,7 +93,7 @@ func (s *Store) Submit(e Event) {
 	default:
 	}
 	select {
-	case s.pending <- e:
+	case s.pending <- queued:
 	default:
 		s.dropped.Add(1)
 	}
@@ -99,7 +106,7 @@ func (s *Store) run() {
 	for {
 		select {
 		case e := <-s.pending:
-			s.Record(e)
+			s.record(e.event, e.generation)
 		case <-ticker.C:
 			if err := s.Cleanup(); err != nil {
 				s.writeErrors.Add(1)
@@ -108,7 +115,7 @@ func (s *Store) run() {
 			for {
 				select {
 				case e := <-s.pending:
-					s.Record(e)
+					s.record(e.event, e.generation)
 				default:
 					return
 				}
@@ -138,7 +145,7 @@ func Open(c Config) (*Store, error) {
 	if err = os.MkdirAll(c.Dir, 0700); err != nil {
 		return nil, err
 	}
-	s := &Store{cfg: c, now: time.Now, pending: make(chan Event, 256), stop: make(chan struct{}), done: make(chan struct{})}
+	s := &Store{cfg: c, now: time.Now, pending: make(chan queuedEvent, 256), stop: make(chan struct{}), done: make(chan struct{})}
 	if err = s.Cleanup(); err != nil {
 		return nil, err
 	}
@@ -180,6 +187,23 @@ func (s *Store) cleanupLocked() error {
 
 func (s *Store) Cleanup() error { s.mu.Lock(); defer s.mu.Unlock(); return s.cleanupLocked() }
 
+// Clear removes this journal's files across all periods. Events submitted before
+// the clear are discarded even if the background writer has already dequeued them.
+func (s *Store) Clear() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.generation.Add(1)
+	for i := 0; i < 10; i++ {
+		if err := os.Remove(s.path(i)); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	s.window = time.Time{}
+	s.accepted = 0
+	s.lastWriteError = time.Time{}
+	return nil
+}
+
 func (s *Store) rotate() error {
 	if err := os.Remove(s.path(s.cfg.Files - 1)); err != nil && !os.IsNotExist(err) {
 		return err
@@ -193,8 +217,15 @@ func (s *Store) rotate() error {
 }
 
 func (s *Store) Record(e Event) {
+	s.record(e, s.generation.Load())
+}
+
+func (s *Store) record(e Event, generation uint64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if generation != s.generation.Load() {
+		return
+	}
 	now := s.now()
 	if now.Sub(s.window) >= time.Minute || s.window.IsZero() {
 		s.window = now
