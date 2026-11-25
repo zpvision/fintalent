@@ -1,0 +1,107 @@
+.profile-navigation > .profile-navigation-toggle {
+  display: none;
+}
+
+@media (max-width: 850px) {
+  .dashboard-layout.profile-navigation {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .profile-navigation > .profile-navigation-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 46px;
+    padding: 12px 16px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--blue, #1559f6);
+    font: 600 14px Inter, Arial, sans-serif;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .profile-navigation > .profile-sidebar {
+    display: none;
+    position: static;
+    width: 100%;
+    height: auto;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+
+  .profile-navigation-open > .profile-sidebar {
+    display: flex;
+  }
+
+  .profile-navigation .profile-sidebar .sidebar-actions {
+    display: flex;
+    margin-bottom: 8px;
+  }
+
+  .profile-navigation .profile-sidebar .sidebar-actions .create-action {
+    justify-content: flex-start;
+    padding: 0 14px;
+  }
+
+  .profile-navigation .profile-sidebar .sidebar-actions .create-action span {
+    display: block;
+    font-size: 12px;
+  }
+
+  .profile-navigation .profile-menu {
+    display: block;
+    margin: 0;
+  }
+
+  .profile-navigation .profile-menu .menu-group,
+  .profile-navigation .profile-menu .menu-group:not(:first-child) {
+    display: block !important;
+    width: 100%;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .profile-navigation .profile-menu .menu-group > small {
+    display: block;
+  }
+
+  .profile-navigation .profile-menu .menu-group a {
+    display: flex;
+    justify-content: flex-start;
+    gap: 10px;
+    width: 100%;
+    min-height: 44px;
+    height: auto;
+    padding: 10px;
+    font-size: 13px;
+  }
+
+  .profile-navigation .profile-menu a span {
+    display: block;
+    min-width: 0;
+  }
+
+  .profile-navigation .profile-sidebar .sidebar-user {
+    justify-content: flex-start;
+    margin-top: 12px;
+  }
+
+  .profile-navigation .sidebar-user span,
+  .profile-navigation .sidebar-user button {
+    display: block;
+  }
+
+  .profile-navigation .sidebar-user button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .profile-navigation > .dashboard-main {
+    padding-bottom: 12px;
+  }
+}

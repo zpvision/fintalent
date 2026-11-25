@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
+import './user-navigation.css'
 import { apiClient } from '../api/client'
 import { useAuth } from '../context/AuthContext'
 import { navigateInApp } from '../navigation'
@@ -10,6 +11,10 @@ const Icon = ({ children }) => <i aria-hidden="true">{children}</i>
 const MenuFire = () => <img className="menu-fire" src="/static/icons/fire.svg?v=1" alt="" aria-hidden="true" />
 
 export default function UserLayout({ children, active = '' }) {
+  const location = useLocation()
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuToggle = useRef(null)
+  useEffect(() => { setMenuOpen(false) }, [location.key])
   const { user, loading, refresh, coursesAccess,teachingAccess } = useAuth()
   const [resume, setResume] = useState(null)
   const [marketOrders,setMarketOrders]=useState({total_count:0,new_count:0})
@@ -64,8 +69,10 @@ export default function UserLayout({ children, active = '' }) {
 
   return <>
     <SiteHeader />
-    <div className="dashboard-layout"><aside className="profile-sidebar"><div className="sidebar-actions"><Link className="create-action vacancy-action" to="/vacancies/create"><strong>＋</strong><span><b>Создать вакансию</b><small>Найдите специалиста</small></span></Link><Link className="create-action resume-action" to={resumeHref}><strong>▣</strong><span><b>{resume?.published ? 'Мой профиль (просмотр)' : 'Создать профиль'}</b><small>{resume?.published ? 'Посмотреть опубликованный профиль' : 'Расскажите о своём опыте'}</small></span></Link></div>
-      <nav className="profile-menu">
+    <div className={`dashboard-layout profile-navigation${menuOpen ? ' profile-navigation-open' : ''}`} onKeyDown={event => { if (event.key === 'Escape' && menuOpen) { setMenuOpen(false); menuToggle.current?.focus() } }}>
+      <button ref={menuToggle} type="button" className="profile-navigation-toggle" aria-expanded={menuOpen} aria-controls="profile-navigation-panel" onClick={() => setMenuOpen(open => !open)}><span aria-hidden="true">{menuOpen ? '✕' : '☰'}</span>{menuOpen ? 'Закрыть меню кабинета' : 'Меню кабинета'}</button>
+      <aside id="profile-navigation-panel" className="profile-sidebar"><div className="sidebar-actions"><Link className="create-action vacancy-action" to="/vacancies/create"><strong>＋</strong><span><b>Создать вакансию</b><small>Найдите специалиста</small></span></Link><Link className="create-action resume-action" to={resumeHref}><strong>▣</strong><span><b>{resume?.published ? 'Мой профиль (просмотр)' : 'Создать профиль'}</b><small>{resume?.published ? 'Посмотреть опубликованный профиль' : 'Расскажите о своём опыте'}</small></span></Link></div>
+      <nav className="profile-menu" aria-label="Разделы личного кабинета">
         <div className="menu-group"><a className="home-link" href="/"><Icon>⌂</Icon><span>На главную</span></a></div>
         <div className="menu-group"><small>Для компаний</small><a className={active === 'vacancies' ? 'active' : ''} href="/profile?section=vacancies" target="_self"><Icon>▣</Icon><span>Мои вакансии</span></a><a className={active === 'tests' ? 'active' : ''} href="/tests?tab=mine" target="_self"><Icon>♧</Icon><span>Мои тесты</span><b className="menu-new"><MenuFire/>Новое</b></a><a className={active === 'employee-tests' ? 'active' : ''} href="/tests?tab=employees" target="_self"><Icon>♙</Icon><span>Тестирование сотрудников</span></a><a className={active === 'my-company' ? 'active' : ''} href="/profile?section=my-company" target="_self"><Icon>▦</Icon><span>Моя компания</span></a></div>
         <div className="menu-group"><small>О компании</small><a className={active === 'messages' ? 'active' : ''} href="/profile?section=messages" target="_self"><Icon>✉</Icon><span>Сообщения</span>{contactRequests>0&&<b className="help-request-count" aria-label={`${contactRequests} новых запросов`}>{contactRequests>99?'99+':contactRequests}</b>}</a><a className={`profile-market-link${active === 'profimarket' ? ' active' : ''}`} href="/profile?section=profimarket" target="_self"><Icon>◇</Icon><span>ПрофиМаркет</span><b className="menu-new"><MenuFire/>Новое</b>{marketOrders.new_count > 0 && <b className="market-order-count" aria-label={`${marketOrders.new_count} новых обращений`}>{marketOrders.new_count}</b>}</a>{coursesAccess && <Link className={active === 'courses' ? 'active' : ''} to="/profile/courses"><Icon>▤</Icon><span>Мои курсы</span>{courseRequests > 0 && <b className="help-request-count" aria-label={`${courseRequests} новых заявок на курсы`}>{courseRequests}</b>}</Link>}{coursesAccess && teachingAccess && <Link className={active === 'academy-teaching' ? 'active' : ''} to="/profile/academy"><Icon>♧</Icon><span>Преподавание</span></Link>}{coursesAccess && <Link className={active === 'learning' ? 'active' : ''} to="/profile/learning"><Icon>▥</Icon><span>Моё обучение</span></Link>}<a className={active === 'profimarket-purchases' ? 'active' : ''} href="/profile?section=profimarket-purchases" target="_self"><Icon>▣</Icon><span>Мои покупки</span></a><a className={active === 'client-exchange' ? 'active' : ''} href="/profile?section=client-exchange" target="_self"><Icon>▤</Icon><span>Клиентская биржа</span></a><a className={active === 'help' ? 'active' : ''} href="/profile?section=help" target="_self"><Icon>♧</Icon><span>Помощь коллегам</span>{helpRequests>0&&<b className="help-request-count" aria-label={`${helpRequests} новых запросов помощи`}>{helpRequests>99?'99+':helpRequests}</b>}</a><a className={active === 'profile' ? 'active' : ''} href="/profile" target="_self"><Icon>▤</Icon><span>Профиль и настройки</span></a></div>
